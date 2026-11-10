@@ -107,3 +107,8 @@
 - 变更：`INDEX.md` 阶段更新为“M1 进行中（T1.1–T1.10 完成）”，下一步指向 T1.11。
 - 验证：与 `TASKS.md` 状态一致。
 - 下一步：T1.11（zip 容器读取器与安全校验）。
+
+## 022 · 2026-11-10 · feat: 实现 zip 容器读取器与安全校验
+- 变更：新增 `src/core/zip-reader.js`（`readZip`/`listZip`/`assertSafeEntryName`：EOCD 定位、central directory 遍历、local data 读取、inflate/CRC 校验、安全名称拒绝）；`errors.js` 增加 `E_PACK_INVALID`；新增 `tests/unit/zip-reader.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 84 passed / 0 failed（正常、目录、截断、`../`、反斜杠、盘符、CRC、坏 deflate、关闭校验、非 zip）。
+- 下一步：T1.12（路径映射）。
