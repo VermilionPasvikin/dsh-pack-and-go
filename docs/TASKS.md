@@ -43,7 +43,7 @@
 | T1.1 | 建立 `src/core/` 与 `tests/unit/`，根 `package.json` 设 `"type": "module"`；每个模块先给空导出骨架 | — | `node --check` 对每个文件通过；`node --test "tests/unit/**/*.test.mjs"` 可运行 | ✅ 2026-11-10 |
 | T1.2 | 定义包格式 v2 的 JS 类型与常量（`manifest`、`session`、`attachment`、`workspace`、`mapping`、`schemaVersion`） | T1.1 | 示例 JSON 通过 `validateManifest()` 单测（合法 + 缺字段 + 版本过高） | ✅ 2026-11-10 |
 | T1.3 | 实现 `manifest` 读写与版本校验（SPEC §8 字段） | T1.2 | 单测：合法 manifest 往返一致；未知字段保留；版本过高抛明确错误 | ✅ 2026-11-10 |
-| T1.4 | **技术验证**：Node 内置 zstd 对多帧会话文件的解码行为；确定帧扫描方案并写 ADR | T1.1 | 脚本对真实 `session.v4.jsonl.zstd` 解出全部事件；ADR-0007 记录方案与限制 | 🟨 验证完成，待 ADR-0007 拍板 |
+| T1.4 | **技术验证**：Node 内置 zstd 对多帧会话文件的解码行为；确定帧扫描方案并写 ADR | T1.1 | 脚本对真实 `session.v4.jsonl.zstd` 解出全部事件；ADR-0007 记录方案与限制 | ✅ 2026-11-10 |
 | T1.5 | 实现 zstd 帧扫描 `scanFrames(buffer)`：返回每帧起止偏移 | T1.4 | 单测：header 帧、事件帧、尾帧、截断帧、损坏帧各一例 | ⬜ |
 | T1.6 | 实现 `rewriteSessionCwd(file, newCwd)`：解首帧、改 cwd、重压缩、拼接其余帧原字节 | T1.4, T1.5 | 单测：行数不变、header cwd 正确、其余帧字节完全一致 | ⬜ |
 | T1.7 | 复刻路径规则 `projectKey(cwd)` / `encodeSegment(id)`（对照源码规则） | T1.1 | 单测用例：Windows/POSIX/中文/`..`/超长/空 → 与源码算法一致 | ⬜ |
@@ -71,6 +71,7 @@
 | T2.9 | 实现工作区登记与合并（`workspaceRegistry.create` 复用；不存在则创建） | T2.6 | 一次性 home 中侧边栏出现工作区与归组会话 | ⬜ |
 | T2.10 | 实现备份与回滚（覆盖前备份、失败恢复） | T2.7 | 单测：覆盖后旧文件在 `backups/mover/<时间戳>`；失败可回滚 | ⬜ |
 | T2.11 | 暴露 Remote 接口（导出/导入/进度流/任务取消），供 Client 调用 | T2.5, T2.6 | 安装后用 `cordis_inspect_query` 确认 Remote 方法存在 | ⬜ |
+| T2.12 | 跨版本导入兜底（ADR-0007 方案 C）：用 `sessionPersistence` 读逻辑事件，`create`(新 header) + `append` 重建会话 | T2.2, T2.6 | 单测/一次性 home：v3 源文件可导入为 v4，事件数一致 | ⬜ |
 
 ### M3 Web UI
 
