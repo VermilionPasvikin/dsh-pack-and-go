@@ -61,6 +61,8 @@ window.__ModuleLoader__.load({
         previewCounts: (sessions, workspaces, attachments) =>
           `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
         previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按默认策略处理）`,
+        placeOriginal: '放回原路径',
+        placeFolder: '指定目录',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -121,6 +123,8 @@ window.__ModuleLoader__.load({
         previewCounts: (sessions, workspaces, attachments) =>
           `${sessions} conversations · ${workspaces} workspaces · ${attachments} attachments`,
         previewConflicts: (n) => `${n} conflicts with current data (handled by default policy)`,
+        placeOriginal: 'Restore original path',
+        placeFolder: 'Choose folder',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -404,6 +408,7 @@ window.__ModuleLoader__.load({
       const [preflightEnabled, setPreflightEnabled] = useState(false)
       const [extraExclude, setExtraExclude] = useState('')
       const [preview, setPreview] = useState(null)
+      const [placeMode, setPlaceMode] = useState('original')
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -813,6 +818,10 @@ window.__ModuleLoader__.load({
       async function startImport() {
         if (importPackPath.trim().length === 0) {
           setError(t.importNeedsPack)
+          return
+        }
+        if (placeMode === 'original') {
+          await runCommand(`/mover import "${importPackPath.trim()}" --original`, t.importDone)
           return
         }
         const target = importTarget.trim()
@@ -1232,6 +1241,32 @@ window.__ModuleLoader__.load({
           ),
           h(
             'div',
+            { style: { display: 'flex', gap: 14, fontSize: 12, marginBottom: 8, color: THEME.text } },
+            h(
+              'label',
+              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+              h('input', {
+                type: 'radio',
+                name: 'mover-place',
+                checked: placeMode === 'original',
+                onChange: () => setPlaceMode('original'),
+              }),
+              h('span', null, t.placeOriginal),
+            ),
+            h(
+              'label',
+              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+              h('input', {
+                type: 'radio',
+                name: 'mover-place',
+                checked: placeMode === 'folder',
+                onChange: () => setPlaceMode('folder'),
+              }),
+              h('span', null, t.placeFolder),
+            ),
+          ),
+          h(
+            'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
             h('input', {
               type: 'text',
@@ -1353,14 +1388,16 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-            h('input', {
-              type: 'text',
-              value: importTarget,
-              placeholder: t.targetPlaceholder,
-              onChange: (event) => setImportTarget(event.target.value),
-              disabled: busy,
-              style: fieldStyle(),
-            }),
+            placeMode === 'folder'
+              ? h('input', {
+                  type: 'text',
+                  value: importTarget,
+                  placeholder: t.targetPlaceholder,
+                  onChange: (event) => setImportTarget(event.target.value),
+                  disabled: busy,
+                  style: fieldStyle(),
+                })
+              : null,
             h(
               'button',
               { type: 'button', onClick: startImport, disabled: busy, style: primaryButtonStyle(busy) },

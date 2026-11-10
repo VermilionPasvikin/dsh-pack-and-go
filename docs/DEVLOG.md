@@ -397,6 +397,11 @@
 - 验证：`tests/unit/commands.test.mjs` 11 项（含 inspect）、`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.15（导入落点与路径映射）。
 
+## 075 · 2026-11-10 · feat: 导入落点与路径映射（T3.15）
+- 变更：Host `mover import` 支持 `--original`（放回源路径，校验当前平台可用性）与指定目录两种落点；结果文本附工作区路径映射表；导入页新增「放回原路径 / 指定目录」单选，仅指定目录模式显示目标输入框。
+- 验证：`tests/unit/commands.test.mjs` 11 项、`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.17（附件显示与缺失报告）；D3 先写 ADR-0010。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

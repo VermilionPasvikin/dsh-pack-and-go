@@ -12,7 +12,7 @@
 import { access, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 
 import {
   buildManifest,
@@ -471,10 +471,12 @@ export async function inspectPack(deps, packPath) {
  * @param {object} deps
  * @param {string} packPath
  * @param {string} [targetRoot] 省略时使用 `~/dsh-mover-import`
+ * @param {{ original?: boolean }} [options] original=true 时放回源路径
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
-export async function importPack(deps, packPath, targetRoot) {
+export async function importPack(deps, packPath, targetRoot, options = {}) {
   if (!packPath) return errorResult(`缺少迁移包路径。${USAGE}`)
+  const useOriginal = options.original === true
   const root = typeof targetRoot === 'string' && targetRoot.length > 0
     ? targetRoot
     : join(homedir(), 'dsh-mover-import')
@@ -487,8 +489,24 @@ export async function importPack(deps, packPath, targetRoot) {
 
     const platform = deps.platform ?? process.platform
     const pathMap = { byKey: {} }
+    const mappings = []
     for (const workspace of manifest.workspaces) {
-      pathMap.byKey[workspace.key] = join(targetRoot, safeDirName(workspace.title, platform))
+      if (useOriginal) {
+        if (
+          typeof workspace.sourcePath !== 'string' ||
+          !isAbsolute(workspace.sourcePath)
+        ) {
+          return errorResult(
+            `工作区「${workspace.title}」的原路径在当前平台不可用：${workspace.sourcePath}。请改用「指定目录」。`,
+          )
+        }
+        pathMap.byKey[workspace.key] = workspace.sourcePath
+        mappings.push(`${workspace.sourcePath} → ${workspace.sourcePath}`)
+      } else {
+        const target = join(root, safeDirName(workspace.title, platform))
+        pathMap.byKey[workspace.key] = target
+        mappings.push(`${workspace.sourcePath} → ${target}`)
+      }
     }
 
     const sessionRoot = join(deps.dshHome, 'sessions')
@@ -540,7 +558,9 @@ export async function importPack(deps, packPath, targetRoot) {
 
     return {
       kind: 'success',
-      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。若左侧列表未出现，请刷新页面或重启 DSH。`,
+      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。${
+        mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
+      }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
     return errorResult(
@@ -647,7 +667,11 @@ export async function handleMover(deps, invocation) {
       excludedDirs,
     })
   }
-  if (sub === 'import') return importPack(deps, args[0], args[1])
+  if (sub === 'import') {
+    const original = args.includes('--original')
+    const rest = args.filter((arg) => arg !== '--original')
+    return importPack(deps, rest[0], rest[1], { original })
+  }
   if (sub === 'list') return listCatalog(deps)
   if (sub === 'find') return findPacks(args[0])
   if (sub === 'size') return measureWorkspaces(args)
