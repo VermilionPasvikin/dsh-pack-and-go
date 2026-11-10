@@ -139,6 +139,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(false)
       const [message, setMessage] = useState(null)
       const [error, setError] = useState(null)
+      const [reloadTick, setReloadTick] = useState(0)
 
       useEffect(() => {
         let cancelled = false
@@ -158,7 +159,7 @@ window.__ModuleLoader__.load({
         return () => {
           cancelled = true
         }
-      }, [])
+      }, [reloadTick])
 
       const allSessions = useMemo(
         () => groups.flatMap((group) => group.sessions),
@@ -207,7 +208,11 @@ window.__ModuleLoader__.load({
               ? result.text
               : successText
           if (result && result.kind === 'error') setError(text)
-          else setMessage(text)
+          else {
+            setMessage(text)
+            // 导入/导出后刷新会话列表（新会话可能已出现）
+            setReloadTick((tick) => tick + 1)
+          }
         } catch (executeError) {
           setError(executeError instanceof Error ? executeError.message : String(executeError))
         } finally {
@@ -336,7 +341,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { fontSize: 13, opacity: 0.8, marginBottom: 10 } },
-            '填写迁移包路径；目标目录留空时默认放到「用户目录/dsh-mover-import」。',
+            '填写迁移包路径；目标目录留空时默认放到「用户目录/dsh-mover-import」。已存在的对话默认跳过，同路径工作区默认合并。',
           ),
           h(
             'div',
