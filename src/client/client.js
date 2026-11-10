@@ -42,6 +42,9 @@ window.__ModuleLoader__.load({
         loadFailed: '读取失败：',
         noSessions: '还没有可迁移的对话。先在 DSH 里开始一个对话。',
         selected: (n) => `已选 ${n} 个对话`,
+        selectedStats: (workspaces, sessions) =>
+          `已选 ${workspaces} 个工作区 · ${sessions} 个对话`,
+        fileEstimate: (size) => `含项目文件约 ${size}`,
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -83,6 +86,9 @@ window.__ModuleLoader__.load({
         loadFailed: 'Failed to load: ',
         noSessions: 'Nothing to migrate yet. Start a conversation in DSH first.',
         selected: (n) => `${n} selected`,
+        selectedStats: (workspaces, sessions) =>
+          `${workspaces} workspaces · ${sessions} conversations`,
+        fileEstimate: (size) => `~${size} with files`,
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -163,6 +169,18 @@ window.__ModuleLoader__.load({
     function shortSessionId(id) {
       const text = String(id ?? '')
       return text.startsWith('session-') ? text.slice(8, 16) : text.slice(0, 8)
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+      const units = ['B', 'KB', 'MB', 'GB']
+      let value = bytes
+      let index = 0
+      while (value >= 1024 && index < units.length - 1) {
+        value /= 1024
+        index += 1
+      }
+      return `${value >= 10 || index === 0 ? Math.round(value) : value.toFixed(1)} ${units[index]}`
     }
 
     function displayWorkspaceTitle(title, localeId) {
@@ -344,6 +362,8 @@ window.__ModuleLoader__.load({
       const [error, setError] = useState(null)
       const [reloadTick, setReloadTick] = useState(0)
       const [meta, setMeta] = useState(null)
+      const [sizeById, setSizeById] = useState(() => new Map())
+      const [workspaceBytes, setWorkspaceBytes] = useState(() => new Map())
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -410,10 +430,11 @@ window.__ModuleLoader__.load({
             }
 
             const firstSessionId = items.flatMap((workspace) => workspace.sessionIds ?? [])[0]
-            if (titles.size === 0 && firstSessionId) {
+            if (firstSessionId) {
               const titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
-              if (titleInfo.titles.size > 0) titles = titleInfo.titles
               if (titleInfo.meta) setMeta(titleInfo.meta)
+              if (titleInfo.sizes.size > 0) setSizeById(titleInfo.sizes)
+              if (titles.size === 0 && titleInfo.titles.size > 0) titles = titleInfo.titles
             }
 
             setRawItems(items)
@@ -444,15 +465,22 @@ window.__ModuleLoader__.load({
           }
           const data = JSON.parse(commandResult.text)
           const titles = new Map()
+          const sizes = new Map()
           for (const workspace of data.workspaces ?? []) {
             for (const session of workspace.sessions ?? []) {
               if (session.id && session.title) titles.set(session.id, session.title)
+              if (session.id && typeof session.sizeBytes === 'number') {
+                sizes.set(session.id, session.sizeBytes)
+              }
             }
           }
           for (const session of data.ungrouped ?? []) {
             if (session.id && session.title) titles.set(session.id, session.title)
+            if (session.id && typeof session.sizeBytes === 'number') {
+              sizes.set(session.id, session.sizeBytes)
+            }
           }
-          return { titles, meta: data.meta ?? null }
+          return { titles, meta: data.meta ?? null, sizes }
         } catch {
           return { titles: new Map(), meta: null }
         }
@@ -463,6 +491,64 @@ window.__ModuleLoader__.load({
         [groups],
       )
       const agentId = allSessions.length > 0 ? allSessions[0].sessionId : undefined
+
+      const selectedGroups = useMemo(
+        () =>
+          groups.filter((group) =>
+            group.sessions.some((session) => selected.has(session.sessionId)),
+          ),
+        [groups, selected],
+      )
+      const sessionBytes = useMemo(
+        () =>
+          allSessions
+            .filter((session) => selected.has(session.sessionId))
+            .reduce((sum, session) => sum + (sizeById.get(session.sessionId) ?? 0), 0),
+        [allSessions, selected, sizeById],
+      )
+      const fileBytes = includeFiles
+        ? selectedGroups.reduce(
+            (sum, group) => sum + (workspaceBytes.get(group.cwd) ?? 0),
+            0,
+          )
+        : 0
+      const statsText = `${t.selectedStats(selectedGroups.length, selected.size)}${
+        includeFiles ? ` · ${t.fileEstimate(formatBytes(sessionBytes + fileBytes))}` : ''
+      }`
+
+      useEffect(() => {
+        if (!includeFiles) return
+        const remote = getRemote()
+        if (!remote || !agentId) return
+        const paths = [
+          ...new Set(
+            groups
+              .filter((group) =>
+                group.sessions.some((session) => selected.has(session.sessionId)),
+              )
+              .map((group) => group.cwd)
+              .filter((path) => typeof path === 'string' && path.length > 0),
+          ),
+        ]
+        if (paths.length === 0) return
+        const timer = setTimeout(async () => {
+          try {
+            const line = `/mover size ${paths.map((path) => `"${path}"`).join(' ')}`
+            const response = await remote.commands.execute(agentId, line, [])
+            if (!response || response.ok !== true) return
+            const execution = response.value
+            const commandResult = execution && (execution.result ?? execution)
+            if (!commandResult || commandResult.kind !== 'success') return
+            const data = JSON.parse(commandResult.text)
+            setWorkspaceBytes(
+              new Map((data.items ?? []).map((item) => [item.path, item.bytes ?? 0])),
+            )
+          } catch {
+            // 估算失败不影响主流程
+          }
+        }, 300)
+        return () => clearTimeout(timer)
+      }, [selected, includeFiles, groups, agentId])
 
       function toggleSession(sessionId) {
         setSelected((previous) => {
@@ -1001,7 +1087,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { padding: '6px 12px', fontSize: 11, color: THEME.textMuted } },
-            `${t.selected(selected.size)} / ${t.sessionsUnit(allSessions.length)}`,
+            statsText,
           ),
           h(
             'div',

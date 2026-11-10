@@ -372,6 +372,11 @@
 - 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 9 项通过。
 - 下一步：T3.11（底部统计与大小估算）。
 
+## 070 · 2026-11-10 · feat: 底部统计与大小估算（T3.11）
+- 变更：`mover list` 返回会话 `sizeBytes`；新增 `mover size <dir...>` 命令（`scanWorkspace` 统计字节/文件数）；Client 维护 `sizeById` / `workspaceBytes`，勾选后 300ms 防抖测量，树底部显示「已选 N 个工作区 · M 个对话 · 含项目文件约 X」。
+- 验证：`tests/unit/commands.test.mjs` 10 项（含 `measureWorkspaces`）、`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.12（搜索 / 只带文件 / 已归档）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

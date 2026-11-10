@@ -318,6 +318,50 @@ export async function exportAllSessions(
 }
 
 /**
+ * 测量若干工作区目录的总字节数（供导出页大小估算）。
+ * @param {string[]} directories
+ * @returns {Promise<{ kind: 'success'|'error', text: string }>}
+ */
+export async function measureWorkspaces(directories) {
+  if (!Array.isArray(directories) || directories.length === 0) {
+    return errorResult('缺少目录路径。')
+  }
+  try {
+    const items = []
+    for (const directory of directories) {
+      if (typeof directory !== 'string' || directory.length === 0) continue
+      try {
+        const scan = await scanWorkspace(directory)
+        const fileCount =
+          typeof scan.files === 'number'
+            ? scan.files
+            : scan.entries.filter((entry) => !entry.isDir).length
+        items.push({
+          path: directory,
+          bytes:
+            typeof scan.totalBytes === 'number'
+              ? scan.totalBytes
+              : scan.entries.reduce((sum, entry) => sum + (entry.size ?? 0), 0),
+          files: fileCount,
+        })
+      } catch (error) {
+        items.push({
+          path: directory,
+          bytes: 0,
+          files: 0,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    }
+    return { kind: 'success', text: JSON.stringify({ items }) }
+  } catch (error) {
+    return errorResult(
+      `测量失败：${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+/**
  * 列出目录下的 `.dshpack` 文件（供导入页“选择文件”）。
  * @param {string} directory
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
@@ -450,12 +494,14 @@ export async function listCatalog(deps) {
           id: session.id,
           title: session.title,
           cwd: session.cwd,
+          sizeBytes: session.sizeBytes,
         })),
       })),
       ungrouped: catalog.ungrouped.map((session) => ({
         id: session.id,
         title: session.title,
         cwd: session.cwd,
+        sizeBytes: session.sizeBytes,
       })),
     }
     const count = payload.workspaces.reduce((sum, workspace) => sum + workspace.sessions.length, 0) + payload.ungrouped.length
@@ -497,6 +543,7 @@ export async function handleMover(deps, invocation) {
   if (sub === 'import') return importPack(deps, args[0], args[1])
   if (sub === 'list') return listCatalog(deps)
   if (sub === 'find') return findPacks(args[0])
+  if (sub === 'size') return measureWorkspaces(args)
   console.error('[dsh-mover] unknown subcommand', sub)
   return errorResult(USAGE)
 }

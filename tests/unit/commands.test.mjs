@@ -13,6 +13,7 @@ import {
   createMoverCommand,
   resolveExportTarget,
   listCatalog,
+  measureWorkspaces,
 } from '../../src/host/commands.js'
 import { readZip } from '../../src/core/zip-reader.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -176,6 +177,25 @@ test('export 到目录时自动生成包文件', async () => {
     assert.equal(result.kind, 'success')
     const names = await readdir(dir)
     assert.ok(names.some((name) => /^dsh-mover-\d{8}-\d{6}\.dshpack$/.test(name)))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('measureWorkspaces 统计目录字节数', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const project = join(dir, 'proj')
+    await mkdir(join(project, 'sub'), { recursive: true })
+    await writeFile(join(project, 'a.txt'), Buffer.alloc(1000, 0x61))
+    await writeFile(join(project, 'sub', 'b.txt'), Buffer.alloc(2000, 0x62))
+    const result = await measureWorkspaces([project])
+    assert.equal(result.kind, 'success')
+    const data = JSON.parse(result.text)
+    assert.equal(data.items.length, 1)
+    assert.equal(data.items[0].path, project)
+    assert.equal(data.items[0].bytes, 3000)
+    assert.equal(data.items[0].files, 2)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
