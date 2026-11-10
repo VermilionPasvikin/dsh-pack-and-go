@@ -204,3 +204,9 @@
 - 验证：142 项单测全绿（id 校验、分桶路径、引用去重、stage/restore 往返、缺失 warning 不抛错）。
 - 依据：`@deepseek-ai/dsh-attachment-local` README（`objects/`、`file-objects/`、`files/`，id 形如 `sha256:<digest>`）。
 - 下一步：T2.9（工作区文件写盘与登记）。
+
+## 040 · 2026-11-10 · feat: 工作区文件写盘与登记（集成验证通过）
+- 变更：新增 `src/core/workspaces.js`（`restoreWorkspaceFiles`：按 `workspaces/<key>/files/...` 写盘、Windows 名安全重命名、空目录、缺映射报错）；新增 `src/host/register.js`（`registerWorkspaces`：调用 `workspaceRegistry.create`，返回实体供 attach）；`index.js` 导出；`host/index.js` 增加 `DSH_MOVER_SELFTEST_IMPORT` 导入自检（会话 + 文件 + 登记 + attach）；`package.json` check 同步 `register.js`。
+- 发现：启动后导入不会触发 registry 的启动索引，会话不会自动归组；需调用 `Workspace.attachSession(sessionId)`。
+- 验证：149 项单测全绿；home C（全新一次性 `DSH_HOME`）导入后：`DSH-MOVER-IMPORT {"sessions":1,"files":1,"registered":1,"warnings":[]}`、`DSH-MOVER-ATTACH {"attached":1}`、`DSH-MOVER-AFTER` 显示 `Proj` 工作区有 1 个会话、ungrouped 0。
+- 下一步：T2.10（备份与回滚）。

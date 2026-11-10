@@ -1,8 +1,8 @@
 /**
  * Host 侧插件入口（Cordis bundle）。
  *
- * T2.1 建立可加载骨架；T2.4 增加目录读取自检（仅在 DSH_MOVER_SELFTEST=1 时）。
- * 服务注册、Remote 接口、任务编排在 T2.5+ 实现。
+ * T2.1 建立可加载骨架；T2.4 目录读取；T2.5 导出；T2.9 导入（会话+工作区+登记）。
+ * 自检逻辑仅在 `DSH_MOVER_SELFTEST=1` 时运行，用于一次性 DSH_HOME 集成验证。
  */
 
 import { loadCatalog } from './catalog.js'
@@ -24,7 +24,6 @@ export function apply(ctx, config) {
   logger?.info?.('[dsh-mover] host plugin loaded')
 
   if (process.env.DSH_MOVER_SELFTEST === '1') {
-    // 自检直接写 stdout，避免依赖 DSH 的 logger 输出通道
     console.log('[dsh-mover] apply() reached')
     void (async () => {
       try {
@@ -44,48 +43,10 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_EXPORT === '1') {
-          const { planExport, buildManifest, buildPack } = await import('../core/index.js')
-          const { writeFile } = await import('node:fs/promises')
-          const { join } = await import('node:path')
-          const { tmpdir } = await import('node:os')
-
-          const sessions = catalog.workspaces
-            .flatMap((workspace) => workspace.sessions)
-            .filter((session) => typeof session.locationPath === 'string')
-          const first = sessions[0]
-          if (!first) {
-            console.log('DSH-MOVER-EXPORT none')
-            return
-          }
-          const packPath = `sessions/${first.id}/session.v4.jsonl.zstd`
-          const plan = planExport({
-            sessions: [{ packPath, sizeBytes: first.sizeBytes }],
-            includeFiles: false,
-          })
-          const manifest = buildManifest({
-            platform: process.platform,
-            dshVersion: process.env.DSH_VERSION ?? 'selftest',
-            mode: 'sessions',
-            sessions: [
-              {
-                id: first.id,
-                title: first.title,
-                cwd: first.cwd,
-                messageCount: first.eventCount ?? 0,
-                sizeBytes: first.sizeBytes,
-                path: packPath,
-              },
-            ],
-          })
-          const pack = await buildPack({
-            plan,
-            sourcePaths: { [packPath]: first.locationPath },
-            manifest,
-          })
-          const output = join(tmpdir(), 'dsh-mover-selftest.dshpack')
-          await writeFile(output, pack)
-          console.log(`DSH-MOVER-EXPORT ${output} ${pack.length}`)
+        if (process.env.DSH_MOVER_SELFTEST_IMPORT === '1') {
+          await runImportSelfTest(ctx, catalog)
+        } else if (process.env.DSH_MOVER_SELFTEST_EXPORT === '1') {
+          await runExportSelfTest(ctx, catalog)
         }
       } catch (error) {
         console.log(
@@ -94,4 +55,160 @@ export function apply(ctx, config) {
       }
     })()
   }
+}
+
+/**
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {object} catalog
+ */
+async function runExportSelfTest(ctx, catalog) {
+  const core = await import('../core/index.js')
+  const { writeFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+  const { tmpdir } = await import('node:os')
+
+  const sessions = catalog.workspaces
+    .flatMap((workspace) => workspace.sessions)
+    .filter((session) => typeof session.locationPath === 'string')
+  const first = sessions[0]
+  if (!first) {
+    console.log('DSH-MOVER-EXPORT none')
+    return
+  }
+  const packPath = `sessions/${first.id}/session.v4.jsonl.zstd`
+  const plan = core.planExport({
+    sessions: [{ packPath, sizeBytes: first.sizeBytes }],
+    includeFiles: false,
+  })
+  const manifest = core.buildManifest({
+    platform: process.platform,
+    dshVersion: process.env.DSH_VERSION ?? 'selftest',
+    mode: 'sessions',
+    sessions: [
+      {
+        id: first.id,
+        title: first.title,
+        cwd: first.cwd,
+        messageCount: first.eventCount ?? 0,
+        sizeBytes: first.sizeBytes,
+        path: packPath,
+      },
+    ],
+  })
+  const pack = await core.buildPack({
+    plan,
+    sourcePaths: { [packPath]: first.locationPath },
+    manifest,
+  })
+  const output = join(tmpdir(), 'dsh-mover-selftest.dshpack')
+  await writeFile(output, pack)
+  console.log(`DSH-MOVER-EXPORT ${output} ${pack.length}`)
+}
+
+/**
+ * 导入自检：读取 `DSH_MOVER_SELFTEST_PACK` 并导入到 `DSH_MOVER_SELFTEST_TARGET`。
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {object} beforeCatalog
+ */
+async function runImportSelfTest(ctx, beforeCatalog) {
+  const { readFile } = await import('node:fs/promises')
+  const { join } = await import('node:path')
+
+  const packPath = process.env.DSH_MOVER_SELFTEST_PACK
+  const targetRoot = process.env.DSH_MOVER_SELFTEST_TARGET
+  if (!packPath || !targetRoot) {
+    console.log('DSH-MOVER-IMPORT skipped (missing pack/target env)')
+    return
+  }
+
+  const core = await import('../core/index.js')
+  const { registerWorkspaces } = await import('./register.js')
+
+  const buffer = await readFile(packPath)
+  const { entries } = core.readZip(buffer)
+  const manifest = core.parseManifest(
+    entries.find((entry) => entry.name === 'manifest.json').data.toString('utf8'),
+  )
+
+  const pathMap = { byKey: {} }
+  for (const workspace of manifest.workspaces) {
+    pathMap.byKey[workspace.key] = join(
+      targetRoot,
+      core.safeDirName(workspace.title, process.platform),
+    )
+  }
+
+  const sessionRoot = join(process.env.DSH_HOME, 'sessions')
+  const sessions = await core.importSessionsToDisk({ buffer, sessionRoot, pathMap })
+  const workspaceEntries = entries
+    .filter((entry) => entry.name.startsWith('workspaces/'))
+    .map((entry) => ({ packPath: entry.name, data: entry.data }))
+  const files = await core.restoreWorkspaceFiles({
+    entries: workspaceEntries,
+    pathMap,
+    targetPlatform: process.platform,
+  })
+  const registered = await registerWorkspaces({
+    workspaceRegistry: ctx.workspaceRegistry,
+    workspaces: manifest.workspaces.map((workspace) => ({
+      key: workspace.key,
+      title: workspace.title,
+      targetPath: pathMap.byKey[workspace.key],
+    })),
+  })
+
+  console.log(
+    `DSH-MOVER-IMPORT ${JSON.stringify({
+      sessions: sessions.written.length,
+      skipped: sessions.skipped.length,
+      files: files.written.length,
+      dirs: files.dirs.length,
+      registered: registered.registered.length,
+      warnings: [...files.warnings, ...registered.warnings],
+    })}`,
+  )
+
+  // 启动后导入不会触发 registry 的启动索引，这里把会话挂到对应工作区。
+  const entityByKey = new Map(
+    registered.registered.map((item) => [item.key, item.entity]),
+  )
+  let attached = 0
+  const attachWarnings = []
+  for (const written of sessions.written) {
+    const source = manifest.sessions.find((item) => item.id === written.id)
+    const key = source?.workspaceKey
+    const entity = key !== undefined ? entityByKey.get(key) : undefined
+    if (!entity || typeof entity.attachSession !== 'function') continue
+    try {
+      await entity.attachSession(written.targetId)
+      attached += 1
+    } catch (error) {
+      attachWarnings.push(
+        `挂载会话失败: ${written.targetId}（${error instanceof Error ? error.message : String(error)}）`,
+      )
+    }
+  }
+  if (attached > 0 || attachWarnings.length > 0) {
+    console.log(
+      `DSH-MOVER-ATTACH ${JSON.stringify({ attached, warnings: attachWarnings })}`,
+    )
+  }
+
+  const after = await loadCatalog({
+    workspaceRegistry: ctx.workspaceRegistry,
+    sessionPersistence: ctx.sessionPersistence,
+    sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+    logger: ctx.logger,
+  })
+  console.log(
+    `DSH-MOVER-AFTER ${JSON.stringify({
+      workspaces: after.workspaces.map((workspace) => ({
+        title: workspace.title,
+        path: workspace.path,
+        sessions: workspace.sessions.length,
+      })),
+      ungrouped: after.ungrouped.length,
+      totals: after.totals,
+    })}`,
+  )
 }
