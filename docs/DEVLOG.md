@@ -163,3 +163,20 @@
 - 验证：逐文件 `node --check` 通过（含新增文件）。
 - 说明：本条目为补录（提交时漏写日志）。
 - 下一步：T2.5（导出任务编排）。
+
+## 033 · 2026-11-10 · feat: 实现导出打包核心
+- 变更：新增 `src/core/export-pack.js`（`buildManifest`、`buildPack`：manifest + README + 计划条目 → zip；内存实现，单文件默认上限 256 MiB）；`src/core/index.js` 导出；新增 `tests/unit/export-pack.test.mjs`。
+- 验证：首次提交（`fd6fc04`）时导入路径错误（`validateManifest` 从 `manifest-io.js` 导入），测试未通过即被提交；修复见 034/035。
+- 说明：本条目为补录（提交时漏写日志）。
+- 下一步：T2.5 集成验证。
+
+## 034 · 2026-11-10 · fix: 修正 export-pack 导入路径与测试期望
+- 变更：`validateManifest` 改从 `./manifest.js` 导入；测试对非法 manifest 期望 `E_MANIFEST_INVALID`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 131 passed / 0 failed。
+- 说明：提交 `0fc8deb` 含源码修复与 catalog 的 locationPath，但漏提交测试修改与日志。
+- 下一步：T2.5 集成验证。
+
+## 035 · 2026-11-10 · fix: 提交 export-pack 测试修改并补录 033/034
+- 变更：提交 `tests/unit/export-pack.test.mjs` 的期望修正；补录 `DEVLOG` 033/034。
+- 验证：131 passed / 0 failed；工作树干净。
+- 下一步：T2.5 集成验证（一次性 `DSH_HOME` 生成 `.dshpack`）。

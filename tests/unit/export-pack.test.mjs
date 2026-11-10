@@ -161,7 +161,8 @@ test('超过单文件上限时报错', async () => {
 })
 
 test('非法 manifest 在打包前被拒绝', () => {
-  expectPackError(() =>
-    buildManifest({ platform: 'linux', dshVersion: 'x', mode: 'nope' }),
+  assert.throws(
+    () => buildManifest({ platform: 'linux', dshVersion: 'x', mode: 'nope' }),
+    (error) => error instanceof MoverError && error.code === ERROR_CODES.MANIFEST_INVALID,
   )
 })
