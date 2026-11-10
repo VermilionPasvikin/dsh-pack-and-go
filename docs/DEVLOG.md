@@ -92,3 +92,8 @@
 - 变更：新增 `src/core/preflight.js`（`classifyEntry`、`detectCaseCollisions`、`sanitizeWindowsName`、`preflightWorkspace`），覆盖非法文件名、保留名、结尾点/空格、路径长度、符号链接、权限位、大小写冲突；`errors.js` 增加 `E_PREFLIGHT_INVALID`；新增 `tests/unit/preflight.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 60 passed / 0 failed（6 类风险 + 非 Windows 不误报 + 大小写冲突 + 集成报告可序列化 + 非法平台/目录拒绝）。
 - 下一步：T1.9（工作区扫描与排除规则）。
+
+## 019 · 2026-11-10 · feat: 实现工作区扫描与排除规则
+- 变更：新增 `src/core/scan.js`（`DEFAULT_EXCLUDED_DIRS`、`resolveExclusions`、`scanWorkspace`）；默认排除 node_modules/.venv/__pycache__/dist 等，`.git` 默认保留；`errors.js` 增加 `E_SCAN_INVALID`；新增 `tests/unit/scan.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 68 passed / 0 failed；含 1 万文件扫描计时（< 2s）。
+- 下一步：T1.10（zip 容器写入器）。
