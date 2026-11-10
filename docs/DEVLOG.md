@@ -262,3 +262,9 @@
 - 验证：`node --check` 通过；163 项单测全绿；一次性 profile 启动 boot 含 `dsh-mover/client.js`。
 - 说明：结构化冲突/预检报告未实现，当前以命令返回文本呈现（仅异常时出现）；浏览器交互待 M4 实机验证。
 - 下一步：T3.7（文案与 locale）。
+
+## 050 · 2026-11-10 · feat: 中英文案与 locale 跟随（T3.7）
+- 变更：`src/client/client.js` 集中 `TEXTS.zh/en`；按 `ctx.locale.getLocale()` 选择语言并订阅切换；侧边栏 label 随语言；未归组标题也随语言。
+- 验证：`node --check` 通过；163 项单测全绿；启动 boot 含 `dsh-mover/client.js`。
+- 说明：语言切换的浏览器渲染未验证；`ctx.locale` 快照字段名做了兼容取值（`id`/`locale`/`language`）。
+- 下一步：M3 DoD 与 M4（打包安装）。

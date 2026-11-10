@@ -1,8 +1,9 @@
 /**
  * Client 侧插件入口（浏览器）。
  *
- * T3.2 侧边栏图标 + main 页面壳；T3.3 会话选择树；T3.4 导出；T3.5 导入。
- * 数据来自已有的 `ctx.remote.session.list()`；动作通过 `ctx.remote.commands.execute()`
+ * T3.2 侧边栏图标 + main 页；T3.3 选择树；T3.4 导出；T3.5 导入；
+ * T3.6 冲突提示；T3.7 中英文案；T3.8 状态刷新。
+ * 数据来自 `ctx.remote.session.list()`；动作通过 `ctx.remote.commands.execute()`
  * 调用 Host 的 `mover` 命令（ADR-0008）。
  */
 
@@ -13,8 +14,75 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const { useEffect, useMemo, useState } = React
 
-    /** apply 时保存的 Context，供组件调用已有 Remote。 */
     let ownerCtx = null
+
+    const TEXTS = {
+      zh: {
+        title: '对话与工作区迁移',
+        subtitle: '把对话和项目打包带走，换台电脑继续。',
+        tabExport: '导出',
+        tabImport: '导入',
+        loading: '正在读取工作区与对话…',
+        loadFailed: '读取失败：',
+        noSessions: '还没有可迁移的对话。',
+        selected: (n) => `已选 ${n} 个对话`,
+        sessionsUnit: (n) => `${n} 个对话`,
+        savePlaceholder: '保存位置，例如 D:\\迁移\\我的包.dshpack',
+        startExport: '开始打包',
+        packing: '打包中…',
+        exportNeedsSelection: '请至少选择一个对话。',
+        exportNeedsPath: '请填写保存位置（例如 D:\\迁移\\我的包.dshpack）。',
+        noContext: '没有可用的对话上下文。',
+        importHint:
+          '填写迁移包路径；目标目录留空时默认放到「用户目录/dsh-mover-import」。已存在的对话默认跳过，同路径工作区默认合并。',
+        packPlaceholder: '迁移包路径，例如 D:\\迁移\\我的包.dshpack',
+        targetPlaceholder: '目标目录（可选）',
+        startImport: '开始导入',
+        importing: '导入中…',
+        importNeedsPack: '请填写迁移包路径。',
+        exportDone: '打包完成',
+        importDone: '导入完成',
+      },
+      en: {
+        title: 'Conversation & Workspace Migration',
+        subtitle: 'Package conversations and projects, then continue on another machine.',
+        tabExport: 'Export',
+        tabImport: 'Import',
+        loading: 'Reading workspaces and conversations…',
+        loadFailed: 'Failed to load: ',
+        noSessions: 'Nothing to migrate yet.',
+        selected: (n) => `${n} selected`,
+        sessionsUnit: (n) => `${n} conversations`,
+        savePlaceholder: 'Save to, e.g. D:\\backup\\my-pack.dshpack',
+        startExport: 'Start export',
+        packing: 'Packing…',
+        exportNeedsSelection: 'Select at least one conversation.',
+        exportNeedsPath: 'Choose where to save the package.',
+        noContext: 'No conversation context available.',
+        importHint:
+          'Enter the package path. Leave the target empty to use "~/dsh-mover-import". Existing conversations are skipped; same-path workspaces are merged.',
+        packPlaceholder: 'Package path, e.g. D:\\backup\\my-pack.dshpack',
+        targetPlaceholder: 'Target folder (optional)',
+        startImport: 'Start import',
+        importing: 'Importing…',
+        importNeedsPack: 'Enter the package path.',
+        exportDone: 'Export finished',
+        importDone: 'Import finished',
+      },
+    }
+
+    function currentLocaleId() {
+      try {
+        const snapshot = ownerCtx && ownerCtx.locale && ownerCtx.locale.getLocale
+          ? ownerCtx.locale.getLocale()
+          : null
+        const id =
+          snapshot && (snapshot.id ?? snapshot.locale ?? snapshot.language)
+        return typeof id === 'string' && id.toLowerCase().startsWith('en') ? 'en' : 'zh'
+      } catch {
+        return 'zh'
+      }
+    }
 
     function MoverIcon(props) {
       const size = props && typeof props.size === 'number' ? props.size : 18
@@ -63,7 +131,7 @@ window.__ModuleLoader__.load({
         if (!groups.has(key)) {
           groups.set(key, {
             cwd,
-            title: cwd ? titleOf({ cwd }) : '未归入工作区',
+            title: cwd ? titleOf({ cwd }) : null,
             sessions: [],
           })
         }
@@ -129,6 +197,7 @@ window.__ModuleLoader__.load({
     }
 
     function MoverPanel() {
+      const [localeId, setLocaleId] = useState(currentLocaleId)
       const [tab, setTab] = useState('export')
       const [status, setStatus] = useState('loading')
       const [groups, setGroups] = useState([])
@@ -140,6 +209,17 @@ window.__ModuleLoader__.load({
       const [message, setMessage] = useState(null)
       const [error, setError] = useState(null)
       const [reloadTick, setReloadTick] = useState(0)
+
+      const t = TEXTS[localeId] ?? TEXTS.zh
+
+      useEffect(() => {
+        const disposer = ownerCtx && ownerCtx.locale && ownerCtx.locale.subscribe
+          ? ownerCtx.locale.subscribe(() => setLocaleId(currentLocaleId()))
+          : undefined
+        return () => {
+          if (typeof disposer === 'function') disposer()
+        }
+      }, [])
 
       useEffect(() => {
         let cancelled = false
@@ -190,7 +270,7 @@ window.__ModuleLoader__.load({
 
       async function runCommand(line, successText) {
         if (!agentId) {
-          setError('没有可用的对话上下文。')
+          setError(t.noContext)
           return
         }
         setBusy(true)
@@ -210,7 +290,6 @@ window.__ModuleLoader__.load({
           if (result && result.kind === 'error') setError(text)
           else {
             setMessage(text)
-            // 导入/导出后刷新会话列表（新会话可能已出现）
             setReloadTick((tick) => tick + 1)
           }
         } catch (executeError) {
@@ -222,20 +301,20 @@ window.__ModuleLoader__.load({
 
       async function startExport() {
         if (selected.size === 0) {
-          setError('请至少选择一个对话。')
+          setError(t.exportNeedsSelection)
           return
         }
         if (targetPath.trim().length === 0) {
-          setError('请填写保存位置（例如 D:\\迁移\\我的包.dshpack）。')
+          setError(t.exportNeedsPath)
           return
         }
         const ids = [...selected]
-        await runCommand(`/mover export "${targetPath.trim()}" ${ids.join(' ')}`, '打包完成')
+        await runCommand(`/mover export "${targetPath.trim()}" ${ids.join(' ')}`, t.exportDone)
       }
 
       async function startImport() {
         if (importPackPath.trim().length === 0) {
-          setError('请填写迁移包路径。')
+          setError(t.importNeedsPack)
           return
         }
         const target = importTarget.trim()
@@ -243,7 +322,7 @@ window.__ModuleLoader__.load({
           target.length > 0
             ? `/mover import "${importPackPath.trim()}" "${target}"`
             : `/mover import "${importPackPath.trim()}"`
-        await runCommand(line, '导入完成')
+        await runCommand(line, t.importDone)
       }
 
       return h(
@@ -254,12 +333,8 @@ window.__ModuleLoader__.load({
           null,
           '@keyframes dsh-mover-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}',
         ),
-        h('div', { style: { fontSize: 20, fontWeight: 600, marginBottom: 4 } }, '对话与工作区迁移'),
-        h(
-          'div',
-          { style: { fontSize: 13, opacity: 0.72, marginBottom: 14 } },
-          '把对话和项目打包带走，换台电脑继续。',
-        ),
+        h('div', { style: { fontSize: 20, fontWeight: 600, marginBottom: 4 } }, t.title),
+        h('div', { style: { fontSize: 13, opacity: 0.72, marginBottom: 14 } }, t.subtitle),
         tabBar(),
         tab === 'export' ? exportView() : importView(),
         message ? h('div', { style: { marginTop: 12, fontSize: 13, color: '#2e8b57' } }, message) : null,
@@ -270,8 +345,8 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           { style: { display: 'flex', gap: 8, marginBottom: 14 } },
-          tabButton('导出', 'export'),
-          tabButton('导入', 'import'),
+          tabButton(t.tabExport, 'export'),
+          tabButton(t.tabImport, 'import'),
         )
       }
 
@@ -305,14 +380,9 @@ window.__ModuleLoader__.load({
           'div',
           null,
           status === 'loading'
-            ? h(
-                'div',
-                { style: { padding: 24, fontSize: 13, opacity: 0.8 } },
-                h(Spinner),
-                '正在读取工作区与对话…',
-              )
+            ? h('div', { style: { padding: 24, fontSize: 13, opacity: 0.8 } }, h(Spinner), t.loading)
             : status === 'error'
-              ? h('div', { style: { padding: 16, fontSize: 13, color: '#c0392b' } }, `读取失败：${error}`)
+              ? h('div', { style: { padding: 16, fontSize: 13, color: '#c0392b' } }, `${t.loadFailed}${error}`)
               : renderTree(),
           h(
             'div',
@@ -320,7 +390,7 @@ window.__ModuleLoader__.load({
             h('input', {
               type: 'text',
               value: targetPath,
-              placeholder: '保存位置，例如 D:\\迁移\\我的包.dshpack',
+              placeholder: t.savePlaceholder,
               onChange: (event) => setTargetPath(event.target.value),
               disabled: busy,
               style: fieldStyle(),
@@ -328,7 +398,7 @@ window.__ModuleLoader__.load({
             h(
               'button',
               { type: 'button', onClick: startExport, disabled: busy || status !== 'ready', style: buttonStyle(busy || status !== 'ready') },
-              busy ? h('span', null, h(Spinner), '打包中…') : '开始打包',
+              busy ? h('span', null, h(Spinner), t.packing) : t.startExport,
             ),
           ),
         )
@@ -338,18 +408,14 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           null,
-          h(
-            'div',
-            { style: { fontSize: 13, opacity: 0.8, marginBottom: 10 } },
-            '填写迁移包路径；目标目录留空时默认放到「用户目录/dsh-mover-import」。已存在的对话默认跳过，同路径工作区默认合并。',
-          ),
+          h('div', { style: { fontSize: 13, opacity: 0.8, marginBottom: 10 } }, t.importHint),
           h(
             'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
             h('input', {
               type: 'text',
               value: importPackPath,
-              placeholder: '迁移包路径，例如 D:\\迁移\\我的包.dshpack',
+              placeholder: t.packPlaceholder,
               onChange: (event) => setImportPackPath(event.target.value),
               disabled: busy,
               style: fieldStyle(),
@@ -361,7 +427,7 @@ window.__ModuleLoader__.load({
             h('input', {
               type: 'text',
               value: importTarget,
-              placeholder: '目标目录（可选）',
+              placeholder: t.targetPlaceholder,
               onChange: (event) => setImportTarget(event.target.value),
               disabled: busy,
               style: fieldStyle(),
@@ -369,7 +435,7 @@ window.__ModuleLoader__.load({
             h(
               'button',
               { type: 'button', onClick: startImport, disabled: busy, style: buttonStyle(busy) },
-              busy ? h('span', null, h(Spinner), '导入中…') : '开始导入',
+              busy ? h('span', null, h(Spinner), t.importing) : t.startImport,
             ),
           ),
         )
@@ -377,7 +443,7 @@ window.__ModuleLoader__.load({
 
       function renderTree() {
         if (groups.length === 0) {
-          return h('div', { style: { padding: 24, fontSize: 13, opacity: 0.8 } }, '还没有可迁移的对话。')
+          return h('div', { style: { padding: 24, fontSize: 13, opacity: 0.8 } }, t.noSessions)
         }
         return h(
           'div',
@@ -392,7 +458,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { padding: '10px 14px', fontSize: 12, opacity: 0.7 } },
-            `已选 ${selected.size} 个对话`,
+            t.selected(selected.size),
           ),
         )
       }
@@ -402,6 +468,7 @@ window.__ModuleLoader__.load({
           group.sessions.length > 0 &&
           group.sessions.every((session) => selected.has(session.sessionId))
         const someSelected = group.sessions.some((session) => selected.has(session.sessionId))
+        const groupTitle = group.cwd === null ? (localeId === 'en' ? 'Ungrouped' : '未归入工作区') : group.title
         return h(
           'div',
           {
@@ -429,11 +496,11 @@ window.__ModuleLoader__.load({
               },
               onChange: () => toggleGroup(group),
             }),
-            h('span', null, group.title),
+            h('span', null, groupTitle),
             h(
               'span',
               { style: { fontWeight: 400, opacity: 0.6, fontSize: 12 } },
-              `${group.sessions.length} 个对话`,
+              t.sessionsUnit(group.sessions.length),
             ),
           ),
           h(
@@ -472,7 +539,12 @@ window.__ModuleLoader__.load({
         ownerCtx = ctx
         ctx.slots.inject('sidebar.panellist', () =>
           ctx.slots.register(
-            { name: 'sidebar.panellist', id: 'mover', order: 60, label: () => '迁移' },
+            {
+              name: 'sidebar.panellist',
+              id: 'mover',
+              order: 60,
+              label: () => TEXTS[currentLocaleId()].title,
+            },
             MoverIcon,
           ),
         )
