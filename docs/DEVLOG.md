@@ -509,6 +509,12 @@
 - 验证：全量 176 项测试通过。
 - 下一步：部署后请用户验证「另存为新对话」与「跳过」两条路径。
 
+## 095 · 2026-11-11 · fix: reading 'size' 根因（loadTitlesFromCommand 缺 sizes）
+- 根因：`loadTitlesFromCommand` 的 4 个提前返回分支只返回 `{ titles, meta }`，调用处读 `titleInfo.sizes.size` → `Cannot read properties of undefined (reading 'size')`；只要 `/mover list` 命令失败或返回非 success 就触发，导致整个面板加载失败（关闭重开依旧）。
+- Host 自检确认 `workspaceController.follow` 本身正常（baseline 可返回），排除 DSH follow 问题。
+- 修复：所有分支补齐 `sizes: new Map()`；调用处改用 `titleInfo.sizes?.size ?? 0`。
+- 验证：`client-render` 3 项、`commands` 12 项通过。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

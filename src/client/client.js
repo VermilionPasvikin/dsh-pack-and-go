@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2111-0025'
+    const BUILD_TAG = 'b2111-0035'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -492,8 +492,8 @@ window.__ModuleLoader__.load({
             if (firstSessionId) {
               const titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
               if (titleInfo.meta) setMeta(titleInfo.meta)
-              if (titleInfo.sizes.size > 0) setSizeById(titleInfo.sizes)
-              if (titles.size === 0 && titleInfo.titles.size > 0) titles = titleInfo.titles
+              if ((titleInfo.sizes?.size ?? 0) > 0) setSizeById(titleInfo.sizes)
+              if (titles.size === 0 && (titleInfo.titles?.size ?? 0) > 0) titles = titleInfo.titles
             }
 
             setRawItems(items)
@@ -516,12 +516,16 @@ window.__ModuleLoader__.load({
       async function loadTitlesFromCommand(remote, sessionId) {
         try {
           const response = await remote.commands.execute(sessionId, '/mover list', [])
-          if (!response || response.ok !== true) return { titles: new Map(), meta: null }
+          if (!response || response.ok !== true) {
+            return { titles: new Map(), meta: null, sizes: new Map() }
+          }
           const execution = response.value
-          if (!execution) return { titles: new Map(), meta: null }
+          if (!execution) {
+            return { titles: new Map(), meta: null, sizes: new Map() }
+          }
           const commandResult = execution.result ?? execution
           if (commandResult.kind !== 'success' || typeof commandResult.text !== 'string') {
-            return { titles: new Map(), meta: null }
+            return { titles: new Map(), meta: null, sizes: new Map() }
           }
           const data = JSON.parse(commandResult.text)
           const titles = new Map()
@@ -542,7 +546,7 @@ window.__ModuleLoader__.load({
           }
           return { titles, meta: data.meta ?? null, sizes }
         } catch {
-          return { titles: new Map(), meta: null }
+          return { titles: new Map(), meta: null, sizes: new Map() }
         }
       }
 

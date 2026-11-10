@@ -61,7 +61,9 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_CMD === '1') {
+        if (process.env.DSH_MOVER_SELFTEST_FOLLOW === '1') {
+          await runFollowSelfTest(ctx)
+        } else if (process.env.DSH_MOVER_SELFTEST_CMD === '1') {
           await runCommandSelfTest(ctx, catalog)
         } else if (process.env.DSH_MOVER_SELFTEST_REBUILD === '1') {
           await runRebuildSelfTest(ctx, catalog)
@@ -110,8 +112,7 @@ async function runRebuildSelfTest(ctx, catalog) {
   console.log(`DSH-MOVER-REBUILD-AFTER ${JSON.stringify(after.totals)}`)
 }
 
-/** 自检日志：同时写终端与临时文件（终端缓冲不可靠）。 */
-function logLine(message) {
+/** 自检日志：同时写终端与临时文件（终端缓冲不可靠）。 */function logLine(message) {
   console.log(message)
   try {
     appendFileSync(
@@ -120,6 +121,33 @@ function logLine(message) {
     )
   } catch {
     // 日志失败不影响自检
+  }
+}
+
+/**
+ * follow 自检：调用 workspaceController.follow 第一帧，捕获 DSH 内部错误堆栈。
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ */
+async function runFollowSelfTest(ctx) {
+  try {
+    const controller = ctx.get('workspaceController')
+    logLine(`DSH-MOVER-FOLLOW-CTRL ${typeof controller} follow=${typeof controller?.follow}`)
+    if (!controller || typeof controller.follow !== 'function') return
+    const stream = await controller.follow(new AbortController().signal)
+    let frames = 0
+    for await (const frame of stream) {
+      frames += 1
+      logLine(
+        `DSH-MOVER-FOLLOW-FRAME ${frame.type} ${JSON.stringify(frame.value).slice(0, 400)}`,
+      )
+      break
+    }
+    logLine(`DSH-MOVER-FOLLOW-OK frames=${frames}`)
+    if (typeof stream.dispose === 'function') stream.dispose()
+  } catch (error) {
+    logLine(
+      `DSH-MOVER-FOLLOW-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+    )
   }
 }
 
