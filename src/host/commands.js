@@ -64,15 +64,29 @@ async function uniquePath(base) {
 }
 
 /**
- * 解析导出目标：目录 → 自动生成文件名；文件 → 原样；父目录不存在 → 报错。
+ * 清理包名：去掉路径分隔符与 Windows 非法字符、去 .dshpack 后缀。
+ * @param {string} name
+ * @returns {string}
+ */
+function sanitizePackageName(name) {
+  const cleaned = String(name ?? '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\.dshpack$/i, '')
+    .trim()
+  return cleaned.length > 0 ? cleaned : `dsh-mover-${timestamp()}`
+}
+
+/**
+ * 解析导出目标：目录 → 自动生成文件名（可用包名）；文件 → 原样；父目录不存在 → 报错。
  * @param {string} targetPath
+ * @param {string} [name] 可选包名（目录目标时使用）
  * @returns {Promise<string>}
  */
-export async function resolveExportTarget(targetPath) {
+export async function resolveExportTarget(targetPath, name) {
   try {
     const info = await stat(targetPath)
     if (info.isDirectory()) {
-      return uniquePath(join(targetPath, `dsh-mover-${timestamp()}.dshpack`))
+      return uniquePath(join(targetPath, `${sanitizePackageName(name)}.dshpack`))
     }
     return targetPath
   } catch (error) {
@@ -355,7 +369,7 @@ export async function exportAllSessions(
       })),
     })
 
-    const resolvedTarget = await resolveExportTarget(targetPath)
+    const resolvedTarget = await resolveExportTarget(targetPath, options.name)
     console.log(
       '[dsh-mover] export target',
       resolvedTarget,
@@ -722,6 +736,8 @@ export async function handleMover(deps, invocation) {
             .map((item) => item.trim())
             .filter(Boolean)
         : []
+    const nameAt = args.indexOf('--name')
+    const exportName = nameAt >= 0 ? String(args[nameAt + 1] ?? '') : ''
     const flags = new Set([
       '--files',
       '--no-fork',
@@ -730,9 +746,13 @@ export async function handleMover(deps, invocation) {
       '--preflight',
       '--exclude',
       '--attachments',
+      '--name',
     ])
     const rest = args.filter(
-      (arg, index) => !flags.has(arg) && !(excludeAt >= 0 && index === excludeAt + 1),
+      (arg, index) =>
+        !flags.has(arg) &&
+        !(excludeAt >= 0 && index === excludeAt + 1) &&
+        !(nameAt >= 0 && index === nameAt + 1),
     )
     return exportAllSessions(deps, rest[0], rest.slice(1), includeFiles, {
       includeFork: !noFork,
@@ -741,6 +761,7 @@ export async function handleMover(deps, invocation) {
       preflight,
       excludedDirs,
       attachments: attachmentMode,
+      name: exportName,
     })
   }
   if (sub === 'import') {

@@ -46,13 +46,11 @@ window.__ModuleLoader__.load({
           `已选 ${workspaces} 个工作区 · ${sessions} 个对话`,
         fileEstimate: (size) => `含项目文件约 ${size}`,
         searchPlaceholder: '搜索对话标题',
-        onlyFiles: '只带文件',
         showArchived: '显示已归档',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
         copyPath: '复制路径',
         advanced: '高级选项',
         fullMode: '全量打包（不排除任何目录）',
-        noCompress: '不压缩（更快，包更大）',
         preflight: '导出前预检',
         excludePlaceholder: '额外排除目录，逗号分隔（如 .cache,tmp）',
         attachmentsTodo: '附件打包将在后续版本支持。',
@@ -87,6 +85,7 @@ window.__ModuleLoader__.load({
         pickPackEmpty: '该目录下没有 .dshpack 文件。',
         packageOptions: '选择迁移包：',
         openOverlay: '打开迁移面板',
+        packageName: '包名（可选）',
         commandNotExecuted: '命令未执行：未找到命令或会话上下文不可用。',
         commandFailed: '命令调用失败：',
         defaultWorkspace: '默认工作区',
@@ -109,13 +108,11 @@ window.__ModuleLoader__.load({
           `${workspaces} workspaces · ${sessions} conversations`,
         fileEstimate: (size) => `~${size} with files`,
         searchPlaceholder: 'Search conversation titles',
-        onlyFiles: 'Files only',
         showArchived: 'Show archived',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
         copyPath: 'Copy path',
         advanced: 'Advanced options',
         fullMode: 'Full packing (exclude nothing)',
-        noCompress: 'No compression (faster, larger)',
         preflight: 'Preflight before export',
         excludePlaceholder: 'Extra excluded dirs, comma separated (e.g. .cache,tmp)',
         attachmentsTodo: 'Attachment packing is planned for a later version.',
@@ -150,6 +147,7 @@ window.__ModuleLoader__.load({
         pickPackEmpty: 'No .dshpack files in that folder.',
         packageOptions: 'Choose a package:',
         openOverlay: 'Open migration panel',
+        packageName: 'Package name (optional)',
         commandNotExecuted: 'Command did not run: unknown command or unavailable session context.',
         commandFailed: 'Command call failed: ',
         defaultWorkspace: 'Default Workspace',
@@ -406,10 +404,10 @@ window.__ModuleLoader__.load({
       const [showArchived, setShowArchived] = useState(false)
       const [lastExport, setLastExport] = useState(null)
       const [fullMode, setFullMode] = useState(false)
-      const [noCompress, setNoCompress] = useState(false)
       const [preflightEnabled, setPreflightEnabled] = useState(false)
       const [extraExclude, setExtraExclude] = useState('')
       const [includeAttachments, setIncludeAttachments] = useState(false)
+      const [exportName, setExportName] = useState('')
       const [preview, setPreview] = useState(null)
       const [placeMode, setPlaceMode] = useState('original')
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -622,12 +620,6 @@ window.__ModuleLoader__.load({
         })
       }
 
-      function onlyFiles(group) {
-        const keep = group.sessions[0]
-        setSelected(new Set(keep ? [keep.sessionId] : []))
-        setIncludeFiles(true)
-      }
-
       function toggleGroup(group) {
         setSelected((previous) => {
           const next = new Set(previous)
@@ -714,7 +706,6 @@ window.__ModuleLoader__.load({
         const flags = []
         if (includeFiles) flags.push('--files')
         if (fullMode) flags.push('--full')
-        if (noCompress) flags.push('--no-compress')
         if (preflightEnabled) flags.push('--preflight')
         if (includeAttachments) flags.push('--attachments')
         const excluded = extraExclude
@@ -722,11 +713,12 @@ window.__ModuleLoader__.load({
           .map((item) => item.trim())
           .filter(Boolean)
         const excludeArg = excluded.length > 0 ? ` --exclude "${excluded.join(',')}"` : ''
+        const nameArg = exportName.trim().length > 0 ? ` --name "${exportName.trim()}"` : ''
         const flagText = flags.length > 0 ? ` ${flags.join(' ')}` : ''
         setLastExport(null)
         const started = Date.now()
         const outcome = await runCommand(
-          `/mover export "${targetPath.trim()}"${flagText}${excludeArg} ${ids.join(' ')}`,
+          `/mover export "${targetPath.trim()}"${flagText}${excludeArg}${nameArg} ${ids.join(' ')}`,
           t.exportDone,
         )
         if (outcome && outcome.ok) {
@@ -818,6 +810,16 @@ window.__ModuleLoader__.load({
           setPreview(JSON.parse(commandResult.text))
         } catch (previewError) {
           setError(previewError instanceof Error ? previewError.message : String(previewError))
+        }
+      }
+
+      async function pickImportDirectory() {
+        if (!canPickDirectory) return
+        try {
+          const dir = await uiService.pickDirectory()
+          if (typeof dir === 'string' && dir.length > 0) setImportTarget(dir)
+        } catch (pickError) {
+          setError(pickError instanceof Error ? pickError.message : String(pickError))
         }
       }
 
@@ -1094,25 +1096,6 @@ window.__ModuleLoader__.load({
                 },
                 h('input', {
                   type: 'checkbox',
-                  checked: noCompress,
-                  disabled: busy,
-                  onChange: (event) => setNoCompress(event.target.checked),
-                }),
-                h('span', null, t.noCompress),
-              ),
-              h(
-                'label',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: 12,
-                    color: THEME.text,
-                  },
-                },
-                h('input', {
-                  type: 'checkbox',
                   checked: preflightEnabled,
                   disabled: busy,
                   onChange: (event) => setPreflightEnabled(event.target.checked),
@@ -1165,6 +1148,14 @@ window.__ModuleLoader__.load({
               onChange: (event) => setTargetPath(event.target.value),
               disabled: busy,
               style: fieldStyle(),
+            }),
+            h('input', {
+              type: 'text',
+              value: exportName,
+              placeholder: t.packageName,
+              onChange: (event) => setExportName(event.target.value),
+              disabled: busy,
+              style: { ...fieldStyle(), flex: '0 1 160px', minWidth: 120 },
             }),
             canPickDirectory
               ? h(
@@ -1418,6 +1409,18 @@ window.__ModuleLoader__.load({
                   style: fieldStyle(),
                 })
               : null,
+            placeMode === 'folder' && canPickDirectory
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: pickImportDirectory,
+                    disabled: busy,
+                    style: buttonStyle(busy),
+                  },
+                  t.pickDirectory,
+                )
+              : null,
             h(
               'button',
               { type: 'button', onClick: startImport, disabled: busy, style: primaryButtonStyle(busy) },
@@ -1547,27 +1550,6 @@ window.__ModuleLoader__.load({
               'span',
               { style: { fontWeight: 400, opacity: 0.55, fontSize: 11 } },
               t.sessionsUnit(group.sessions.length),
-            ),
-            h(
-              'button',
-              {
-                type: 'button',
-                onClick: (event) => {
-                  event.preventDefault()
-                  onlyFiles(group)
-                },
-                style: {
-                  marginLeft: 'auto',
-                  border: 'none',
-                  background: 'transparent',
-                  color: THEME.textMuted,
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  padding: '0 4px',
-                  fontWeight: 400,
-                },
-              },
-              t.onlyFiles,
             ),
           ),
           h(
