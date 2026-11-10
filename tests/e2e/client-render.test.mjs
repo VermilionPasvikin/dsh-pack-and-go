@@ -149,3 +149,32 @@ test('英文 locale 时按钮标题为英文', async () => {
   const tree = renderNode(footer.result.component())
   assert.equal(tree.props.title, 'Migrate conversations or workspaces')
 })
+
+test('树按 cwd 归组，session.list 不可用时回退', async () => {
+  const { module } = await loadClientModule()
+  const group = module._test.groupFromWorkspaces
+  assert.equal(typeof group, 'function')
+  const items = [
+    { workspaceId: 'w1', path: 'C:\\Work\\Proj', title: 'Proj', sessionIds: ['s1'] },
+    { workspaceId: 'w2', path: 'C:\\Work\\Other', title: 'Other', sessionIds: ['s9'] },
+  ]
+  const listItems = [
+    { sessionId: 's1', cwd: 'C:\\Work\\Proj', updatedAt: 1 },
+    { sessionId: 's2', cwd: 'c:/work/proj', updatedAt: 2 },
+    { sessionId: 's3', cwd: 'C:\\Elsewhere', updatedAt: 3 },
+  ]
+  const titles = new Map([['s1', '标题一']])
+  const texts = { sessionFallback: (id) => `对话 ${id}`, ungrouped: '未分组' }
+
+  const groups = group(items, listItems, titles, 'zh', texts, new Set(), false)
+  const proj = groups.find((entry) => entry.cwd === 'C:\\Work\\Proj')
+  assert.equal(proj.sessions.length, 2)
+  assert.equal(proj.sessions.find((s) => s.sessionId === 's1').title, '标题一')
+  const ungrouped = groups.find((entry) => entry.cwd === undefined)
+  assert.equal(ungrouped.title, '未分组')
+  assert.equal(ungrouped.sessions.length, 1)
+
+  const fallback = group(items, [], titles, 'zh', texts, new Set(), false)
+  assert.equal(fallback[0].sessions.length, 1)
+  assert.equal(fallback[1].sessions.length, 1)
+})

@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2111-0045'
+    const BUILD_TAG = 'b2111-0055'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -1660,51 +1660,73 @@ window.__ModuleLoader__.load({
 
     function normalizePath(value) {
       return String(value ?? '')
-        .replace(/[\\/]+$/, '')
+        .replace(/\\/g, '/')
         .toLowerCase()
+        .replace(/\/+$/, '')
     }
 
     /**
      * 用会话列表（cwd）归组，与左侧侧边栏一致；未匹配的会话作为「未分组」。
+     * `session.list` 不可用（空数组）时回退到 workspace.sessionIds，保证树不整棵消失。
      * @param {Array<object>} items workspace.follow 的 WorkspaceView
      * @param {Array<object>} listItems session.list 的 SessionSummary
      */
     function groupFromWorkspaces(items, listItems, titles, localeId, texts, archivedIds, showArchived) {
-      const assigned = new Set()
-      const sessionsByCwd = new Map()
-      for (const item of listItems) {
-        if (!item || typeof item.sessionId !== 'string') continue
-        if (typeof item.cwd !== 'string' || item.cwd.length === 0) continue
-        const key = normalizePath(item.cwd)
-        if (!sessionsByCwd.has(key)) sessionsByCwd.set(key, [])
-        sessionsByCwd.get(key).push(item)
-      }
+      const groups = []
+      const useList = Array.isArray(listItems) && listItems.length > 0
       const toSession = (item) => ({
         sessionId: item.sessionId,
         title: titles.get(item.sessionId) ?? texts.sessionFallback(shortSessionId(item.sessionId)),
         updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : 0,
       })
-      const groups = []
-      for (const workspace of items) {
-        const sessions = (sessionsByCwd.get(normalizePath(workspace.path)) ?? [])
-          .filter((item) => showArchived || !archivedIds.has(item.sessionId))
-          .map((item) => {
-            assigned.add(item.sessionId)
-            return toSession(item)
+      if (useList) {
+        const assigned = new Set()
+        const sessionsByCwd = new Map()
+        for (const item of listItems) {
+          if (!item || typeof item.sessionId !== 'string') continue
+          const key = normalizePath(item.cwd)
+          if (key.length === 0) continue
+          if (!sessionsByCwd.has(key)) sessionsByCwd.set(key, [])
+          sessionsByCwd.get(key).push(item)
+        }
+        for (const workspace of items) {
+          const own = sessionsByCwd.get(normalizePath(workspace.path)) ?? []
+          const sessions = own
+            .filter((item) => showArchived || !archivedIds.has(item.sessionId))
+            .map((item) => {
+              assigned.add(item.sessionId)
+              return toSession(item)
+            })
+          groups.push({
+            cwd: workspace.path,
+            title: displayWorkspaceTitle(workspace.title, localeId),
+            sessions,
           })
-        if (sessions.length === 0) continue
+        }
+        const ungrouped = listItems
+          .filter(
+            (item) => item && typeof item.sessionId === 'string' && !assigned.has(item.sessionId),
+          )
+          .filter((item) => showArchived || !archivedIds.has(item.sessionId))
+          .map(toSession)
+        if (ungrouped.length > 0) {
+          groups.push({ cwd: undefined, title: texts.ungrouped, sessions: ungrouped })
+        }
+        return groups
+      }
+      for (const workspace of items) {
+        const sessions = (workspace.sessionIds ?? [])
+          .filter((sessionId) => showArchived || !archivedIds.has(sessionId))
+          .map((sessionId) => ({
+            sessionId,
+            title: titles.get(sessionId) ?? texts.sessionFallback(shortSessionId(sessionId)),
+            updatedAt: 0,
+          }))
         groups.push({
           cwd: workspace.path,
           title: displayWorkspaceTitle(workspace.title, localeId),
           sessions,
         })
-      }
-      const ungrouped = listItems
-        .filter((item) => item && typeof item.sessionId === 'string' && !assigned.has(item.sessionId))
-        .filter((item) => showArchived || !archivedIds.has(item.sessionId))
-        .map(toSession)
-      if (ungrouped.length > 0) {
-        groups.push({ cwd: undefined, title: texts.ungrouped, sessions: ungrouped })
       }
       return groups
     }
@@ -1807,6 +1829,8 @@ window.__ModuleLoader__.load({
           ),
         )
       },
+      // 仅用于 e2e 渲染测试：暴露纯函数，不影响生产行为
+      _test: { groupFromWorkspaces, titleOf, normalizePath },
     }
   },
 })
