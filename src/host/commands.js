@@ -353,9 +353,16 @@ export async function importPack(deps, packPath, targetRoot) {
       }
     }
 
+    const createdCount = sessions.written.filter(
+      (item) => item.action === 'import' || item.action === 'new-id',
+    ).length
+    const overwrittenCount = sessions.written.filter(
+      (item) => item.action === 'overwrite',
+    ).length
+
     return {
       kind: 'success',
-      text: `已导入 ${sessions.written.length} 个对话、${files.written.length} 个工作区文件，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。`,
+      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
     return errorResult(
