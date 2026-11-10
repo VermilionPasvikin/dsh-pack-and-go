@@ -303,3 +303,9 @@
 - 变更：重写 `README.md`（使用、跨平台注意、安装/卸载、文档索引、状态）；`package.json` 版本改为 `0.1.0`，description 更新为 “Cross-platform migration for DSH conversations and workspaces”。
 - 验证：`files` 覆盖 `src/host`(5 个 JS)/`src/client`(1)/`src/core`(21)、`cordis.patch.yml`、`locale/zh|en.json`、`icon.svg`。
 - 下一步：T7.4（最终验收报告）。
+
+## 057 · 2026-11-10 · docs: 最终验收报告与 M7 完成（T7.4）
+- 变更：新增 `docs/FINAL-REPORT.md`；`TASKS.md` T7.1–T7.4 ✅、M7 ✅；`INDEX.md` 标记 v0.1.0 交付。
+- 验证：见 FINAL-REPORT（163 项单测、7 项 e2e、一次性 profile 集成证据、SPEC §11 结果）。
+- 结论：v0.1.0 交付。已知限制：内存式打包、浏览器渲染未验证、取消未实现、符号链接转换未实现、无精确进度。
+- 下一步：无（M6 CLI 暂缓）；后续建议见 FINAL-REPORT §5。
