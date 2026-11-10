@@ -66,10 +66,16 @@ tests/
 - 工作区路径：`Workspace.path`（canonical）
 - 附件根：attachment 服务 / `DSH_HOME` 配置
 
-### Remote 与 UI 落点
+### UI→Host 通信（ADR-0008）
 
-- Host Remote：`@Remote({ mode: 'stream' })` 推送进度帧（协议见下）
-- Client UI：`sidebar.panellist` + `main`（key `mover`）+ `settings.section` 兜底
+- 纯 JS 插件不使用 Typert `@Remote`（它需要 TS 源码分析与 Client 契约生成）。
+- Host 用 `ctx.commands.register` 注册 `mover` 命令（导出/导入）。
+- Client 通过已有的 `ctx.remote.commands.execute()` 调用；等待期显示“转圈 + 阶段文案”。
+- `src/core/progress.js` 的帧协议保留给未来的流式方案 A；当前命令返回一次性文本结果。
+
+### Client UI 落点
+
+- `sidebar.panellist` + `main`（key `mover`）+ `settings.section` 兜底
 
 ### 进度协议（T2.3）
 

@@ -222,3 +222,8 @@
 - 状态：T2.11 标记 🟨，等待 **ADR-0008** 拍板；本轮未改代码。
 - 验证：`docs/api-gateway.md`；`Service.listService`（`webServer` / `commands`）签名。
 - 下一步：等待用户拍板 ADR-0008。
+
+## 043 · 2026-11-10 · docs: ADR-0008 UI→Host 通信（命令 + 不确定进度）
+- 变更：`DECISIONS.md` 新增 ADR-0008（B 变体：`ctx.commands.register` + 转圈 + 阶段文案，保留纯 JS）；`DESIGN.md` 通信方式改为 commands；`TASKS.md` T2.11 验收更新；`INDEX.md` 未决项移除。
+- 验证：与用户拍板一致（B 变体、转圈、不推翻纯 JS）。
+- 下一步：实现 `mover` 命令（T2.11）。

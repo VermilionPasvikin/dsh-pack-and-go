@@ -130,3 +130,22 @@
 - 新增任务 T2.12（跨版本导入走服务重建），列入 M2。
 
 **关联**：SPEC §FR-8、§9；TASKS T1.5/T1.6/T2.12；DEVLOG 013/014。
+
+## ADR-0008 · UI→Host 通信方式（2026-11-10，Accepted，用户拍板）
+
+**背景**：`@Remote` 是 Typert 装饰器，Client 契约由构建生成；纯 JS 插件无法直接通过 `ctx.remote` 暴露方法。T2.11 原计划因此不成立。
+
+**选项**
+- A. 自定义 HTTP 路由（`WebResourceRoute`）+ Client `fetch`，支持流式进度与取消；
+- B. session command（`ctx.commands.register`），复用已有的 `commands` Remote；UI 等待期间显示“转圈 + 阶段文案”；
+- C. 引入 Typert TS 构建链，使用原生 `ctx.remote`。
+
+**决定**：**B 变体**。用 `ctx.commands.register` 注册 `mover` 命令；UI 在等待期间显示不确定进度（转圈）与阶段文案，完成后显示文本结果。保留纯 JS，不引入构建链。
+
+**后果**
+- 不提供精确百分比（用户已明确接受）；命令参数为文本形式；
+- 不引入 HTTP 路由的信任模型风险，也不改变工程结构；
+- 若未来确需精确进度，可新增 ADR 升级为方案 A；
+- SPEC NFR-3 的“进度条 + 阶段文字”由“不确定进度 + 阶段文案”满足。
+
+**关联**：TASKS T2.11、T3.4/T3.5；DEVLOG 042/043。
