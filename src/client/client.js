@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2110-2235'
+    const BUILD_TAG = 'b2110-2325'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
