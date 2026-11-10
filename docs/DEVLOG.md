@@ -186,3 +186,9 @@
 - 验证：一次性 `DSH_HOME` 的 `mover-test` profile 中导出 `%TEMP%\dsh-mover-selftest.dshpack`（1128 B）；外部 `readZip` 校验：3 条目（manifest 579B / README 20B / 会话 349B），manifest `schemaVersion=2`、`mode=sessions`、`sessionFormat=4`，会话文件与源大小一致。
 - 说明：首版为内存打包（单文件 ≤256 MiB），流式优化留给性能任务。
 - 下一步：T2.6（导入任务编排）。
+
+## 037 · 2026-11-10 · feat: 导入编排（会话写盘，集成验证通过）
+- 变更：新增 `src/core/import-pack.js`（`importSessionsToDisk`：读包 → manifest 校验 → `planImport` → cwd 改写 → 写入 `sessionRoot`）；`src/core/index.js` 导出；`package.json` check 同步；新增 `tests/unit/import-pack.test.mjs`。
+- 验证：134 项单测全绿；用 T2.5 产物（`%TEMP%\dsh-mover-selftest.dshpack`）导入临时目标根：写入 `_no-cwd/<id>/session.v4.jsonl.zstd`（349B，与源一致），2 帧可解析，header cwd 保持源值（未归组会话）。
+- 说明：附件（T2.8）与工作区文件/登记（T2.9）尚未纳入导入编排。
+- 下一步：T2.7（会话写入细节：覆盖备份/new-id、Host 内可列出）。
