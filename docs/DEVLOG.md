@@ -357,6 +357,11 @@
 - 验证：`commands.test` 9 项（含连带导出与 `--no-fork`）、`import-pack.test` 7 项（含 new-id 父子映射）通过。
 - 下一步：T3.9（浮层顶部平台/DSH_HOME/版本）。
 
+## 067 · 2026-11-10 · feat: 浮层顶部平台/DSH_HOME/版本（T3.9）
+- 变更：`mover list` 返回 `payload.meta`（platform / dshHome / dshVersion）；Client 读取并在副标题下显示 `platform · DSH_HOME · version`。
+- 验证：`tests/unit/commands.test.mjs` 9 项、`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.10（设置页备用入口）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

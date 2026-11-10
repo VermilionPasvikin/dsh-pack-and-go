@@ -438,6 +438,11 @@ export async function listCatalog(deps) {
       logger: deps.logger,
     })
     const payload = {
+      meta: {
+        platform: deps.platform ?? process.platform,
+        dshHome: deps.dshHome,
+        dshVersion: deps.dshVersion,
+      },
       workspaces: catalog.workspaces.map((workspace) => ({
         path: workspace.path,
         title: workspace.title,
