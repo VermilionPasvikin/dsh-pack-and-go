@@ -197,7 +197,7 @@ window.__ModuleLoader__.load({
         const locale = getService('locale')
         const snapshot =
           locale && typeof locale.getLocale === 'function' ? locale.getLocale() : null
-        const id = snapshot && (snapshot.id ?? snapshot.locale ?? snapshot.language)
+        const id = snapshot && (snapshot.active ?? snapshot.id ?? snapshot.locale ?? snapshot.language)
         return typeof id === 'string' && id.toLowerCase().startsWith('en') ? 'en' : 'zh'
       } catch {
         return 'zh'
@@ -451,12 +451,14 @@ window.__ModuleLoader__.load({
             }
 
             let items = []
+            let archivedIds = new Set()
             const stream = await remote.workspace.follow(controller.signal)
             try {
               for await (const frame of stream) {
                 if (cancelled) break
                 if (frame.type === 'baseline' || frame.type === 'replace') {
                   items = frame.value?.items ?? []
+                  archivedIds = new Set(frame.value?.archivedSessionIds ?? [])
                   break
                 }
               }
@@ -486,7 +488,7 @@ window.__ModuleLoader__.load({
             }
 
             setRawItems(items)
-            setGroups(groupFromWorkspaces(items, titles, localeId, t))
+            setGroups(groupFromWorkspaces(items, titles, localeId, t, archivedIds, showArchived))
             setStatus('ready')
           } catch (loadError) {
             if (cancelled) return
@@ -1486,7 +1488,10 @@ window.__ModuleLoader__.load({
             h('input', {
               type: 'checkbox',
               checked: showArchived,
-              onChange: (event) => setShowArchived(event.target.checked),
+              onChange: (event) => {
+                setShowArchived(event.target.checked)
+                setReloadTick((tick) => tick + 1)
+              },
             }),
             h('span', null, t.showArchived),
           ),
@@ -1595,14 +1600,16 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function groupFromWorkspaces(items, titles, localeId, texts) {
+    function groupFromWorkspaces(items, titles, localeId, texts, archivedIds, showArchived) {
       const groups = []
       for (const workspace of items) {
-        const sessions = (workspace.sessionIds ?? []).map((sessionId) => ({
-          sessionId,
-          title: titles.get(sessionId) ?? texts.sessionFallback(shortSessionId(sessionId)),
-          updatedAt: 0,
-        }))
+        const sessions = (workspace.sessionIds ?? [])
+          .filter((sessionId) => showArchived || !archivedIds.has(sessionId))
+          .map((sessionId) => ({
+            sessionId,
+            title: titles.get(sessionId) ?? texts.sessionFallback(shortSessionId(sessionId)),
+            updatedAt: 0,
+          }))
         groups.push({
           cwd: workspace.path,
           title: displayWorkspaceTitle(workspace.title, localeId),
