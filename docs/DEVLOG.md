@@ -233,3 +233,9 @@
 - 验证：159 项单测全绿（导出生成包、导入写回、用法错误、命令结构）；一次性 home 启动日志包含 `[dsh-mover] command registered: mover`，stderr 无插件错误。
 - 说明：UI 等待期显示“转圈 + 阶段文案”（ADR-0008）；精确进度留给未来方案 A。
 - 下一步：T2.12（跨版本兜底，ADR-0007 方案 C）。
+
+## 045 · 2026-11-10 · feat: 跨版本会话重建（ADR-0007 方案 C）
+- 变更：新增 `src/host/rebuild.js`（`rebuildSessionViaService`：`open(id,'read')` → `create(新 header)` → `append(events)` → `flush`）；`errors.js` 增加 `E_REBUILD_FAILED` 与中文消息；`host/index.js` 增加 `DSH_MOVER_SELFTEST_REBUILD` 自检；`package.json` check 同步；新增 `tests/unit/rebuild.test.mjs`。
+- 验证：163 项单测全绿；一次性 home 中重建：`DSH-MOVER-REBUILD {"id":"session-4b2b9a81...","events":3,"cwd":"…default-workspace"}`，`DSH-MOVER-REBUILD-AFTER {"sessions":2}`。
+- 说明：真实 v3 文件的迁移未单独验证（本机无 v3 样本），机制由 `open(read)` 的官方迁移链保证。
+- 下一步：M2 DoD 验收。

@@ -36,6 +36,7 @@ export const ERROR_CODES = Object.freeze({
   PLAN_INVALID: 'E_PLAN_INVALID',
   PROGRESS_INVALID: 'E_PROGRESS_INVALID',
   CATALOG_INVALID: 'E_CATALOG_INVALID',
+  REBUILD_FAILED: 'E_REBUILD_FAILED',
 })
 
 /**
@@ -94,6 +95,10 @@ export const ERROR_MESSAGES = Object.freeze({
   E_CATALOG_INVALID: {
     title: '无法读取工作区或会话列表',
     next: '请确认 DSH 正在运行且数据可读，然后重试',
+  },
+  E_REBUILD_FAILED: {
+    title: '会话重建失败',
+    next: '请确认目标 DSH 支持该会话格式，或改用同版本迁移',
   },
 })
 

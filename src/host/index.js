@@ -7,6 +7,7 @@
 
 import { loadCatalog } from './catalog.js'
 import { createMoverCommand } from './commands.js'
+import { rebuildSessionViaService } from './rebuild.js'
 
 /** @type {string} */
 export const name = 'dsh-mover'
@@ -56,7 +57,9 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_IMPORT === '1') {
+        if (process.env.DSH_MOVER_SELFTEST_REBUILD === '1') {
+          await runRebuildSelfTest(ctx, catalog)
+        } else if (process.env.DSH_MOVER_SELFTEST_IMPORT === '1') {
           await runImportSelfTest(ctx, catalog)
         } else if (process.env.DSH_MOVER_SELFTEST_EXPORT === '1') {
           await runExportSelfTest(ctx, catalog)
@@ -68,6 +71,37 @@ export function apply(ctx, config) {
       }
     })()
   }
+}
+
+/**
+ * 重建自检：读取第一个会话，用服务 API 重建为新会话（ADR-0007 方案 C）。
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {object} catalog
+ */
+async function runRebuildSelfTest(ctx, catalog) {
+  const source = [
+    ...catalog.workspaces.flatMap((workspace) => workspace.sessions),
+    ...catalog.ungrouped,
+  ][0]
+  if (!source) {
+    console.log('DSH-MOVER-REBUILD none')
+    return
+  }
+  const rebuilt = await rebuildSessionViaService({
+    sessionPersistence: ctx.sessionPersistence,
+    sourceId: source.id,
+    newCwd: source.cwd,
+    createdAt: Date.now(),
+  })
+  console.log(`DSH-MOVER-REBUILD ${JSON.stringify(rebuilt)}`)
+
+  const after = await loadCatalog({
+    workspaceRegistry: ctx.workspaceRegistry,
+    sessionPersistence: ctx.sessionPersistence,
+    sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+    logger: ctx.logger,
+  })
+  console.log(`DSH-MOVER-REBUILD-AFTER ${JSON.stringify(after.totals)}`)
 }
 
 /**

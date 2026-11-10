@@ -71,7 +71,7 @@
 | T2.9 | 实现工作区登记与合并（`workspaceRegistry.create` 复用；不存在则创建） | T2.6 | 一次性 home 中侧边栏出现工作区与归组会话 | ✅ 2026-11-10 |
 | T2.10 | 实现备份与回滚（覆盖前备份、失败恢复） | T2.7 | 单测：覆盖后旧文件在 `backups/mover/<时间戳>`；失败可回滚 | ✅ 2026-11-10 |
 | T2.11 | 暴露 `mover` 命令（导出/导入），复用 `commands` 的已有 Remote；UI 等待期显示转圈（ADR-0008） | T2.5, T2.6 | 安装后启动无报错；日志确认命令已注册；`mover export` 可生成包 | ✅ 2026-11-10 |
-| T2.12 | 跨版本导入兜底（ADR-0007 方案 C）：用 `sessionPersistence` 读逻辑事件，`create`(新 header) + `append` 重建会话 | T2.2, T2.6 | 单测/一次性 home：v3 源文件可导入为 v4，事件数一致 | ⬜ |
+| T2.12 | 跨版本导入兜底（ADR-0007 方案 C）：用 `sessionPersistence` 读逻辑事件，`create`(新 header) + `append` 重建会话 | T2.2, T2.6 | 单测/一次性 home：v3 源文件可导入为 v4，事件数一致 | ✅ 2026-11-10 |
 
 ### M3 Web UI
 
