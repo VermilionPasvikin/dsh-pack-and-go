@@ -49,6 +49,7 @@ window.__ModuleLoader__.load({
         onlyFiles: '只带文件',
         showArchived: '显示已归档',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
+        copyPath: '复制路径',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -97,6 +98,7 @@ window.__ModuleLoader__.load({
         onlyFiles: 'Files only',
         showArchived: 'Show archived',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
+        copyPath: 'Copy path',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -374,6 +376,7 @@ window.__ModuleLoader__.load({
       const [workspaceBytes, setWorkspaceBytes] = useState(() => new Map())
       const [query, setQuery] = useState('')
       const [showArchived, setShowArchived] = useState(false)
+      const [lastExport, setLastExport] = useState(null)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -603,7 +606,7 @@ window.__ModuleLoader__.load({
       async function runCommand(line, successText) {
         if (!agentId) {
           setError(t.noContext)
-          return
+          return { ok: false }
         }
         setBusy(true)
         setError(null)
@@ -617,32 +620,35 @@ window.__ModuleLoader__.load({
           const response = await remote.commands.execute(agentId, line, [])
           if (!response) {
             setError(t.commandNotExecuted)
-            return
+            return { ok: false }
           }
           if (response.ok !== true) {
             const detail = response.error
               ? `${response.error.code ?? ''} ${response.error.message ?? ''}`.trim()
               : ''
             setError(`${t.commandFailed}${detail}`)
-            return
+            return { ok: false }
           }
           const execution = response.value
           if (!execution) {
             setError(t.commandNotExecuted)
-            return
+            return { ok: false }
           }
           const commandResult = execution.result ?? execution
           const text =
             typeof commandResult.text === 'string' && commandResult.text.length > 0
               ? commandResult.text
               : successText
-          if (commandResult.kind === 'error') setError(text)
-          else {
-            setMessage(text)
-            setReloadTick((tick) => tick + 1)
+          if (commandResult.kind === 'error') {
+            setError(text)
+            return { ok: false }
           }
+          setMessage(text)
+          setReloadTick((tick) => tick + 1)
+          return { ok: true, text }
         } catch (executeError) {
           setError(executeError instanceof Error ? executeError.message : String(executeError))
+          return { ok: false }
         } finally {
           setBusy(false)
         }
@@ -669,7 +675,20 @@ window.__ModuleLoader__.load({
         }
         const ids = [...selected]
         const filesFlag = includeFiles ? ' --files' : ''
-        await runCommand(`/mover export "${targetPath.trim()}"${filesFlag} ${ids.join(' ')}`, t.exportDone)
+        setLastExport(null)
+        const started = Date.now()
+        const outcome = await runCommand(
+          `/mover export "${targetPath.trim()}"${filesFlag} ${ids.join(' ')}`,
+          t.exportDone,
+        )
+        if (outcome && outcome.ok) {
+          const match = outcome.text.match(/到 (.+?)（(\d+) 字节）/)
+          setLastExport({
+            path: match ? match[1] : targetPath.trim(),
+            bytes: match ? Number(match[2]) : 0,
+            durationMs: Date.now() - started,
+          })
+        }
       }
 
       async function pickPack() {
@@ -983,6 +1002,57 @@ window.__ModuleLoader__.load({
                 'div',
                 { style: { marginTop: 6, fontSize: 11, color: THEME.textMuted } },
                 t.noSelectionHint,
+              )
+            : null,
+          lastExport
+            ? h(
+                'div',
+                {
+                  style: {
+                    marginTop: 10,
+                    padding: '10px 12px',
+                    border: `1px solid ${THEME.border}`,
+                    borderRadius: 8,
+                    fontSize: 12,
+                  },
+                },
+                h('div', { style: { fontWeight: 600, color: THEME.text } }, t.exportDone),
+                h(
+                  'div',
+                  {
+                    style: {
+                      color: THEME.textMuted,
+                      marginTop: 2,
+                      wordBreak: 'break-all',
+                    },
+                  },
+                  lastExport.path,
+                ),
+                h(
+                  'div',
+                  { style: { color: THEME.textMuted, marginTop: 2 } },
+                  `${formatBytes(lastExport.bytes)} · ${(lastExport.durationMs / 1000).toFixed(1)}s`,
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => {
+                      try {
+                        navigator.clipboard?.writeText(lastExport.path)
+                      } catch {
+                        // 复制失败不提示
+                      }
+                    },
+                    style: {
+                      ...buttonStyle(false),
+                      marginTop: 6,
+                      padding: '3px 8px',
+                      fontSize: 11,
+                    },
+                  },
+                  t.copyPath,
+                ),
               )
             : null,
         )

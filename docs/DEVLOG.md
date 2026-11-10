@@ -382,6 +382,11 @@
 - 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 10 项通过。
 - 下一步：T3.13（高级折叠 + 完成页）。
 
+## 072 · 2026-11-10 · feat: 导出完成页（T3.13 部分）
+- 变更：`runCommand` 返回 `{ ok, text }`；导出成功后显示完成卡片（压缩包路径、大小、耗时、「复制路径」按钮）。
+- 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 10 项通过。
+- 下一步：T3.13 剩余（高级折叠：排除 / 压缩 / 预检 / 附件）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
