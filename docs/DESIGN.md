@@ -32,13 +32,65 @@ tests/
 
 **导入**：读包 → 校验 manifest/版本 → 平台预检与转换 → 冲突处理 → 写会话（含 cwd 改写）→ 复制附件 → 恢复工作区文件 → 登记工作区 → 完成。
 
-## 4. 关键接口（实现前用 `cordis_inspect_query` 复核）
+## 4. 关键接口（已用 `cordis_inspect_query` 核实，2026-11-10，DSH 0.2.2-rc.1）
 
-- `sessionPersistence.list()/stat()` → `location.path`、`header`、`sizeBytes`（不要硬编码会话根）。
-- `workspaceRegistry.list()/create()`；Client 侧 `ctx.workspaces.create({ path })`、`insertSessionBefore`。
-- `attachment` 服务 / `<DSH_HOME>/attachments/v1`：被引用对象的复制。
-- Host Remote：`@Remote({ mode: 'stream' })` 推送进度帧。
-- Client UI 落点：`sidebar.panellist` + `main`（key `mover`）+ `settings.section` 兜底。
+> 来源：当前 Host 的 `Service.listService`（host）。实现时仍须在目标 Host 上以运行时
+> `ctx.get()` 校验；不同 DSH 版本可能有差异，不使用未在本文列出的方法。
+
+### sessionPersistence（会话持久化）
+
+- `create(header, options?)` → `SessionHandle`（取得写所有权；id 已存在抛 `SessionAlreadyExistsError`）
+- `open(id, 'read'|'write', options?)` → `SessionHandle`（写被占用抛 `SessionAlreadyOwnedError`）
+- `stat(id, options?)` → `{ header, formatStatus?, revision, eventCount?, sizeBytes?, location? } | undefined`
+- `list(options?)` → `SessionPersistenceSnapshot[]`
+- `SessionHandle`：`read(offset?, length?)` → `{ events, eventState }`；`append(events)`；`flush()`；`close()`
+
+### workspaceRegistry（工作区）
+
+- `create(path, title?)` → `Workspace`（path 必须存在，经 `fs.realpath` 规范化；重复创建返回已有且不改标题）
+- `list()` → `Workspace[]`（durable 顺序；`sessionIds` 已按 canonical cwd 过滤）
+- `get(id)`、`resolveByPath(path)`、`delete(id)`
+- `Workspace`：`{ id, path, title, createdAt, updatedAt, sessionIds, setTitle, attachSession, insertSessionBefore, detachSession, status }`
+- 归档/置顶：`archiveSession` / `unarchiveSession` / `pinSession` / `unpinSession`
+
+### attachments（附件）
+
+- `saveFile(input)`、`saveFileStream(input)`、`readFileStream(ref)`、`fileHostPath(ref)`
+- `readImage(ref)`、`imageHostPath(ref)`
+- 对象位于 `<DSH_HOME>/attachments/v1`（内容寻址，同内容只存一份）
+
+### 路径来源约定
+
+- 会话文件绝对路径：`snapshot.location.path`（**不要**硬编码 `DSH_HOME/sessions`）
+- 会话 cwd：`snapshot.header.cwd`
+- 工作区路径：`Workspace.path`（canonical）
+- 附件根：attachment 服务 / `DSH_HOME` 配置
+
+### Remote 与 UI 落点
+
+- Host Remote：`@Remote({ mode: 'stream' })` 推送进度帧（协议见下）
+- Client UI：`sidebar.panellist` + `main`（key `mover`）+ `settings.section` 兜底
+
+### 进度协议（T2.3）
+
+Host 通过流式 Remote 推送单帧 JSON：
+
+```json
+{
+  "taskId": "export-<uuid>",
+  "stage": "scan|preflight|pack-sessions|pack-workspaces|verify|restore-sessions|restore-attachments|restore-workspaces|register|done",
+  "status": "running|success|error|cancelled",
+  "done": 3,
+  "total": 10,
+  "bytesDone": 1024,
+  "bytesTotal": 4096,
+  "message": "正在扫描",
+  "error": { "code": "E_PACK_INVALID", "title": "…", "next": "…", "message": "…" }
+}
+```
+
+- 校验与构造：`src/core/progress.js` 的 `createProgressEvent()`；百分比用 `progressPercent()`（`success` 恒为 100）。
+- 错误帧携带 `describeError()` 的结果，Client 直接展示中文，不再二次翻译。
 
 ## 5. 包格式
 

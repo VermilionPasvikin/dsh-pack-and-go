@@ -61,8 +61,8 @@
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
 | T2.1 | 根 `package.json` 声明 bundle（`dsh.bundle.patch`）与 `cordis.patch.yml`；`src/host/index.js` 导出 `apply` 骨架 | M1 | `node --check` 通过；一次性 `DSH_HOME` 中 profile 可加载插件行 | ✅ 2026-11-10 |
-| T2.2 | 用 `cordis_inspect_query` 确认 `sessionPersistence.list/stat`、`workspaceRegistry.list/create`、附件服务的实际签名并记录到 DESIGN §4 | T2.1 | DESIGN §4 更新为已核实签名；无猜测接口 | ⬜ |
-| T2.3 | 定义进度协议（帧字段：`taskId/stage/done/total/bytesDone/bytesTotal/message/error`） | T2.1 | 单测：帧序列化/反序列化；DESIGN 增补协议章节 | ⬜ |
+| T2.2 | 用 `cordis_inspect_query` 确认 `sessionPersistence.list/stat`、`workspaceRegistry.list/create`、附件服务的实际签名并记录到 DESIGN §4 | T2.1 | DESIGN §4 更新为已核实签名；无猜测接口 | ✅ 2026-11-10 |
+| T2.3 | 定义进度协议（帧字段：`taskId/stage/done/total/bytesDone/bytesTotal/message/error`） | T2.1 | 单测：帧序列化/反序列化；DESIGN 增补协议章节 | ✅ 2026-11-10 |
 | T2.4 | 实现 Host 侧“列工作区 + 列会话 + 大小”查询函数 | T2.2 | 一次性 `DSH_HOME` 中返回与侧边栏一致的数据 | ⬜ |
 | T2.5 | 实现导出任务编排（扫描→预检→写包→校验），返回任务 id，可取消 | T2.4, T1.13 | 单测 + 一次性 home 生成可读的 `.dshpack` | ⬜ |
 | T2.6 | 实现导入任务编排（校验→预检→冲突→写会话→附件→工作区→登记） | T2.4, T1.14 | 单测：用 T2.5 产物导入到另一一次性 home | ⬜ |

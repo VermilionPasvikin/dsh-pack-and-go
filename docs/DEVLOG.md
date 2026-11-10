@@ -142,3 +142,13 @@
 - 变更：新增 `src/host/index.js`（`name` + `apply` 骨架）、`cordis.patch.yml`（insert 行）；根 `package.json` 增加 `exports`/`files`/`dsh.bundle.patch`。
 - 验证：一次性 `DSH_HOME`（`%TEMP%\dsh-e2e-7ee81587c7ac4c8e9fb7acd46e177cad`，带 `.dsh-e2e-marker`）中执行 `dsh mover-test --from-default-profile web --dump-config` 创建 profile；`dsh plugin --profile mover-test add "file:F:\PersonalProjects\python\新建文件夹"` 安装成功（pnpm，811ms）；`--dump-config` 输出包含 `- id: dsh-mover` / `name: dsh-mover`。
 - 下一步：T2.2（确认 DSH 服务实际签名并更新 DESIGN）。
+
+## 029 · 2026-11-10 · docs: 核实 DSH 服务签名并更新设计
+- 变更：`docs/DESIGN.md` §4 更新为经 `cordis_inspect_query Service.listService` 核实的方法签名（`sessionPersistence`、`workspaceRegistry`、`attachments`）与路径来源约定（`location.path`、`Workspace.path`、附件根）。
+- 验证：签名与 Host 返回一致；明确“实现时仍以运行时 `ctx.get()` 校验”。
+- 下一步：T2.3（进度协议）。
+
+## 030 · 2026-11-10 · feat: 定义进度协议
+- 变更：新增 `src/core/progress.js`（`createProgressEvent`/`progressPercent`/`serializeProgress`/`parseProgress`、阶段与状态常量）；`errors.js` 增加 `E_PROGRESS_INVALID` 与中文消息；`DESIGN.md` 增补进度协议章节；新增 `tests/unit/progress.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 120 passed / 0 failed（合法帧、全部阶段、非法字段、百分比、往返、错误帧）。
+- 下一步：T2.4（列出工作区与会话）。

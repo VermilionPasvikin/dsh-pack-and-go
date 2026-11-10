@@ -34,6 +34,7 @@ export const ERROR_CODES = Object.freeze({
   SCAN_INVALID: 'E_SCAN_INVALID',
   PACK_INVALID: 'E_PACK_INVALID',
   PLAN_INVALID: 'E_PLAN_INVALID',
+  PROGRESS_INVALID: 'E_PROGRESS_INVALID',
 })
 
 /**
@@ -84,6 +85,10 @@ export const ERROR_MESSAGES = Object.freeze({
   E_PLAN_INVALID: {
     title: '打包/导入计划无效',
     next: '请检查选择内容与目标路径后重试',
+  },
+  E_PROGRESS_INVALID: {
+    title: '进度数据异常',
+    next: '请重试；若持续出现，请导出诊断信息并反馈',
   },
 })
 
