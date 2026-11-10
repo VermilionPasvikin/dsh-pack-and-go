@@ -14,6 +14,7 @@ import {
   resolveExportTarget,
   listCatalog,
   measureWorkspaces,
+  inspectPack,
 } from '../../src/host/commands.js'
 import { readZip } from '../../src/core/zip-reader.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -182,8 +183,28 @@ test('export 到目录时自动生成包文件', async () => {
   }
 })
 
-test('measureWorkspaces 统计目录字节数', async () => {
+test('inspect 预览包信息与冲突', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const out = join(dir, 'out.dshpack')
+    await exportAllSessions(deps, out)
+    const result = await inspectPack(deps, out)
+    assert.equal(result.kind, 'success')
+    const data = JSON.parse(result.text)
+    assert.equal(data.sessions, 1)
+    assert.equal(data.workspaces, 0)
+    assert.ok(Array.isArray(data.conflicts.sessions))
+    assert.ok(data.packBytes > 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('measureWorkspaces 统计目录字节数', async () => {  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {
     const project = join(dir, 'proj')
     await mkdir(join(project, 'sub'), { recursive: true })

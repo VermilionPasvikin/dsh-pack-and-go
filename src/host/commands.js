@@ -408,6 +408,65 @@ export async function findPacks(directory) {
 }
 
 /**
+ * 预览一个迁移包（来源信息、数量、与目标 home 的冲突）。
+ * @param {object} deps
+ * @param {string} packPath
+ * @returns {Promise<{ kind: 'success'|'error', text: string }>}
+ */
+export async function inspectPack(deps, packPath) {
+  if (typeof packPath !== 'string' || packPath.length === 0) {
+    return errorResult('缺少迁移包路径。')
+  }
+  try {
+    const buffer = await readFile(packPath)
+    const { entries } = readZip(buffer)
+    const manifestEntry = entries.find((entry) => entry.name === 'manifest.json')
+    if (!manifestEntry) return errorResult('迁移包缺少 manifest.json')
+    const manifest = parseManifest(manifestEntry.data.toString('utf8'))
+
+    let existingSessionIds = []
+    let workspacePaths = []
+    try {
+      const snapshots = await deps.sessionPersistence.list()
+      existingSessionIds = snapshots.map((snapshot) => snapshot.header.id)
+    } catch {
+      // 目标 home 不可读时冲突视为空
+    }
+    try {
+      workspacePaths = deps.workspaceRegistry.list().map((workspace) => workspace.path)
+    } catch {
+      // 同上
+    }
+
+    const conflicts = {
+      sessions: manifest.sessions
+        .filter((session) => existingSessionIds.includes(session.id))
+        .map((session) => session.id),
+      workspaces: manifest.workspaces
+        .filter((workspace) => workspacePaths.includes(workspace.sourcePath))
+        .map((workspace) => workspace.key),
+    }
+    return {
+      kind: 'success',
+      text: JSON.stringify({
+        packBytes: buffer.length,
+        createdAt: manifest.createdAt,
+        source: manifest.source,
+        mode: manifest.mode,
+        sessions: manifest.sessions.length,
+        workspaces: manifest.workspaces.length,
+        attachments: manifest.attachments.length,
+        conflicts,
+      }),
+    }
+  } catch (error) {
+    return errorResult(
+      `预检失败：${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+/**
  * 导入一个 `.dshpack`。
  * @param {object} deps
  * @param {string} packPath
@@ -592,6 +651,7 @@ export async function handleMover(deps, invocation) {
   if (sub === 'list') return listCatalog(deps)
   if (sub === 'find') return findPacks(args[0])
   if (sub === 'size') return measureWorkspaces(args)
+  if (sub === 'inspect') return inspectPack(deps, args[0])
   console.error('[dsh-mover] unknown subcommand', sub)
   return errorResult(USAGE)
 }

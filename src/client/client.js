@@ -56,6 +56,11 @@ window.__ModuleLoader__.load({
         preflight: '导出前预检',
         excludePlaceholder: '额外排除目录，逗号分隔（如 .cache,tmp）',
         attachmentsTodo: '附件打包将在后续版本支持。',
+        preview: '预览',
+        previewTitle: '迁移包预览',
+        previewCounts: (sessions, workspaces, attachments) =>
+          `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
+        previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按默认策略处理）`,
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -111,6 +116,11 @@ window.__ModuleLoader__.load({
         preflight: 'Preflight before export',
         excludePlaceholder: 'Extra excluded dirs, comma separated (e.g. .cache,tmp)',
         attachmentsTodo: 'Attachment packing is planned for a later version.',
+        preview: 'Preview',
+        previewTitle: 'Package preview',
+        previewCounts: (sessions, workspaces, attachments) =>
+          `${sessions} conversations · ${workspaces} workspaces · ${attachments} attachments`,
+        previewConflicts: (n) => `${n} conflicts with current data (handled by default policy)`,
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -393,6 +403,7 @@ window.__ModuleLoader__.load({
       const [noCompress, setNoCompress] = useState(false)
       const [preflightEnabled, setPreflightEnabled] = useState(false)
       const [extraExclude, setExtraExclude] = useState('')
+      const [preview, setPreview] = useState(null)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -760,6 +771,42 @@ window.__ModuleLoader__.load({
           setPackOptions(packs)
         } catch (pickError) {
           setError(pickError instanceof Error ? pickError.message : String(pickError))
+        }
+      }
+
+      async function previewPack() {
+        if (importPackPath.trim().length === 0) {
+          setError(t.importNeedsPack)
+          return
+        }
+        if (!agentId) {
+          setError(t.noContext)
+          return
+        }
+        try {
+          const remote = getRemote()
+          if (!remote || !remote.commands || typeof remote.commands.execute !== 'function') {
+            setError(t.commandFailed)
+            return
+          }
+          const response = await remote.commands.execute(
+            agentId,
+            `/mover inspect "${importPackPath.trim()}"`,
+            [],
+          )
+          if (!response || response.ok !== true) {
+            setError(t.commandFailed)
+            return
+          }
+          const execution = response.value
+          const commandResult = execution && (execution.result ?? execution)
+          if (!commandResult || commandResult.kind !== 'success') {
+            setError(t.commandFailed)
+            return
+          }
+          setPreview(JSON.parse(commandResult.text))
+        } catch (previewError) {
+          setError(previewError instanceof Error ? previewError.message : String(previewError))
         }
       }
 
@@ -1206,7 +1253,58 @@ window.__ModuleLoader__.load({
                   t.pickPack,
                 )
               : null,
+            h(
+              'button',
+              {
+                type: 'button',
+                onClick: previewPack,
+                disabled: busy,
+                style: buttonStyle(busy),
+              },
+              t.preview,
+            ),
           ),
+          preview
+            ? h(
+                'div',
+                {
+                  style: {
+                    border: `1px solid ${THEME.border}`,
+                    borderRadius: 8,
+                    padding: '8px 10px',
+                    marginBottom: 8,
+                    fontSize: 12,
+                  },
+                },
+                h('div', { style: { fontWeight: 600, color: THEME.text } }, t.previewTitle),
+                h(
+                  'div',
+                  { style: { color: THEME.textMuted, marginTop: 2 } },
+                  `${preview.source?.platform ?? '-'} · DSH ${preview.source?.dshVersion ?? '-'} · ${formatBytes(preview.packBytes ?? 0)}`,
+                ),
+                h(
+                  'div',
+                  { style: { color: THEME.textMuted, marginTop: 2 } },
+                  t.previewCounts(
+                    preview.sessions ?? 0,
+                    preview.workspaces ?? 0,
+                    preview.attachments ?? 0,
+                  ),
+                ),
+                (preview.conflicts?.sessions?.length ?? 0) +
+                  (preview.conflicts?.workspaces?.length ?? 0) >
+                0
+                  ? h(
+                      'div',
+                      { style: { color: THEME.error, marginTop: 2 } },
+                      t.previewConflicts(
+                        (preview.conflicts?.sessions?.length ?? 0) +
+                          (preview.conflicts?.workspaces?.length ?? 0),
+                      ),
+                    )
+                  : null,
+              )
+            : null,
           packOptions.length > 0
             ? h(
                 'div',

@@ -392,6 +392,11 @@
 - 验证：`tests/unit/commands.test.mjs` 10 项、`tests/unit/export-pack.test.mjs` 5 项、`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.14（导入预览）。
 
+## 074 · 2026-11-10 · feat: 导入预览（T3.14）
+- 变更：Host 新增 `mover inspect <pack>`（读 manifest + 目标 home 冲突检测，返回来源/数量/冲突 JSON）；导入页新增「预览」按钮与预览卡片（平台/版本/包大小/对话/工作区/附件/冲突数）。
+- 验证：`tests/unit/commands.test.mjs` 11 项（含 inspect）、`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.15（导入落点与路径映射）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
