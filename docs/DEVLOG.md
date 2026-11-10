@@ -490,6 +490,11 @@
 - 验证：`node --check`；`commands` 12 项、`client-render` 3 项通过。
 - 限制：是否能真正热重载取决于 attach 校验通过且 follow 发帧；若仍不显示，提示重启（已明确展示）。
 
+## 092 · 2026-11-10 · fix: 热重载改走 workspaceController 广播
+- 根因：直接改 `Workspace` 实体（attach / insertSessionBefore）只写持久化，不发 `workspace.follow` 增量帧；日志确认 attach/reindex 均无错误但侧边栏不刷新。
+- 变更：`host/index.js` 把 `ctx.get('workspaceController')` 传入命令依赖；`importPack` 改用 `workspaceController.insertSessionBefore({ workspaceId, sessionId })` 触发广播（entity 方法作为无 controller 时的回退路径不再使用）。
+- 验证：`commands.test` 12 项通过；部署后请用户验证侧边栏是否即时出现新对话。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

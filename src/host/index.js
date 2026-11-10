@@ -32,6 +32,7 @@ export function apply(ctx, config) {
     workspaceRegistry: ctx.workspaceRegistry,
     sessionPersistence: ctx.sessionPersistence,
     sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+    workspaceController: typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined,
     dshHome: process.env.DSH_HOME,
     platform: process.platform,
     dshVersion: process.env.DSH_VERSION ?? 'unknown',

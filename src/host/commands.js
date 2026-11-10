@@ -724,20 +724,29 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       (item) => item.action === 'overwrite',
     ).length
 
-    // 热重载：对每个登记工作区触发一次顺序变更，让 workspace.follow 发出增量帧，
-    // DSH 侧边栏无需重启即可看到导入的会话（失败不影响导入结果）。
-    for (const [workspaceKey, entity] of entityByKey) {
-      const importedIds = sessions.written
-        .filter((written) => {
-          const source = manifest.sessions.find((item) => item.id === written.id)
-          return source?.workspaceKey === workspaceKey
-        })
-        .map((written) => written.targetId)
-      if (importedIds.length === 0) continue
-      try {
-        await entity.insertSessionBefore(importedIds[0])
-      } catch (reindexError) {
-        console.error('[dsh-mover] reindex failed', workspaceKey, reindexError)
+    // 热重载：通过 workspaceController 的公开方法触发 follow 广播。
+    // 直接改实体不会广播增量帧，侧边栏不会刷新。
+    const workspaceController = deps.workspaceController
+    if (
+      workspaceController &&
+      typeof workspaceController.insertSessionBefore === 'function'
+    ) {
+      for (const [workspaceKey, entity] of entityByKey) {
+        const importedIds = sessions.written
+          .filter((written) => {
+            const source = manifest.sessions.find((item) => item.id === written.id)
+            return source?.workspaceKey === workspaceKey
+          })
+          .map((written) => written.targetId)
+        if (importedIds.length === 0 || !entity || typeof entity.id !== 'string') continue
+        try {
+          await workspaceController.insertSessionBefore({
+            workspaceId: entity.id,
+            sessionId: importedIds[0],
+          })
+        } catch (reindexError) {
+          console.error('[dsh-mover] controller reindex failed', workspaceKey, reindexError)
+        }
       }
     }
 
