@@ -171,7 +171,10 @@
 
 **关联**：ADR-0004、TASKS M6、`src/cli/index.js`。
 
-## ADR-0010 · 导入文件选择器：Exact Fetch 上传通道（2026-11-10，Proposed，待用户批准）
+## ADR-0010 · 导入文件选择器：Exact Fetch 上传通道（2026-11-10，Rejected）
+
+> **2026-11-10 用户决定取消**：不新增上传通道与临时目录，维持现有「目录选择 + 扫描」
+> （`uiWorkspace.pickDirectory` + `mover find`）的导入方式。以下内容仅作备选记录，不再实施。
 
 **背景**：DSH 无文件选择服务（Host 无 `directory-picker` 可查询服务；Client 只有
 `uiWorkspace.pickDirectory`）。用户要求「在文件选择器里直接选 `.dshpack`」，否决“选目录 + 扫描”。
@@ -205,6 +208,6 @@ ctx.connection.fetch.register({
 - 路由暴露：仅经 Connection 认证的请求可达；路径随机 UUID；
 - 大文件流式写盘，不整包进内存（与 T1.10 流式修复一致）。
 
-**状态**：Proposed。用户批准后实施 T3.5 返工，并在实现后更新本 ADR 为 Accepted。
+**状态**：Rejected（2026-11-10，用户取消）。维持「目录选择 + 扫描」，不新增路由与临时目录。
 
 **关联**：TASKS T3.5；ADR-0008。
