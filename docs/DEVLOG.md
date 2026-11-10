@@ -112,3 +112,8 @@
 - 变更：新增 `src/core/zip-reader.js`（`readZip`/`listZip`/`assertSafeEntryName`：EOCD 定位、central directory 遍历、local data 读取、inflate/CRC 校验、安全名称拒绝）；`errors.js` 增加 `E_PACK_INVALID`；新增 `tests/unit/zip-reader.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 84 passed / 0 failed（正常、目录、截断、`../`、反斜杠、盘符、CRC、坏 deflate、关闭校验、非 zip）。
 - 下一步：T1.12（路径映射）。
+
+## 023 · 2026-11-10 · feat: 实现路径映射
+- 变更：新增 `src/core/path-map.js`（`buildPathMap`、`safeDirName`、`mapCwdForWorkspace`）；支持 `auto`（同平台保留、跨平台放根目录）、`original`、`under-root`；标题去重加后缀；非法/保留名安全化；冲突报告。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 92 passed / 0 failed（跨平台、同平台、POSIX→Windows、标题冲突、安全化、original 冲突、缺根目录、mapCwd）。
+- 下一步：T1.13（导出计划）。
