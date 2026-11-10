@@ -503,6 +503,12 @@
 - 验证：`commands.test` 12 项通过（makeDeps 增加 create mock）。
 - 说明：服务重建会走官方 live 会话路径，理论上也改善热重载；仍需浏览器实测。
 
+## 094 · 2026-11-11 · fix: 服务重建 seq 补齐 + 附件写入不阻断
+- 根因：`decodeSessionEvents` 解码出的事件缺 `seq` → `append seq mismatch ... expected 0, got undefined`；恢复附件时单个文件 `EPERM` 抛错导致整单导入失败。
+- 修复：服务重建前按索引补齐 `seq`（0..n-1）；`restoreAttachments` 逐条 try/catch，失败记 warning 不中断。
+- 验证：全量 176 项测试通过。
+- 下一步：部署后请用户验证「另存为新对话」与「跳过」两条路径。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

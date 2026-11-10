@@ -233,9 +233,17 @@ export async function restoreAttachments(input) {
     }
     const relative = entry.packPath.slice(`${PACK_ATTACHMENTS_ROOT}/`.length)
     const target = join(attachmentsRoot, relative)
-    await mkdir(dirname(target), { recursive: true })
-    await writeFile(target, entry.data)
-    restored += 1
+    try {
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, entry.data)
+      restored += 1
+    } catch (error) {
+      warnings.push(
+        `附件写入失败: ${entry.packPath}（${
+          error instanceof Error ? error.message : String(error)
+        }）`,
+      )
+    }
   }
 
   return { restored, warnings }

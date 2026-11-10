@@ -628,7 +628,10 @@ async function importSessionsViaService(deps, manifest, byName, pathMap) {
         : session.cwd
     const newId = `session-${randomUUID()}`
     try {
-      const events = decodeSessionEvents(packed)
+      const events = decodeSessionEvents(packed).map((event, index) => ({
+        ...event,
+        seq: index,
+      }))
       const handle = await deps.sessionPersistence.create({
         version: manifest.source.sessionFormat ?? 4,
         id: newId,
