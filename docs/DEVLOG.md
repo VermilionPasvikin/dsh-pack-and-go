@@ -132,3 +132,8 @@
 - 变更：`src/core/errors.js` 新增 `ERROR_MESSAGES`（11 个错误码的中文标题与下一步）与 `describeError()`；新增 `tests/unit/errors.test.mjs`；确认 `src/core` 无裸 `throw new Error`，导入仅 `node:` 内置与相对模块。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 112 passed / 0 failed（每个错误码有说明、无多余 key、已知/未知/非 Error 输入、core 依赖检查）。
 - 下一步：M1 DoD 验收。
+
+## 027 · 2026-11-10 · docs: M1 里程碑验收通过
+- 变更：M1 全部 15 个任务完成；**补记 T1.6 状态**（提交 016 时漏标，已更正）；`TASKS.md` 里程碑 M1 置 ✅；`INDEX.md` 下一步更新为 T2.1。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 112 passed / 0 failed；依赖图 `errors: 0`；`src/core` 导入仅 `node:` 内置与相对模块；无裸 `throw new Error`。
+- 下一步：T2.1（Host 插件骨架）。
