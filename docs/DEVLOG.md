@@ -198,3 +198,9 @@
 - 发现：DSH 的 `assertStoredIdentity` 要求**会话文件目录与 header.cwd 一致**；首次集成把未映射会话放进 `_no-cwd`，启动时报 `corrupt session log` 且 `workspaceRegistry` 不激活。
 - 验证：137 项单测全绿；home B（新一次性 `DSH_HOME`）导入后启动，输出 `DSH-MOVER-SELFTEST {"workspaces":1,"ungrouped":0,"totals":{"sessions":1,"bytes":349}}`，stderr 无 corrupt 错误。
 - 下一步：T2.8（附件解析与复制）。
+
+## 039 · 2026-11-10 · feat: 附件解析与复制
+- 变更：新增 `src/core/attachments.js`（`parseAttachmentId`、图片/文件/引用路径、`packAttachmentPath`、`decodeSessionEvents`、`extractAttachmentRefs`、`stageAttachments`、`restoreAttachments`）；`src/core/index.js` 导出；`package.json` check 同步；新增 `tests/unit/attachments.test.mjs`。
+- 验证：142 项单测全绿（id 校验、分桶路径、引用去重、stage/restore 往返、缺失 warning 不抛错）。
+- 依据：`@deepseek-ai/dsh-attachment-local` README（`objects/`、`file-objects/`、`files/`，id 形如 `sha256:<digest>`）。
+- 下一步：T2.9（工作区文件写盘与登记）。
