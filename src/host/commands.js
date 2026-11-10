@@ -13,6 +13,7 @@ import { access, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import { appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
+import zlib from 'node:zlib'
 
 import {
   buildManifest,
@@ -31,6 +32,7 @@ import {
   restoreAttachments,
   restoreWorkspaceFiles,
   safeDirName,
+  scanFrames,
   scanWorkspace,
 } from '../core/index.js'
 import { loadCatalog } from './catalog.js'
@@ -543,6 +545,63 @@ export async function inspectPack(deps, packPath) {
 }
 
 /**
+ * 从会话日志 Buffer 读首帧 header。
+ * @param {Buffer} buffer
+ * @returns {object | undefined}
+ */
+function readSessionHeaderFromBuffer(buffer) {
+  const frames = scanFrames(buffer)
+  if (frames.length === 0) return undefined
+  const first = frames[0]
+  const decoded = zlib.zstdDecompressSync(buffer.subarray(first.start, first.end))
+  return JSON.parse(decoded.toString('utf8').slice(0, -1))
+}
+
+/**
+ * 扫描 sessionRoot 下所有会话文件，返回已存在的会话 id 集合。
+ * 用于冲突检测（`sessionPersistence.list()` 在重复 id 时也会抛错）。
+ * @param {string} sessionRoot
+ * @returns {Promise<Set<string>>}
+ */
+async function scanExistingSessionIds(sessionRoot) {
+  const ids = new Set()
+  let projects
+  try {
+    projects = await readdir(sessionRoot, { withFileTypes: true })
+  } catch {
+    return ids
+  }
+  for (const project of projects.filter((entry) => entry.isDirectory())) {
+    const projectPath = join(sessionRoot, project.name)
+    let dirs
+    try {
+      dirs = await readdir(projectPath, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const dir of dirs.filter((entry) => entry.isDirectory())) {
+      const sessionDir = join(projectPath, dir.name)
+      let files
+      try {
+        files = await readdir(sessionDir)
+      } catch {
+        continue
+      }
+      const log = files.find((name) => /^session\.v\d+\.jsonl\.zstd$/.test(name))
+      if (!log) continue
+      try {
+        const data = await readFile(join(sessionDir, log))
+        const header = readSessionHeaderFromBuffer(data)
+        if (header && typeof header.id === 'string') ids.add(header.id)
+      } catch {
+        // 损坏会话跳过
+      }
+    }
+  }
+  return ids
+}
+
+/**
  * 导入一个 `.dshpack`。
  * @param {object} deps
  * @param {string} packPath
@@ -586,7 +645,20 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     }
 
     const sessionRoot = join(deps.dshHome, 'sessions')
-    const sessions = await importSessionsToDisk({ buffer, sessionRoot, pathMap })
+    let existingSessionIds = []
+    try {
+      const snapshots = await deps.sessionPersistence.list()
+      existingSessionIds = snapshots.map((snapshot) => snapshot.header.id)
+    } catch {
+      // 重复 id 等异常时退回文件扫描，避免把冲突写进磁盘
+      existingSessionIds = [...(await scanExistingSessionIds(sessionRoot))]
+    }
+    const sessions = await importSessionsToDisk({
+      buffer,
+      sessionRoot,
+      pathMap,
+      existingSessionIds,
+    })
     const attachmentEntries = entries
       .filter((entry) => entry.name.startsWith('attachments/'))
       .map((entry) => ({ packPath: entry.name, data: entry.data }))

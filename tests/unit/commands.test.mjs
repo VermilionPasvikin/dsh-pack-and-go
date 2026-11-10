@@ -106,6 +106,8 @@ test('import 写回会话并保留可解析 header', async () => {
 
     const targetRoot = join(dir, 'target')
     await mkdir(targetRoot, { recursive: true })
+    // 模拟空 home：已有会话集合为空，避免新冲突检测把本次导入判为 skip
+    deps.sessionPersistence.list = async () => []
     const result = await importPack(deps, out, targetRoot)
     assert.equal(result.kind, 'success')
     assert.match(result.text, /已导入 1 个对话/)

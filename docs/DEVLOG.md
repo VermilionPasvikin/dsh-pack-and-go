@@ -468,6 +468,17 @@
 - 背景：用户归档会话后导入，出现 `Failed to load: Cannot read properties of undefined (reading 'size')`，需日志定位。
 - 下一步：部署后请用户复现一次，提供 Host 日志与浏览器控制台错误。
 
+## 089 · 2026-11-10 · fix: 导入前会话冲突检测（重复 id 崩溃）
+- 根因：`importPack` 未传 `existingSessionIds` → 同一会话 id 被导入到不同 cwd 目录；DSH 启动报
+  `duplicate JSONL session id ... multiple project directories` → `workspaceRegistry` 初始化失败 →
+  `workspaceController` 不可用（用户看到的 `workspace/follow ... unavailable`）。
+- 修复：导入前用 `sessionPersistence.list()` 收集已有 id（异常时退回文件扫描 `scanExistingSessionIds`），
+  传给 `importSessionsToDisk` → 同 id 默认 skip（不再写第二份）。
+- 修复测试：空 home 模拟 `list()` 返回空。
+- 数据修复：把重复目录移入 `<home>/duplicate-backup-<时间>/`（保留原路径那份）。
+- 验证：`commands.test` 11 项通过；重启后 workspaceRegistry 启动无 duplicate 错误。
+- 下一步：用户复验归档/导入/语言；ADR-0011/0012 将在回归通过后实施。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
