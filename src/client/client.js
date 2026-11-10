@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2111-0055'
+    const BUILD_TAG = 'b2111-0100'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -495,8 +495,19 @@ window.__ModuleLoader__.load({
             const firstSessionId =
               listItems.find((item) => typeof item?.sessionId === 'string')?.sessionId ??
               items.flatMap((workspace) => workspace.sessionIds ?? [])[0]
-            if (firstSessionId) {
-              const titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
+            let titleInfo = null
+            try {
+              const execResult = await runAction('list', {})
+              if (!execResult.unsupported && execResult.result?.kind === 'success') {
+                titleInfo = parseCatalogText(execResult.result.text)
+              }
+            } catch {
+              titleInfo = null
+            }
+            if (!titleInfo && firstSessionId) {
+              titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
+            }
+            if (titleInfo) {
               if (titleInfo.meta) setMeta(titleInfo.meta)
               if ((titleInfo.sizes?.size ?? 0) > 0) setSizeById(titleInfo.sizes)
               for (const [id, title] of titleInfo.titles ?? []) {
@@ -660,6 +671,82 @@ window.__ModuleLoader__.load({
         })
       }
 
+      /**
+       * ADR-0011 的 exact Fetch 操作入口：不依赖会话上下文、不写会话日志。
+       * 路由不存在（404）时返回 { unsupported: true }，调用方回退命令通道。
+       * @param {string} action
+       * @param {object} [args]
+       */
+      async function runAction(action, args = {}) {
+        const response = await fetch('/api/mover/exec', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action, args }),
+        })
+        if (response.status === 404) return { unsupported: true }
+        let payload
+        try {
+          payload = await response.json()
+        } catch {
+          throw new Error(`exec ${action} returned non-JSON`)
+        }
+        if (!payload || payload.ok !== true) {
+          throw new Error(payload?.error ?? `exec ${action} failed`)
+        }
+        return { unsupported: false, result: payload.result }
+      }
+
+      function parseCatalogText(text) {
+        const data = JSON.parse(text)
+        const titles = new Map()
+        const sizes = new Map()
+        const collect = (sessions) => {
+          for (const session of sessions ?? []) {
+            if (!session || typeof session.id !== 'string') continue
+            if (typeof session.title === 'string' && session.title.length > 0) {
+              titles.set(session.id, session.title)
+            }
+            if (typeof session.sizeBytes === 'number') sizes.set(session.id, session.sizeBytes)
+          }
+        }
+        for (const workspace of data.workspaces ?? []) collect(workspace.sessions)
+        collect(data.ungrouped)
+        return { titles, sizes, meta: data.meta ?? null }
+      }
+
+      /**
+       * 统一操作入口：优先 ADR-0011 的 exec 路由，404 时回退命令通道。
+       * @param {string} action
+       * @param {object} args
+       * @param {() => string} buildCommand
+       */
+      async function runMoverAction(action, args, buildCommand) {
+        setBusy(true)
+        setError(null)
+        setMessage(null)
+        try {
+          const execResult = await runAction(action, args)
+          if (!execResult.unsupported) {
+            const result = execResult.result
+            const text = typeof result?.text === 'string' ? result.text : ''
+            const ok = result?.kind === 'success'
+            if (ok) {
+              setMessage(text)
+              setReloadTick((tick) => tick + 1)
+            } else {
+              setError(text || t.commandFailed)
+            }
+            return { ok, text }
+          }
+          return await runCommand(buildCommand(), t.exportDone)
+        } catch (error) {
+          setError(error instanceof Error ? error.message : String(error))
+          return { ok: false }
+        } finally {
+          setBusy(false)
+        }
+      }
+
       async function runCommand(line, successText) {
         if (!agentId) {
           setError(t.noContext)
@@ -731,26 +818,41 @@ window.__ModuleLoader__.load({
           return
         }
         const ids = [...selected]
-        const flags = []
-        if (includeFiles) flags.push('--files')
-        if (fullMode) flags.push('--full')
-        if (preflightEnabled) flags.push('--preflight')
-        if (includeAttachments) flags.push('--attachments')
         const excluded = extraExclude
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean)
-        const excludeArg = excluded.length > 0 ? ` --exclude "${excluded.join(',')}"` : ''
-        const nameArg = exportName.trim().length > 0 ? ` --name "${exportName.trim()}"` : ''
-        const flagText = flags.length > 0 ? ` ${flags.join(' ')}` : ''
         setLastExport(null)
         const started = Date.now()
-        const outcome = await runCommand(
-          `/mover export "${targetPath.trim()}"${flagText}${excludeArg}${nameArg} ${ids.join(' ')}`,
-          t.exportDone,
+        const message = await runMoverAction(
+          'export',
+          {
+            target: targetPath.trim(),
+            sessionIds: ids,
+            includeFiles,
+            options: {
+              includeFork: true,
+              full: fullMode,
+              preflight: preflightEnabled,
+              attachments: includeAttachments,
+              excludedDirs: excluded,
+              name: exportName.trim(),
+            },
+          },
+          () => {
+            const flags = []
+            if (includeFiles) flags.push('--files')
+            if (fullMode) flags.push('--full')
+            if (preflightEnabled) flags.push('--preflight')
+            if (includeAttachments) flags.push('--attachments')
+            const excludeArg = excluded.length > 0 ? ` --exclude "${excluded.join(',')}"` : ''
+            const nameArg = exportName.trim().length > 0 ? ` --name "${exportName.trim()}"` : ''
+            const flagText = flags.length > 0 ? ` ${flags.join(' ')}` : ''
+            return `/mover export "${targetPath.trim()}"${flagText}${excludeArg}${nameArg} ${ids.join(' ')}`
+          },
         )
-        if (outcome && outcome.ok) {
-          const match = outcome.text.match(/到 (.+?)（(\d+) 字节）/)
+        if (message && message.ok) {
+          const match = String(message.text ?? '').match(/到 (.+?)（(\d+) 字节）/)
           setLastExport({
             path: match ? match[1] : targetPath.trim(),
             bytes: match ? Number(match[2]) : 0,
@@ -764,31 +866,43 @@ window.__ModuleLoader__.load({
         try {
           const dir = await uiService.pickDirectory()
           if (typeof dir !== 'string' || dir.length === 0) return
-          if (!agentId) {
-            setError(t.noContext)
-            return
+          let text = null
+          const execResult = await runAction('find', { dir })
+          if (!execResult.unsupported) {
+            if (execResult.result?.kind === 'success') {
+              text = execResult.result.text
+            } else {
+              setError(execResult.result?.text ?? t.commandFailed)
+              return
+            }
+          } else {
+            if (!agentId) {
+              setError(t.noContext)
+              return
+            }
+            const remote = getRemote()
+            if (!remote || !remote.commands || typeof remote.commands.execute !== 'function') {
+              setError(t.commandFailed)
+              return
+            }
+            const response = await remote.commands.execute(agentId, `/mover find "${dir}"`, [])
+            if (!response || response.ok !== true) {
+              setError(t.commandFailed)
+              return
+            }
+            const execution = response.value
+            const commandResult = execution && (execution.result ?? execution)
+            if (
+              !commandResult ||
+              commandResult.kind !== 'success' ||
+              typeof commandResult.text !== 'string'
+            ) {
+              setError(t.commandFailed)
+              return
+            }
+            text = commandResult.text
           }
-          const remote = getRemote()
-          if (!remote || !remote.commands || typeof remote.commands.execute !== 'function') {
-            setError(t.commandFailed)
-            return
-          }
-          const response = await remote.commands.execute(agentId, `/mover find "${dir}"`, [])
-          if (!response || response.ok !== true) {
-            setError(t.commandFailed)
-            return
-          }
-          const execution = response.value
-          const commandResult = execution && (execution.result ?? execution)
-          if (
-            !commandResult ||
-            commandResult.kind !== 'success' ||
-            typeof commandResult.text !== 'string'
-          ) {
-            setError(t.commandFailed)
-            return
-          }
-          const data = JSON.parse(commandResult.text)
+          const data = JSON.parse(text)
           const packs = data.packs ?? []
           if (packs.length === 0) {
             setError(t.pickPackEmpty)
@@ -810,32 +924,44 @@ window.__ModuleLoader__.load({
           setError(t.importNeedsPack)
           return
         }
-        if (!agentId) {
-          setError(t.noContext)
-          return
-        }
         try {
-          const remote = getRemote()
-          if (!remote || !remote.commands || typeof remote.commands.execute !== 'function') {
-            setError(t.commandFailed)
-            return
+          let text = null
+          const execResult = await runAction('inspect', { pack: importPackPath.trim() })
+          if (!execResult.unsupported) {
+            if (execResult.result?.kind === 'success') {
+              text = execResult.result.text
+            } else {
+              setError(execResult.result?.text ?? t.commandFailed)
+              return
+            }
+          } else {
+            if (!agentId) {
+              setError(t.noContext)
+              return
+            }
+            const remote = getRemote()
+            if (!remote || !remote.commands || typeof remote.commands.execute !== 'function') {
+              setError(t.commandFailed)
+              return
+            }
+            const response = await remote.commands.execute(
+              agentId,
+              `/mover inspect "${importPackPath.trim()}"`,
+              [],
+            )
+            if (!response || response.ok !== true) {
+              setError(t.commandFailed)
+              return
+            }
+            const execution = response.value
+            const commandResult = execution && (execution.result ?? execution)
+            if (!commandResult || commandResult.kind !== 'success') {
+              setError(t.commandFailed)
+              return
+            }
+            text = commandResult.text
           }
-          const response = await remote.commands.execute(
-            agentId,
-            `/mover inspect "${importPackPath.trim()}"`,
-            [],
-          )
-          if (!response || response.ok !== true) {
-            setError(t.commandFailed)
-            return
-          }
-          const execution = response.value
-          const commandResult = execution && (execution.result ?? execution)
-          if (!commandResult || commandResult.kind !== 'success') {
-            setError(t.commandFailed)
-            return
-          }
-          setPreview(JSON.parse(commandResult.text))
+          setPreview(JSON.parse(text))
         } catch (previewError) {
           setError(previewError instanceof Error ? previewError.message : String(previewError))
         }
@@ -856,23 +982,29 @@ window.__ModuleLoader__.load({
           setError(t.importNeedsPack)
           return
         }
-        if (placeMode === 'original') {
-          const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
-          const outcome = await runCommand(
-            `/mover import "${importPackPath.trim()}" --original${newIdArg}`,
-            t.importDone,
-          )
-          if (outcome && outcome.ok) setNeedsRestartHint(true)
-          return
-        }
-        const target = importTarget.trim()
-        const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
-        const line =
-          target.length > 0
-            ? `/mover import "${importPackPath.trim()}" "${target}"${newIdArg}`
-            : `/mover import "${importPackPath.trim()}"${newIdArg}`
-        const outcome = await runCommand(line, t.importDone)
-        if (outcome && outcome.ok) setNeedsRestartHint(true)
+        const target = placeMode === 'original' ? undefined : importTarget.trim() || undefined
+        const message = await runMoverAction(
+          'import',
+          {
+            pack: importPackPath.trim(),
+            target,
+            options: {
+              original: placeMode === 'original',
+              sessionPolicy: importConflictMode === 'new-id' ? 'new-id' : 'skip',
+            },
+          },
+          () => {
+            const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
+            if (placeMode === 'original') {
+              return `/mover import "${importPackPath.trim()}" --original${newIdArg}`
+            }
+            const dir = importTarget.trim()
+            return dir.length > 0
+              ? `/mover import "${importPackPath.trim()}" "${dir}"${newIdArg}`
+              : `/mover import "${importPackPath.trim()}"${newIdArg}`
+          },
+        )
+        if (message && message.ok) setNeedsRestartHint(true)
       }
 
       function onHeaderMouseDown(event) {

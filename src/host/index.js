@@ -10,6 +10,7 @@ import { join } from 'node:path'
 
 import { loadCatalog } from './catalog.js'
 import { createMoverCommand } from './commands.js'
+import { createExecHandler } from './exec-route.js'
 import { rebuildSessionViaService } from './rebuild.js'
 
 /** @type {string} */
@@ -40,6 +41,40 @@ export function apply(ctx, config) {
   })
   ctx.effect(() => ctx.commands.register(command))
   console.log('[dsh-mover] command registered: mover')
+
+  // ADR-0011：exact Fetch 操作入口（不依赖会话上下文、不写会话日志）。
+  const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
+  if (connection && connection.fetch && typeof connection.fetch.register === 'function') {
+    const execDeps = {
+      workspaceRegistry: ctx.workspaceRegistry,
+      sessionPersistence: ctx.sessionPersistence,
+      sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+      workspaceController:
+        typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined,
+      sessionController:
+        typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined,
+      dshHome: process.env.DSH_HOME,
+      platform: process.platform,
+      dshVersion: process.env.DSH_VERSION ?? 'unknown',
+      logger,
+    }
+    const handleExec = createExecHandler(execDeps, logger)
+    try {
+      ctx.effect(() =>
+        connection.fetch.register({
+          path: '/api/mover/exec',
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: handleExec,
+        }),
+      )
+      console.log('[dsh-mover] exec route registered: /api/mover/exec')
+    } catch (error) {
+      console.error('[dsh-mover] exec route registration failed', error)
+    }
+  } else {
+    console.warn('[dsh-mover] connection.fetch unavailable; UI falls back to command channel')
+  }
 
   if (process.env.DSH_MOVER_SELFTEST === '1') {
     console.log('[dsh-mover] apply() reached')

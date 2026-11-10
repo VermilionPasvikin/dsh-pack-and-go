@@ -533,3 +533,10 @@
 - 修复：`session.list` 为空/失败时回退到 `workspace.sessionIds`（旧逻辑），保证树不整棵消失；路径归一统一斜杠；空工作区组保留。
 - 测试：暴露 `_test.groupFromWorkspaces` 纯函数；`client-render` 新增「cwd 归组 + 未分组 + 回退」用例。
 - 验证：全量 180 项测试通过。
+
+## 098 · 2026-11-11 · feat: ADR-0011 exec 路由与导入激活
+- 新增 `src/host/exec-route.js`：`POST /api/mover/exec`（Connection exact Fetch 路由），分发 list/find/size/inspect/export/import；不依赖会话上下文、不写会话日志。
+- Host `apply` 注册路由（`ctx.get('connection').fetch.register`），缺失时 UI 回退命令通道。
+- `importPack` 导入后对每个新会话调用 `sessionController.resolveAgent` 激活（live 索引更新，左侧列表热更新）。
+- Client 新增 `runAction` / `runMoverAction`：操作优先 exec 路由，404 回退命令；load 标题优先 `exec list`（catalog 含事件兜底标题）。
+- 验证：`node --check` 全通过；`commands` 12 项、`client-render` 4 项通过。

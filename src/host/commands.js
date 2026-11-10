@@ -785,6 +785,18 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       (item) => item.action === 'overwrite',
     ).length
 
+    // 激活会话：让 DSH 的 live 索引感知新会话，左侧列表即可热更新（失败不阻断）。
+    const sessionController = deps.sessionController
+    if (sessionController && typeof sessionController.resolveAgent === 'function') {
+      for (const written of sessions.written) {
+        try {
+          await sessionController.resolveAgent(written.targetId)
+        } catch (error) {
+          console.error('[dsh-mover] activate failed', written.targetId, error)
+        }
+      }
+    }
+
     // 热重载：通过 workspaceController 的公开方法触发 follow 广播。
     // 直接改实体不会广播增量帧，侧边栏不会刷新。
     const workspaceController = deps.workspaceController
