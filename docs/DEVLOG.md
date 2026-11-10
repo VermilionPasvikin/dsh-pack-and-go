@@ -484,6 +484,12 @@
 - 验证：`commands.test` 12 项（默认 skip 与 new-id 两条路径）；`client-render` 3 项通过。
 - 下一步：部署复验；ADR-0011/0012 实施。
 
+## 091 · 2026-11-10 · fix: 热重载诊断与明确重启提示
+- 根因（源码确认）：`Workspace.sessionIds` getter 用启动时构建的 canonical-cwd 索引过滤；`attachSession` 会 realpath 校验 cwd，若与工作区 path 不一致则抛错。我们的 `attach`/`insertSessionBefore` 错误此前被静默吞掉，且索引不更新时侧边栏不会出现新会话。
+- 变更：目标目录先 `mkdir` 再 `realpath`（与 workspace create 的 canonical 一致）；`attach failed` / `reindex failed` 打印到 Host 日志；导入成功后 UI 固定显示「若未出现请重启 DSH」提示。
+- 验证：`node --check`；`commands` 12 项、`client-render` 3 项通过。
+- 限制：是否能真正热重载取决于 attach 校验通过且 follow 发帧；若仍不显示，提示重启（已明确展示）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

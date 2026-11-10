@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2110-2350'
+    const BUILD_TAG = 'b2110-2355'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -64,6 +64,8 @@ window.__ModuleLoader__.load({
         placeFolder: '指定目录',
         conflictSkip: '已存在对话：跳过',
         conflictNewId: '已存在对话：另存为新对话',
+        restartHint:
+          '导入内容若未出现在左侧列表，请重启 DSH 后可见（工作区索引在启动时构建）。',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -128,6 +130,8 @@ window.__ModuleLoader__.load({
         placeFolder: 'Choose folder',
         conflictSkip: 'Existing conversations: skip',
         conflictNewId: 'Existing conversations: copy as new',
+        restartHint:
+          'If imported items do not appear on the left, restart DSH (the workspace index is built at startup).',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -416,6 +420,7 @@ window.__ModuleLoader__.load({
       const [preview, setPreview] = useState(null)
       const [placeMode, setPlaceMode] = useState('original')
       const [importConflictMode, setImportConflictMode] = useState('skip')
+      const [needsRestartHint, setNeedsRestartHint] = useState(false)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -837,10 +842,11 @@ window.__ModuleLoader__.load({
         }
         if (placeMode === 'original') {
           const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
-          await runCommand(
+          const outcome = await runCommand(
             `/mover import "${importPackPath.trim()}" --original${newIdArg}`,
             t.importDone,
           )
+          if (outcome && outcome.ok) setNeedsRestartHint(true)
           return
         }
         const target = importTarget.trim()
@@ -849,7 +855,8 @@ window.__ModuleLoader__.load({
           target.length > 0
             ? `/mover import "${importPackPath.trim()}" "${target}"${newIdArg}`
             : `/mover import "${importPackPath.trim()}"${newIdArg}`
-        await runCommand(line, t.importDone)
+        const outcome = await runCommand(line, t.importDone)
+        if (outcome && outcome.ok) setNeedsRestartHint(true)
       }
 
       function onHeaderMouseDown(event) {
@@ -1473,6 +1480,13 @@ window.__ModuleLoader__.load({
               busy ? h('span', null, h(Spinner), t.importing) : t.startImport,
             ),
           ),
+          needsRestartHint
+            ? h(
+                'div',
+                { style: { marginTop: 8, fontSize: 11, color: THEME.textMuted } },
+                t.restartHint,
+              )
+            : null,
         )
       }
 

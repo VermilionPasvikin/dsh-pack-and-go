@@ -9,7 +9,7 @@
  *   mover import <迁移包> <目标目录>
  */
 
-import { access, readFile, readdir, stat, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
@@ -641,8 +641,15 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         mappings.push(`${workspace.sourcePath} → ${workspace.sourcePath}`)
       } else {
         const target = join(root, safeDirName(workspace.title, platform))
-        pathMap.byKey[workspace.key] = target
-        mappings.push(`${workspace.sourcePath} → ${target}`)
+        await mkdir(target, { recursive: true })
+        let canonical = target
+        try {
+          canonical = await realpath(target)
+        } catch {
+          // 无法 realpath 时保留原路径
+        }
+        pathMap.byKey[workspace.key] = canonical
+        mappings.push(`${workspace.sourcePath} → ${canonical}`)
       }
     }
 
@@ -704,8 +711,8 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         try {
           await entity.attachSession(written.targetId)
           attached += 1
-        } catch {
-          // 归组失败不阻断导入，摘要中体现数量差异即可
+        } catch (attachError) {
+          console.error('[dsh-mover] attach failed', written.targetId, attachError)
         }
       }
     }
@@ -729,8 +736,8 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       if (importedIds.length === 0) continue
       try {
         await entity.insertSessionBefore(importedIds[0])
-      } catch {
-        // 顺序变更失败时退回“重启后可见”的提示
+      } catch (reindexError) {
+        console.error('[dsh-mover] reindex failed', workspaceKey, reindexError)
       }
     }
 
