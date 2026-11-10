@@ -280,3 +280,9 @@
 - 验证：locale JSON 合法、SVG 合法（524 B）；一次性 profile 同步后启动：`--dump-config` 含 `dsh-mover` 行、boot 含 `dsh-mover/client.js`、日志 `[dsh-mover] command registered: mover`。
 - 限制：`plugin_manager install_bundle` 只作用于**当前 profile**，不能用于一次性 home，因此 T4.2 改用 CLI `dsh plugin add`；Edge headless 截图失败（进程不退出、未生成文件），**浏览器渲染仍未验证**。
 - 下一步：M4 DoD 与 M5。
+
+## 053 · 2026-11-10 · docs: M4 里程碑验收（安装与加载）
+- 变更：M4 的 3 个任务完成；`TASKS.md` M4 置 ✅；`INDEX.md` 下一步更新为 T5.1。
+- 验证：locale/icon 合法；一次性 profile 安装成功、`--dump-config` 含插件行、boot 含 `dsh-mover/client.js`、日志含命令注册。
+- 限制：浏览器渲染未验证（Edge headless 截图失败）；`plugin_manager install_bundle` 不适用于一次性 home。
+- 下一步：T5.1（单元测试收尾与覆盖记录）。
