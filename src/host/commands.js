@@ -15,7 +15,7 @@ import { join } from 'node:path'
 
 import {
   buildManifest,
-  buildPack,
+  buildPackToFile,
   importSessionsToDisk,
   parseManifest,
   planExport,
@@ -128,11 +128,15 @@ export async function exportAllSessions(deps, targetPath, sessionIds = []) {
     for (const session of sessions) {
       sourcePaths[`sessions/${session.id}/session.v4.jsonl.zstd`] = session.locationPath
     }
-    const pack = await buildPack({ plan, sourcePaths, manifest })
-    await writeFile(targetPath, pack)
+    const written = await buildPackToFile({
+      plan,
+      sourcePaths,
+      manifest,
+      outputPath: targetPath,
+    })
     return {
       kind: 'success',
-      text: `已导出 ${sessions.length} 个对话到 ${targetPath}（${pack.length} 字节）`,
+      text: `已导出 ${sessions.length} 个对话到 ${targetPath}（${written.bytes} 字节）`,
     }
   } catch (error) {
     return errorResult(

@@ -315,3 +315,8 @@
 - 验证：500MB 流式打包 **2.9 s / 峰值 RSS 112.3 MB**（NFR-2 达标）；client 渲染逻辑 3 项（中/英标题、slot 注册）；CLI 3 项（导出、导入并更新 workspace.json、参数错误）。
 - 说明：Edge headless 仍不可用，渲染验证为“组件树 + 文案”级，非真实浏览器。
 - 下一步：更新验收文档与最终报告。
+
+## 059 · 2026-11-10 · refactor: mover export 改用流式打包
+- 变更：`src/host/commands.js` 的 `exportAllSessions` 改用 `buildPackToFile`（流式写盘），不再整包驻留内存。
+- 验证：`tests/unit/commands.test.mjs` 5 项通过；导出包可被 `readZip` 读取。
+- 下一步：更新验收文档与最终报告。
