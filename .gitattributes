@@ -1,0 +1,11 @@
+# 跨平台项目：文本文件统一 LF，Windows 脚本保留 CRLF
+* text=auto
+*.md text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf

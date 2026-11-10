@@ -1,0 +1,20 @@
+# 依赖
+node_modules/
+
+# 构建产物
+dist/
+coverage/
+
+# 迁移包与临时产物
+*.dshpack
+*.dshpack.tmp
+
+# 本地 E2E 临时目录（真实测试使用 %TEMP% 下唯一目录，不入库）
+.e2e/
+tmp/
+
+# 编辑器与系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
