@@ -170,3 +170,41 @@
 - 工作区登记通过直接更新 `workspace.json`，与运行中的 DSH 并发需用户避免同时操作。
 
 **关联**：ADR-0004、TASKS M6、`src/cli/index.js`。
+
+## ADR-0010 · 导入文件选择器：Exact Fetch 上传通道（2026-11-10，Proposed，待用户批准）
+
+**背景**：DSH 无文件选择服务（Host 无 `directory-picker` 可查询服务；Client 只有
+`uiWorkspace.pickDirectory`）。用户要求「在文件选择器里直接选 `.dshpack`」，否决“选目录 + 扫描”。
+
+**方案**：使用官方 **Exact Fetch 路由** 注册上传端点（api-gateway 明确推荐此方式承载 RPC 信封之外的响应）：
+
+```js
+ctx.connection.fetch.register({
+  path: '/api/mover/upload',
+  methods: ['POST'],
+  requestBody: 'streaming',
+  fetch: (request) => uploadHandler(request),
+})
+```
+
+- 该通道由 Connection 的共享 Fetch handler 服务，**复用 Host/Origin 检查与浏览器认证**
+  （`ConnectionFetchHandler`："Fetch handler for trusted, authenticated requests"），无需复刻信任逻辑；
+- 请求体流式写盘到 `<DSH_HOME>/tmp/mover-uploads/<uuid>.dshpack`（上限 2 GiB，仅接受 `.dshpack` 后缀）；
+- 返回 `{ path }`；Client 用 `<input type="file" accept=".dshpack">` 选择后 `fetch` 上传，
+  成功即把 `path` 填入导入框，删除上传按钮只在文件选择可用时显示；
+- 导入成功/失败后删除上传的临时文件；启动时清理 24 小时前的残留。
+
+**前提**：`ctx.get('connection')` 可用且 `fetch.register` 存在（Web profile 默认满足）；
+缺失时隐藏「选择文件」按钮并保留文本输入。
+
+**替代方案**：B 复用命令附件（`submittedAttachments` file receipt）——需要额外研究附件 upload
+协议，未采用；C 保留目录扫描——用户已否决。
+
+**风险与缓解**
+- 上传文件占磁盘：上限 + 24h 清理；
+- 路由暴露：仅经 Connection 认证的请求可达；路径随机 UUID；
+- 大文件流式写盘，不整包进内存（与 T1.10 流式修复一致）。
+
+**状态**：Proposed。用户批准后实施 T3.5 返工，并在实现后更新本 ADR 为 Accepted。
+
+**关联**：TASKS T3.5；ADR-0008。

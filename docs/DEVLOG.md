@@ -402,6 +402,11 @@
 - 验证：`tests/unit/commands.test.mjs` 11 项、`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.17（附件显示与缺失报告）；D3 先写 ADR-0010。
 
+## 076 · 2026-11-10 · docs: ADR-0010 导入文件选择器（Proposed）
+- 调研：`ctx.connection.fetch.register` 是官方 Exact Fetch 路由，由 Connection 共享 handler 服务（可信、已认证），可承载上传而无需复刻信任检查。
+- 产出：新增 ADR-0010（上传通道设计、2 GiB 上限、流式写盘、临时文件清理、风险与缓解），状态 Proposed。
+- 下一步：用户批准 ADR 后实施 T3.5 返工（文件选择 + 上传），完成 T3.17 后收尾。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
