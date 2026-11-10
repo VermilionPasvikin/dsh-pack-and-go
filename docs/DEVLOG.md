@@ -87,3 +87,8 @@
 - 变更：对照源码 `packages/session/session-persistence-jsonl/src/format.ts`（clone 副本）逐字复刻 `encodeSegment`/`projectKey`，新增 `src/core/paths.js`（含 `projectDir`/`sessionDir`）；`errors.js` 增加 `E_PATH_INVALID`；新增 `tests/unit/paths.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 49 passed / 0 failed；与真实目录名 `--F-PersonalProjects-python-~65B0~5EFA~6587~4EF6~5939--`、`--C-Users-15349-Desktop--` 一致；中文/emoji/超长/分隔符折叠用例通过。
 - 下一步：T1.8（平台预检）。
+
+## 018 · 2026-11-10 · feat: 实现跨平台预检
+- 变更：新增 `src/core/preflight.js`（`classifyEntry`、`detectCaseCollisions`、`sanitizeWindowsName`、`preflightWorkspace`），覆盖非法文件名、保留名、结尾点/空格、路径长度、符号链接、权限位、大小写冲突；`errors.js` 增加 `E_PREFLIGHT_INVALID`；新增 `tests/unit/preflight.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 60 passed / 0 failed（6 类风险 + 非 Windows 不误报 + 大小写冲突 + 集成报告可序列化 + 非法平台/目录拒绝）。
+- 下一步：T1.9（工作区扫描与排除规则）。
