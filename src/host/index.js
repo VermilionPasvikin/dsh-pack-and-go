@@ -5,6 +5,9 @@
  * 自检逻辑仅在 `DSH_MOVER_SELFTEST=1` 时运行，用于一次性 DSH_HOME 集成验证。
  */
 
+import { appendFileSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { loadCatalog } from './catalog.js'
 import { createMoverCommand } from './commands.js'
 import { rebuildSessionViaService } from './rebuild.js'
@@ -57,7 +60,9 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_REBUILD === '1') {
+        if (process.env.DSH_MOVER_SELFTEST_CMD === '1') {
+          await runCommandSelfTest(ctx, catalog)
+        } else if (process.env.DSH_MOVER_SELFTEST_REBUILD === '1') {
           await runRebuildSelfTest(ctx, catalog)
         } else if (process.env.DSH_MOVER_SELFTEST_IMPORT === '1') {
           await runImportSelfTest(ctx, catalog)
@@ -102,6 +107,55 @@ async function runRebuildSelfTest(ctx, catalog) {
     logger: ctx.logger,
   })
   console.log(`DSH-MOVER-REBUILD-AFTER ${JSON.stringify(after.totals)}`)
+}
+
+/** 自检日志：同时写终端与临时文件（终端缓冲不可靠）。 */
+function logLine(message) {
+  console.log(message)
+  try {
+    appendFileSync(
+      join(process.env.TEMP ?? '.', 'mover-selftest.log'),
+      `${new Date().toISOString()} ${message}\n`,
+    )
+  } catch {
+    // 日志失败不影响自检
+  }
+}
+
+/**
+ * 命令自检：解析 agent 后直接调用 commands.execute，验证命令链路。
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ * @param {object} catalog
+ */
+async function runCommandSelfTest(ctx, catalog) {
+  try {
+    const sessionController = ctx.get('sessionController')
+    logLine(`DSH-MOVER-CMD-CTRL ${typeof sessionController}`)
+    const first = [
+      ...catalog.workspaces.flatMap((workspace) => workspace.sessions),
+      ...catalog.ungrouped,
+    ][0]
+    if (!first) {
+      logLine('DSH-MOVER-CMD none')
+      return
+    }
+    const resolved = await sessionController.resolveAgent(first.id)
+    logLine(`DSH-MOVER-CMD-RESOLVE ${JSON.stringify(resolved && Object.keys(resolved))}`)
+    const agent = resolved && (resolved.agent ?? resolved)
+    const definition = ctx.commands.find(agent, 'mover')
+    logLine(`DSH-MOVER-CMD-FIND ${Boolean(definition)}`)
+    const execution = await ctx.commands.execute(
+      agent,
+      '/mover list',
+      [],
+      new AbortController().signal,
+    )
+    logLine(
+      `DSH-MOVER-CMD-EXEC ${JSON.stringify(execution?.result ?? execution).slice(0, 300)}`,
+    )
+  } catch (error) {
+    logLine(`DSH-MOVER-CMD-FAILED ${error instanceof Error ? error.stack : String(error)}`)
+  }
 }
 
 /**

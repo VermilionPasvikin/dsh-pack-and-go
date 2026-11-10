@@ -362,6 +362,11 @@
 - 验证：`tests/unit/commands.test.mjs` 9 项、`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.10（设置页备用入口）。
 
+## 068 · 2026-11-10 · chore: 补提交自检日志、渲染测试与 UI 方案文档
+- 变更：`src/host/index.js` 增加命令自检与文件日志（`DSH_MOVER_SELFTEST_CMD`）；`tests/e2e/client-render.test.mjs` 更新为浮层注册断言；`docs/UI-REVAMP.md` 补充布局修订。
+- 验证：`node --check` 通过；`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.10（设置页备用入口）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
