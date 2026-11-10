@@ -341,6 +341,12 @@
 - 状态：上述返工任务改为 🟨；新增任务为 ⬜；`TASKS.md` §3 下一步改为 T1.10。
 - 下一步：T1.10 返工（修复流式 zip）。
 
+## 064 · 2026-11-10 · fix: 流式 zip write-after-end（T1.10 返工）
+- 根因：`zip-stream.js` deflate 分支 `pipe` + `pipeline` 混用，`output.end()` 后仍有迟到写入；失败未清理半成品。
+- 变更：deflate 分支改 `pipeline(reader, deflater, sink)`（sink 负责背压与 `csize` 计数）；失败时删除输出文件；`resolveExportTarget` 目录目标追加唯一名；新增 3 项单测。
+- 验证：复现脚本（混合 data + 4×90KB 不可压缩文件，5 轮）**5/5 失败 → 5/5 成功**；`zip-stream` 单测 5/5；失败清理断言通过。
+- 下一步：T3.16/T3.8（导入结果计数与重启提示）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

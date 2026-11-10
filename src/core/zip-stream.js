@@ -11,7 +11,8 @@
 
 import { createReadStream, createWriteStream } from 'node:fs'
 import { once } from 'node:events'
-import { stat } from 'node:fs/promises'
+import { rm, stat } from 'node:fs/promises'
+import { Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { createDeflateRaw, deflateRawSync } from 'node:zlib'
 
@@ -160,18 +161,21 @@ export async function writeZipStream(input) {
         let state = crc32Init()
         if (method === METHOD_DEFLATE) {
           const deflater = createDeflateRaw()
-          let deflatedBytes = 0
-          deflater.on('data', (chunk) => {
-            deflatedBytes += chunk.length
+          // sink 负责把压缩数据写入 output 并处理背压；pipeline 完成即数据全部落盘，
+          // 避免 pipe + pipeline 混用导致 output.end() 后仍有迟到写入。
+          const sink = new Writable({
+            write(chunk, encoding, callback) {
+              csize += chunk.length
+              if (output.write(chunk)) callback()
+              else output.once('drain', () => callback())
+            },
           })
-          deflater.pipe(output, { end: false })
           const reader = createReadStream(entry.sourcePath, { highWaterMark: STREAM_CHUNK })
           reader.on('data', (chunk) => {
             state = crc32Update(state, chunk)
             usize += chunk.length
           })
-          await pipeline(reader, deflater)
-          csize = deflatedBytes
+          await pipeline(reader, deflater, sink)
           offset += csize
         } else {
           const reader = createReadStream(entry.sourcePath, { highWaterMark: STREAM_CHUNK })
@@ -237,6 +241,12 @@ export async function writeZipStream(input) {
     return { bytes: offset, entries: central.length }
   } catch (error) {
     output.destroy()
+    // 失败时清理半成品文件，避免下一次导出出现“两个包”
+    try {
+      await rm(outputPath, { force: true })
+    } catch {
+      // 清理失败不覆盖原始错误
+    }
     throw error
   }
 }
