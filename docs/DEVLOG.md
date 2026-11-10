@@ -239,3 +239,8 @@
 - 验证：163 项单测全绿；一次性 home 中重建：`DSH-MOVER-REBUILD {"id":"session-4b2b9a81...","events":3,"cwd":"…default-workspace"}`，`DSH-MOVER-REBUILD-AFTER {"sessions":2}`。
 - 说明：真实 v3 文件的迁移未单独验证（本机无 v3 样本），机制由 `open(read)` 的官方迁移链保证。
 - 下一步：M2 DoD 验收。
+
+## 046 · 2026-11-10 · docs: M2 里程碑验收通过
+- 变更：M2 全部 12 个任务完成；`TASKS.md` M2 置 ✅；`INDEX.md` 下一步更新为 T3.1。
+- 验证：163 项单测全绿；一次性 `DSH_HOME` 中完成真实导出（1128B 包）、导入（会话 + 工作区 + attach）、跨版本重建（sessions 1→2）；依赖图 `errors: 0`。
+- 下一步：M3（Web UI），从 T3.1 开始。
