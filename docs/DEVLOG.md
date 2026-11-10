@@ -320,3 +320,9 @@
 - 变更：`src/host/commands.js` 的 `exportAllSessions` 改用 `buildPackToFile`（流式写盘），不再整包驻留内存。
 - 验证：`tests/unit/commands.test.mjs` 5 项通过；导出包可被 `readZip` 读取。
 - 下一步：更新验收文档与最终报告。
+
+## 060 · 2026-11-10 · docs: 流式/CLI 验收更新（v0.2.0）
+- 变更：`ACCEPTANCE.md`（§11-8 通过、渲染逻辑验证、500MB 数据）；`FINAL-REPORT.md` 重写为 v0.2.0；`README.md` 增加 CLI 用法与状态；`package.json` 版本 `0.2.0`；`INDEX.md` 阶段更新。
+- 验证：166 项单测 + 13 项 e2e 全绿；500 MB 流式打包 2.9 s / 峰值 RSS 112.3 MB。
+- 结论：三项剩余需求（流式打包、渲染验证、CLI）完成；真实浏览器渲染仍是唯一未验证项。
+- 下一步：无。
