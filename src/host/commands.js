@@ -9,6 +9,7 @@
  *   mover import <迁移包> <目标目录>
  */
 
+import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { appendFileSync } from 'node:fs'
 import { homedir } from 'node:os'
@@ -18,6 +19,7 @@ import zlib from 'node:zlib'
 import {
   buildManifest,
   buildPackToFile,
+  decodeSessionEvents,
   DEFAULT_EXCLUDED_DIRS,
   extractAttachmentRefs,
   fileObjectPath,
@@ -602,6 +604,58 @@ async function scanExistingSessionIds(sessionRoot) {
 }
 
 /**
+ * 用服务重建的方式导入会话（new-id 策略）。
+ * 只改 header id 会让事件里的投递标记仍指向旧会话（DSH 判定 corrupt），
+ * 因此 create(新 header) + append(逻辑事件) 由官方后端重写。
+ * @param {object} deps
+ * @param {object} manifest
+ * @param {Map<string, Buffer>} byName
+ * @param {{ byKey: Record<string, string> }} pathMap
+ * @returns {Promise<{ manifest: object, written: Array<object>, skipped: string[] }>}
+ */
+async function importSessionsViaService(deps, manifest, byName, pathMap) {
+  const written = []
+  const skipped = []
+  for (const session of manifest.sessions) {
+    const packed = byName.get(session.path)
+    if (!packed) {
+      skipped.push(session.id)
+      continue
+    }
+    const targetCwd =
+      session.workspaceKey !== undefined && pathMap.byKey[session.workspaceKey] !== undefined
+        ? pathMap.byKey[session.workspaceKey]
+        : session.cwd
+    const newId = `session-${randomUUID()}`
+    try {
+      const events = decodeSessionEvents(packed)
+      const handle = await deps.sessionPersistence.create({
+        version: manifest.source.sessionFormat ?? 4,
+        id: newId,
+        createdAt: Date.now(),
+        ...(typeof targetCwd === 'string' && targetCwd.length > 0 ? { cwd: targetCwd } : {}),
+        isSeeded: false,
+        delegationDepth: 0,
+        ...(typeof session.parentSessionId === 'string'
+          ? { parentSession: session.parentSessionId }
+          : {}),
+      })
+      try {
+        if (events.length > 0) await handle.append(events)
+        await handle.flush()
+      } finally {
+        await handle.close()
+      }
+      written.push({ id: session.id, targetId: newId, action: 'new-id' })
+    } catch (error) {
+      console.error('[dsh-mover] service import failed', session.id, error)
+      skipped.push(session.id)
+    }
+  }
+  return { manifest, written, skipped }
+}
+
+/**
  * 导入一个 `.dshpack`。
  * @param {object} deps
  * @param {string} packPath
@@ -623,6 +677,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const manifest = parseManifest(
       entries.find((entry) => entry.name === 'manifest.json').data.toString('utf8'),
     )
+    const byName = new Map(entries.map((entry) => [entry.name, entry.data]))
 
     const platform = deps.platform ?? process.platform
     const pathMap = { byKey: {} }
@@ -662,13 +717,16 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       // 重复 id 等异常时退回文件扫描，避免把冲突写进磁盘
       existingSessionIds = [...(await scanExistingSessionIds(sessionRoot))]
     }
-    const sessions = await importSessionsToDisk({
-      buffer,
-      sessionRoot,
-      pathMap,
-      existingSessionIds,
-      policy: { session: sessionPolicy },
-    })
+    const sessions =
+      sessionPolicy === 'new-id'
+        ? await importSessionsViaService(deps, manifest, byName, pathMap)
+        : await importSessionsToDisk({
+            buffer,
+            sessionRoot,
+            pathMap,
+            existingSessionIds,
+            policy: { session: sessionPolicy },
+          })
     const attachmentEntries = entries
       .filter((entry) => entry.name.startsWith('attachments/'))
       .map((entry) => ({ packPath: entry.name, data: entry.data }))

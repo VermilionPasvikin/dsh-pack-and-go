@@ -495,6 +495,14 @@
 - 变更：`host/index.js` 把 `ctx.get('workspaceController')` 传入命令依赖；`importPack` 改用 `workspaceController.insertSessionBefore({ workspaceId, sessionId })` 触发广播（entity 方法作为无 controller 时的回退路径不再使用）。
 - 验证：`commands.test` 12 项通过；部署后请用户验证侧边栏是否即时出现新对话。
 
+## 093 · 2026-11-11 · fix: new-id 导入改走服务重建（修复 corrupt marker）
+- 根因：new-id 只改 header id，事件里的投递标记（delivery marker）仍指向旧会话 → DSH 报
+  `current-generation delivery marker names the wrong Session`（corrupt）。
+- 修复：new-id 策略改为 `sessionPersistence.create(新 header)` + `append(decodeSessionEvents(包内事件))` 的
+  服务重建（ADR-0007 方案 C），由官方后端生成正确标记；同 id/覆盖仍走直接写文件。
+- 验证：`commands.test` 12 项通过（makeDeps 增加 create mock）。
+- 说明：服务重建会走官方 live 会话路径，理论上也改善热重载；仍需浏览器实测。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

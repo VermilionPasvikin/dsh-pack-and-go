@@ -49,6 +49,11 @@ async function makeDeps(dir, sessionFile, bytes) {
           location: { kind: 'jsonl', path: sessionFile },
         },
       ],
+      create: async () => ({
+        append: async () => {},
+        flush: async () => {},
+        close: async () => {},
+      }),
     },
     sessionQuery: undefined,
     dshHome: join(dir, 'home'),
