@@ -6,6 +6,9 @@
 /** 迁移包格式版本（manifest.schemaVersion）。 */
 export const SCHEMA_VERSION = 2
 
+/** DSH 会话日志格式版本（本插件按方案 A 处理的同版本）。 */
+export const SESSION_FORMAT_VERSION = 4
+
 /** 迁移包扩展名。 */
 export const PACK_EXTENSION = '.dshpack'
 
