@@ -77,3 +77,13 @@
 - 变更：新增 `src/core/zstd-frames.js`（`scanFrames`、`frameChecksumFlag`、`ZSTD_FRAME_MAGIC`，解析 frame header + block 链 + 可选 checksum）；`errors.js` 增加 `E_SESSION_FRAME_INVALID`；`index.js` 导出；新增 `tests/unit/zstd-frames.test.mjs`。
 - 验证：`node --check` 3 个文件 exit 0；`node --test "tests/unit/**/*.test.mjs"` → 28 passed / 0 failed（覆盖单帧、多帧、checksum、截断、坏 magic、空输入、raw 块、保留块类型）。
 - 下一步：T1.6（`rewriteSessionCwd`）。
+
+## 016 · 2026-11-10 · feat: 实现会话头 cwd 改写（ADR-0007 方案 A）
+- 变更：新增 `src/core/session-rewrite.js`（`rewriteSessionCwd(buffer, newCwd)`、`rewriteSessionCwdFile`）；`constants.js` 增加 `SESSION_FORMAT_VERSION=4`；`errors.js` 增加 `E_SESSION_HEADER_INVALID`/`E_SESSION_VERSION_UNSUPPORTED`；新增 `tests/unit/session-rewrite.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 38 passed / 0 failed（帧数不变、cwd 改写、其余帧字节一致、行数不变、无 cwd 补写、跨版本拒绝、checksum 保留、文件版）。
+- 下一步：T1.7（路径规则复刻）。
+
+## 017 · 2026-11-10 · feat: 复刻 DSH 路径归一化规则
+- 变更：对照源码 `packages/session/session-persistence-jsonl/src/format.ts`（clone 副本）逐字复刻 `encodeSegment`/`projectKey`，新增 `src/core/paths.js`（含 `projectDir`/`sessionDir`）；`errors.js` 增加 `E_PATH_INVALID`；新增 `tests/unit/paths.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 49 passed / 0 failed；与真实目录名 `--F-PersonalProjects-python-~65B0~5EFA~6587~4EF6~5939--`、`--C-Users-15349-Desktop--` 一致；中文/emoji/超长/分隔符折叠用例通过。
+- 下一步：T1.8（平台预检）。
