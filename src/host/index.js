@@ -6,12 +6,13 @@
  */
 
 import { loadCatalog } from './catalog.js'
+import { createMoverCommand } from './commands.js'
 
 /** @type {string} */
 export const name = 'dsh-mover'
 
 /** 这些服务缺失时不激活插件（保持 DSH 可正常启动）。 */
-export const inject = ['workspaceRegistry', 'sessionPersistence']
+export const inject = ['workspaceRegistry', 'sessionPersistence', 'commands']
 
 /**
  * Cordis 插件挂载入口。
@@ -22,6 +23,18 @@ export function apply(ctx, config) {
   void config
   const logger = ctx.logger
   logger?.info?.('[dsh-mover] host plugin loaded')
+
+  const command = createMoverCommand({
+    workspaceRegistry: ctx.workspaceRegistry,
+    sessionPersistence: ctx.sessionPersistence,
+    sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+    dshHome: process.env.DSH_HOME,
+    platform: process.platform,
+    dshVersion: process.env.DSH_VERSION ?? 'unknown',
+    logger,
+  })
+  ctx.effect(() => ctx.commands.register(command))
+  console.log('[dsh-mover] command registered: mover')
 
   if (process.env.DSH_MOVER_SELFTEST === '1') {
     console.log('[dsh-mover] apply() reached')

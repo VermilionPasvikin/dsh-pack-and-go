@@ -227,3 +227,9 @@
 - 变更：`DECISIONS.md` 新增 ADR-0008（B 变体：`ctx.commands.register` + 转圈 + 阶段文案，保留纯 JS）；`DESIGN.md` 通信方式改为 commands；`TASKS.md` T2.11 验收更新；`INDEX.md` 未决项移除。
 - 验证：与用户拍板一致（B 变体、转圈、不推翻纯 JS）。
 - 下一步：实现 `mover` 命令（T2.11）。
+
+## 044 · 2026-11-10 · feat: mover 命令（ADR-0008）
+- 变更：新增 `src/host/commands.js`（`parseMoverArgs`、`exportAllSessions`、`importPack`、`handleMover`、`createMoverCommand`）；`src/host/index.js` 注册命令（`inject` 增加 `commands`）；`package.json` check 同步；新增 `tests/unit/commands.test.mjs`。
+- 验证：159 项单测全绿（导出生成包、导入写回、用法错误、命令结构）；一次性 home 启动日志包含 `[dsh-mover] command registered: mover`，stderr 无插件错误。
+- 说明：UI 等待期显示“转圈 + 阶段文案”（ADR-0008）；精确进度留给未来方案 A。
+- 下一步：T2.12（跨版本兜底，ADR-0007 方案 C）。
