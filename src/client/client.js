@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2110-2345'
+    const BUILD_TAG = 'b2110-2350'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -62,6 +62,8 @@ window.__ModuleLoader__.load({
         previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按默认策略处理）`,
         placeOriginal: '放回原路径',
         placeFolder: '指定目录',
+        conflictSkip: '已存在对话：跳过',
+        conflictNewId: '已存在对话：另存为新对话',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -124,6 +126,8 @@ window.__ModuleLoader__.load({
         previewConflicts: (n) => `${n} conflicts with current data (handled by default policy)`,
         placeOriginal: 'Restore original path',
         placeFolder: 'Choose folder',
+        conflictSkip: 'Existing conversations: skip',
+        conflictNewId: 'Existing conversations: copy as new',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -411,6 +415,7 @@ window.__ModuleLoader__.load({
       const [exportName, setExportName] = useState('')
       const [preview, setPreview] = useState(null)
       const [placeMode, setPlaceMode] = useState('original')
+      const [importConflictMode, setImportConflictMode] = useState('skip')
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -831,14 +836,19 @@ window.__ModuleLoader__.load({
           return
         }
         if (placeMode === 'original') {
-          await runCommand(`/mover import "${importPackPath.trim()}" --original`, t.importDone)
+          const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
+          await runCommand(
+            `/mover import "${importPackPath.trim()}" --original${newIdArg}`,
+            t.importDone,
+          )
           return
         }
         const target = importTarget.trim()
+        const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
         const line =
           target.length > 0
-            ? `/mover import "${importPackPath.trim()}" "${target}"`
-            : `/mover import "${importPackPath.trim()}"`
+            ? `/mover import "${importPackPath.trim()}" "${target}"${newIdArg}`
+            : `/mover import "${importPackPath.trim()}"${newIdArg}`
         await runCommand(line, t.importDone)
       }
 
@@ -1276,6 +1286,40 @@ window.__ModuleLoader__.load({
                 onChange: () => setPlaceMode('folder'),
               }),
               h('span', null, t.placeFolder),
+            ),
+          ),
+          h(
+            'div',
+            {
+              style: {
+                display: 'flex',
+                gap: 14,
+                fontSize: 12,
+                marginBottom: 8,
+                color: THEME.text,
+              },
+            },
+            h(
+              'label',
+              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+              h('input', {
+                type: 'radio',
+                name: 'mover-conflict',
+                checked: importConflictMode === 'skip',
+                onChange: () => setImportConflictMode('skip'),
+              }),
+              h('span', null, t.conflictSkip),
+            ),
+            h(
+              'label',
+              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+              h('input', {
+                type: 'radio',
+                name: 'mover-conflict',
+                checked: importConflictMode === 'new-id',
+                onChange: () => setImportConflictMode('new-id'),
+              }),
+              h('span', null, t.conflictNewId),
             ),
           ),
           h(

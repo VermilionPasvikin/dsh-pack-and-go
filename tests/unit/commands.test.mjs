@@ -206,6 +206,32 @@ test('inspect 预览包信息与冲突', async () => {
   }
 })
 
+test('导入冲突策略：默认跳过，new-id 另存为新对话', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const out = join(dir, 'out.dshpack')
+    await exportAllSessions(deps, out)
+
+    // makeDeps 的 list 返回 s1 → 同 id 冲突
+    const skipped = await importPack(deps, out, join(dir, 'target-skip'))
+    assert.equal(skipped.kind, 'success')
+    assert.match(skipped.text, /已导入 0 个对话/)
+    assert.match(skipped.text, /跳过 1 个已存在/)
+
+    const copied = await importPack(deps, out, join(dir, 'target-new'), {
+      sessionPolicy: 'new-id',
+    })
+    assert.equal(copied.kind, 'success')
+    assert.match(copied.text, /已导入 1 个对话/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('measureWorkspaces 统计目录字节数', async () => {  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {
     const project = join(dir, 'proj')

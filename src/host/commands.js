@@ -606,12 +606,14 @@ async function scanExistingSessionIds(sessionRoot) {
  * @param {object} deps
  * @param {string} packPath
  * @param {string} [targetRoot] 省略时使用 `~/dsh-mover-import`
- * @param {{ original?: boolean }} [options] original=true 时放回源路径
+ * @param {{ original?: boolean, sessionPolicy?: 'skip'|'new-id' }} [options]
+ *   original=true 时放回源路径；sessionPolicy 控制同 id 会话冲突（默认 skip）
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
 export async function importPack(deps, packPath, targetRoot, options = {}) {
   if (!packPath) return errorResult(`缺少迁移包路径。${USAGE}`)
   const useOriginal = options.original === true
+  const sessionPolicy = options.sessionPolicy === 'new-id' ? 'new-id' : 'skip'
   const root = typeof targetRoot === 'string' && targetRoot.length > 0
     ? targetRoot
     : join(homedir(), 'dsh-mover-import')
@@ -658,6 +660,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       sessionRoot,
       pathMap,
       existingSessionIds,
+      policy: { session: sessionPolicy },
     })
     const attachmentEntries = entries
       .filter((entry) => entry.name.startsWith('attachments/'))
@@ -857,8 +860,12 @@ export async function handleMover(deps, invocation) {
   }
   if (sub === 'import') {
     const original = args.includes('--original')
-    const rest = args.filter((arg) => arg !== '--original')
-    return importPack(deps, rest[0], rest[1], { original })
+    const newId = args.includes('--new-id')
+    const rest = args.filter((arg) => arg !== '--original' && arg !== '--new-id')
+    return importPack(deps, rest[0], rest[1], {
+      original,
+      sessionPolicy: newId ? 'new-id' : 'skip',
+    })
   }
   if (sub === 'list') return listCatalog(deps)
   if (sub === 'find') return findPacks(args[0])
