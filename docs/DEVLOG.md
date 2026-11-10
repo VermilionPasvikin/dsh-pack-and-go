@@ -515,6 +515,13 @@
 - 修复：所有分支补齐 `sizes: new Map()`；调用处改用 `titleInfo.sizes?.size ?? 0`。
 - 验证：`client-render` 3 项、`commands` 12 项通过。
 
+## 096 · 2026-11-11 · fix: 标题兜底与树按 cwd 归组
+- 标题：`session.list` 的 SessionSummary 没有顶层 title，标题在 `projections.values.title`（迁移会话可能缺失）。
+  Host catalog 增加兜底：读会话日志事件，取 `session/rename` 或首条 `user/message` 文本。
+- 工作树：改用 `session.list` 的 `cwd` 与工作区路径归组（与左侧侧边栏一致），未匹配会话显示为「未分组」；
+  标题合并 `/mover list` 结果（不覆盖已有）。
+- 验证：`client-render` 3 项、`commands` 12 项通过。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

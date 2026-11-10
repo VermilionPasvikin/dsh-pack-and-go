@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2111-0035'
+    const BUILD_TAG = 'b2111-0045'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -47,6 +47,7 @@ window.__ModuleLoader__.load({
         fileEstimate: (size) => `含项目文件约 ${size}`,
         searchPlaceholder: '搜索对话标题',
         showArchived: '显示已归档',
+        ungrouped: '未分组',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
         copyPath: '复制路径',
         advanced: '高级选项',
@@ -113,6 +114,7 @@ window.__ModuleLoader__.load({
         fileEstimate: (size) => `~${size} with files`,
         searchPlaceholder: 'Search conversation titles',
         showArchived: 'Show archived',
+        ungrouped: 'Ungrouped',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
         copyPath: 'Copy path',
         advanced: 'Advanced options',
@@ -476,11 +478,13 @@ window.__ModuleLoader__.load({
             }
             if (cancelled) return
 
+            let listItems = []
             let titles = new Map()
             try {
               const listResult = await remote.session.list({})
+              listItems = listResult?.items ?? []
               titles = new Map(
-                (listResult?.items ?? [])
+                listItems
                   .map((item) => [item.sessionId, titleOf(item)])
                   .filter(([, title]) => typeof title === 'string' && title.length > 0),
               )
@@ -488,16 +492,24 @@ window.__ModuleLoader__.load({
               // 标题不可用时走命令兜底
             }
 
-            const firstSessionId = items.flatMap((workspace) => workspace.sessionIds ?? [])[0]
+            const firstSessionId =
+              listItems.find((item) => typeof item?.sessionId === 'string')?.sessionId ??
+              items.flatMap((workspace) => workspace.sessionIds ?? [])[0]
             if (firstSessionId) {
               const titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
               if (titleInfo.meta) setMeta(titleInfo.meta)
               if ((titleInfo.sizes?.size ?? 0) > 0) setSizeById(titleInfo.sizes)
-              if (titles.size === 0 && (titleInfo.titles?.size ?? 0) > 0) titles = titleInfo.titles
+              for (const [id, title] of titleInfo.titles ?? []) {
+                if (!titles.has(id) && typeof title === 'string' && title.length > 0) {
+                  titles.set(id, title)
+                }
+              }
             }
 
             setRawItems(items)
-            setGroups(groupFromWorkspaces(items, titles, localeId, t, archivedIds, showArchived))
+            setGroups(
+              groupFromWorkspaces(items, listItems, titles, localeId, t, archivedIds, showArchived),
+            )
             setStatus('ready')
           } catch (loadError) {
             if (cancelled) return
@@ -1646,21 +1658,53 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function groupFromWorkspaces(items, titles, localeId, texts, archivedIds, showArchived) {
+    function normalizePath(value) {
+      return String(value ?? '')
+        .replace(/[\\/]+$/, '')
+        .toLowerCase()
+    }
+
+    /**
+     * 用会话列表（cwd）归组，与左侧侧边栏一致；未匹配的会话作为「未分组」。
+     * @param {Array<object>} items workspace.follow 的 WorkspaceView
+     * @param {Array<object>} listItems session.list 的 SessionSummary
+     */
+    function groupFromWorkspaces(items, listItems, titles, localeId, texts, archivedIds, showArchived) {
+      const assigned = new Set()
+      const sessionsByCwd = new Map()
+      for (const item of listItems) {
+        if (!item || typeof item.sessionId !== 'string') continue
+        if (typeof item.cwd !== 'string' || item.cwd.length === 0) continue
+        const key = normalizePath(item.cwd)
+        if (!sessionsByCwd.has(key)) sessionsByCwd.set(key, [])
+        sessionsByCwd.get(key).push(item)
+      }
+      const toSession = (item) => ({
+        sessionId: item.sessionId,
+        title: titles.get(item.sessionId) ?? texts.sessionFallback(shortSessionId(item.sessionId)),
+        updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : 0,
+      })
       const groups = []
       for (const workspace of items) {
-        const sessions = (workspace.sessionIds ?? [])
-          .filter((sessionId) => showArchived || !archivedIds.has(sessionId))
-          .map((sessionId) => ({
-            sessionId,
-            title: titles.get(sessionId) ?? texts.sessionFallback(shortSessionId(sessionId)),
-            updatedAt: 0,
-          }))
+        const sessions = (sessionsByCwd.get(normalizePath(workspace.path)) ?? [])
+          .filter((item) => showArchived || !archivedIds.has(item.sessionId))
+          .map((item) => {
+            assigned.add(item.sessionId)
+            return toSession(item)
+          })
+        if (sessions.length === 0) continue
         groups.push({
           cwd: workspace.path,
           title: displayWorkspaceTitle(workspace.title, localeId),
           sessions,
         })
+      }
+      const ungrouped = listItems
+        .filter((item) => item && typeof item.sessionId === 'string' && !assigned.has(item.sessionId))
+        .filter((item) => showArchived || !archivedIds.has(item.sessionId))
+        .map(toSession)
+      if (ungrouped.length > 0) {
+        groups.push({ cwd: undefined, title: texts.ungrouped, sessions: ungrouped })
       }
       return groups
     }

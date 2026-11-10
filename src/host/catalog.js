@@ -9,7 +9,35 @@
  * `assembleCatalog` 是纯函数，可在任意平台单测。
  */
 
+import { readFile } from 'node:fs/promises'
+
+import { decodeSessionEvents } from '../core/attachments.js'
 import { ERROR_CODES, MoverError } from '../core/errors.js'
+
+/**
+ * 从会话事件提取标题（rename 事件或首条用户消息）。
+ * @param {object[]} events
+ * @returns {string | undefined}
+ */
+export function titleFromEvents(events) {
+  let title
+  for (const event of events) {
+    if (event?.type === 'session/rename' && typeof event.data?.title === 'string') {
+      title = event.data.title
+    }
+    if (!title && event?.type === 'user/message') {
+      const content = event.data?.content
+      const text = Array.isArray(content)
+        ? content.find((part) => part?.type === 'text')?.text
+        : undefined
+      if (typeof text === 'string' && text.trim().length > 0) {
+        title = text.trim().slice(0, 24)
+      }
+    }
+    if (title) break
+  }
+  return title
+}
 
 /**
  * @param {string} message
@@ -143,6 +171,21 @@ export async function loadCatalog(services) {
       }
     } catch (error) {
       logger?.warn?.('[dsh-mover] 读取会话标题失败，使用兜底标题', error)
+    }
+  }
+
+  // 标题兜底：服务拿不到（迁移会话/投影缺失）时，从会话日志事件提取。
+  for (const snapshot of snapshots) {
+    const id = snapshot.header.id
+    if (titles.has(id)) continue
+    const logPath = snapshot.location?.path
+    if (typeof logPath !== 'string') continue
+    try {
+      const buffer = await readFile(logPath)
+      const title = titleFromEvents(decodeSessionEvents(buffer))
+      if (typeof title === 'string' && title.length > 0) titles.set(id, title)
+    } catch {
+      // 会话不可读时保留 fallbackTitle
     }
   }
 
