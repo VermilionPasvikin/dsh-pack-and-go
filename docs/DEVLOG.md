@@ -122,3 +122,8 @@
 - 变更：新增 `src/core/plan-export.js`（`inferMode`、`planExport`：包内文件清单、附件、体积预估、模式推断；仅工作区模式无文件时报错）；`errors.js` 增加 `E_PLAN_INVALID`；新增 `tests/unit/plan-export.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 99 passed / 0 failed（仅对话、仅工作区、对话+工作区、includeFiles 开关、附件、空选择）。
 - 下一步：T1.14（导入计划）。
+
+## 025 · 2026-11-10 · feat: 实现导入计划
+- 变更：新增 `src/core/plan-import.js`（`planImport`、`DEFAULT_IMPORT_POLICY`、`SESSION_ACTIONS`/`WORKSPACE_ACTIONS`：目标 cwd 映射、会话冲突、工作区合并、转换项透传、摘要）；新增 `tests/unit/plan-import.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 107 passed / 0 failed（无冲突、跳过、覆盖、合并、缺映射、转换透传、非法策略）。
+- 下一步：T1.15（错误码与中文消息表）。
