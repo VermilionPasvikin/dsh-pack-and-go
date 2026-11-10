@@ -9,7 +9,8 @@ import { readFile, stat } from 'node:fs/promises'
 
 import { SCHEMA_VERSION, SESSION_FORMAT_VERSION } from './constants.js'
 import { ERROR_CODES, MoverError } from './errors.js'
-import { serializeManifest, validateManifest } from './manifest-io.js'
+import { validateManifest } from './manifest.js'
+import { serializeManifest } from './manifest-io.js'
 import { createZip } from './zip-writer.js'
 
 /** 默认单文件上限（内存实现约束）。 */

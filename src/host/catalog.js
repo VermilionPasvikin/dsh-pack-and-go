@@ -68,6 +68,7 @@ export function assembleCatalog(input) {
       sizeBytes: snapshot.sizeBytes ?? 0,
       eventCount: snapshot.eventCount,
       formatStatus: snapshot.formatStatus,
+      locationPath: snapshot.location?.path,
     })
   }
 
