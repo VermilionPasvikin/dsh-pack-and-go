@@ -268,3 +268,9 @@
 - 验证：`node --check` 通过；163 项单测全绿；启动 boot 含 `dsh-mover/client.js`。
 - 说明：语言切换的浏览器渲染未验证；`ctx.locale` 快照字段名做了兼容取值（`id`/`locale`/`language`）。
 - 下一步：M3 DoD 与 M4（打包安装）。
+
+## 051 · 2026-11-10 · docs: M3 里程碑（代码）完成
+- 变更：M3 的 8 个任务全部完成；`TASKS.md` M3 置 ✅（注明渲染验证移交 M4）；`INDEX.md` 下一步更新为 T4.1。
+- 验证：163 项单测全绿；`node --check` 全过；一次性 profile 启动 boot 含 `dsh-mover/client.js`。
+- 限制：浏览器渲染/交互未验证（本环境无浏览器控制），作为 M4/T4.3 实机验证的一部分。
+- 下一步：T4.1（bundle 清单：locale/icon/meta）。
