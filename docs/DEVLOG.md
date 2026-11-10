@@ -387,6 +387,11 @@
 - 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 10 项通过。
 - 下一步：T3.13 剩余（高级折叠：排除 / 压缩 / 预检 / 附件）。
 
+## 073 · 2026-11-10 · feat: 高级折叠与导出选项（T3.13）
+- 变更：导出页新增「高级选项」折叠（全量打包 / 不压缩 / 导出前预检 / 额外排除目录）；Host `mover export` 支持 `--full`、`--no-compress`、`--preflight`、`--exclude`；`buildPackToFile` 支持 `compress`；预检摘要附在结果文本。
+- 验证：`tests/unit/commands.test.mjs` 10 项、`tests/unit/export-pack.test.mjs` 5 项、`tests/e2e/client-render.test.mjs` 3 项通过。
+- 下一步：T3.14（导入预览）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

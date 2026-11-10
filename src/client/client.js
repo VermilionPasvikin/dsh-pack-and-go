@@ -50,6 +50,12 @@ window.__ModuleLoader__.load({
         showArchived: '显示已归档',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
         copyPath: '复制路径',
+        advanced: '高级选项',
+        fullMode: '全量打包（不排除任何目录）',
+        noCompress: '不压缩（更快，包更大）',
+        preflight: '导出前预检',
+        excludePlaceholder: '额外排除目录，逗号分隔（如 .cache,tmp）',
+        attachmentsTodo: '附件打包将在后续版本支持。',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -99,6 +105,12 @@ window.__ModuleLoader__.load({
         showArchived: 'Show archived',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
         copyPath: 'Copy path',
+        advanced: 'Advanced options',
+        fullMode: 'Full packing (exclude nothing)',
+        noCompress: 'No compression (faster, larger)',
+        preflight: 'Preflight before export',
+        excludePlaceholder: 'Extra excluded dirs, comma separated (e.g. .cache,tmp)',
+        attachmentsTodo: 'Attachment packing is planned for a later version.',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -377,6 +389,10 @@ window.__ModuleLoader__.load({
       const [query, setQuery] = useState('')
       const [showArchived, setShowArchived] = useState(false)
       const [lastExport, setLastExport] = useState(null)
+      const [fullMode, setFullMode] = useState(false)
+      const [noCompress, setNoCompress] = useState(false)
+      const [preflightEnabled, setPreflightEnabled] = useState(false)
+      const [extraExclude, setExtraExclude] = useState('')
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -674,11 +690,21 @@ window.__ModuleLoader__.load({
           return
         }
         const ids = [...selected]
-        const filesFlag = includeFiles ? ' --files' : ''
+        const flags = []
+        if (includeFiles) flags.push('--files')
+        if (fullMode) flags.push('--full')
+        if (noCompress) flags.push('--no-compress')
+        if (preflightEnabled) flags.push('--preflight')
+        const excluded = extraExclude
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+        const excludeArg = excluded.length > 0 ? ` --exclude "${excluded.join(',')}"` : ''
+        const flagText = flags.length > 0 ? ` ${flags.join(' ')}` : ''
         setLastExport(null)
         const started = Date.now()
         const outcome = await runCommand(
-          `/mover export "${targetPath.trim()}"${filesFlag} ${ids.join(' ')}`,
+          `/mover export "${targetPath.trim()}"${flagText}${excludeArg} ${ids.join(' ')}`,
           t.exportDone,
         )
         if (outcome && outcome.ok) {
@@ -955,6 +981,96 @@ window.__ModuleLoader__.load({
             'div',
             { style: { fontSize: 11, color: THEME.textMuted, marginTop: 2, marginBottom: 8 } },
             t.includeFilesHint,
+          ),
+          h(
+            'details',
+            { style: { marginBottom: 8 } },
+            h(
+              'summary',
+              { style: { fontSize: 11, color: THEME.textMuted, cursor: 'pointer' } },
+              t.advanced,
+            ),
+            h(
+              'div',
+              {
+                style: {
+                  padding: '6px 0 0 4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                },
+              },
+              h(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: THEME.text,
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: fullMode,
+                  disabled: busy,
+                  onChange: (event) => setFullMode(event.target.checked),
+                }),
+                h('span', null, t.fullMode),
+              ),
+              h(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: THEME.text,
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: noCompress,
+                  disabled: busy,
+                  onChange: (event) => setNoCompress(event.target.checked),
+                }),
+                h('span', null, t.noCompress),
+              ),
+              h(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: THEME.text,
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: preflightEnabled,
+                  disabled: busy,
+                  onChange: (event) => setPreflightEnabled(event.target.checked),
+                }),
+                h('span', null, t.preflight),
+              ),
+              h('input', {
+                type: 'text',
+                value: extraExclude,
+                disabled: busy,
+                placeholder: t.excludePlaceholder,
+                onChange: (event) => setExtraExclude(event.target.value),
+                style: fieldStyle(),
+              }),
+              h(
+                'div',
+                { style: { fontSize: 10, color: THEME.textMuted } },
+                t.attachmentsTodo,
+              ),
+            ),
           ),
           h(
             'div',

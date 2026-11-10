@@ -150,6 +150,7 @@ export async function buildPackToFile(input) {
     outputPath,
     readme = 'dsh-mover 迁移包\n',
     extraEntries = [],
+    compress = true,
   } = input
 
   if (plan === null || typeof plan !== 'object' || !Array.isArray(plan.items)) {
@@ -180,5 +181,5 @@ export async function buildPackToFile(input) {
     entries.push(extra)
   }
 
-  return writeZipStream({ entries, outputPath })
+  return writeZipStream({ entries, outputPath, compress })
 }

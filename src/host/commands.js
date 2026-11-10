@@ -17,9 +17,11 @@ import { basename, dirname, join } from 'node:path'
 import {
   buildManifest,
   buildPackToFile,
+  DEFAULT_EXCLUDED_DIRS,
   importSessionsToDisk,
   parseManifest,
   planExport,
+  preflightWorkspace,
   readZip,
   restoreWorkspaceFiles,
   safeDirName,
@@ -215,14 +217,21 @@ export async function exportAllSessions(
     const platform = deps.platform ?? process.platform
     const workspaces = []
     const workspaceKeyByCwd = new Map()
+    const scannedCwds = []
     if (includeFiles) {
       const seenCwds = new Set()
+      const scanOptions = {}
+      if (options.full === true) scanOptions.full = true
+      if (Array.isArray(options.excludedDirs) && options.excludedDirs.length > 0) {
+        scanOptions.excludedDirs = [...DEFAULT_EXCLUDED_DIRS, ...options.excludedDirs]
+      }
       for (const session of sessions) {
         const cwd = session.cwd
         if (typeof cwd !== 'string' || cwd.length === 0 || seenCwds.has(cwd)) continue
         seenCwds.add(cwd)
+        scannedCwds.push(cwd)
         try {
-          const scan = await scanWorkspace(cwd)
+          const scan = await scanWorkspace(cwd, scanOptions)
           const files = scan.entries
             .filter((entry) => !entry.isDir)
             .map((entry) => ({ relPath: entry.relPath, size: entry.size }))
@@ -301,14 +310,28 @@ export async function exportAllSessions(
       sourcePaths,
       manifest,
       outputPath: resolvedTarget,
+      compress: options.compress !== false,
     })
     console.log('[dsh-mover] export written', written.bytes, 'to', resolvedTarget)
     const fileNote = includeFiles
       ? `，含 ${workspaces.length} 个工作区（${plan.counts.files} 个文件）`
       : ''
+    let preflightNote = ''
+    if (options.preflight === true) {
+      let riskCount = 0
+      for (const cwd of scannedCwds) {
+        try {
+          const report = await preflightWorkspace(cwd)
+          riskCount += Array.isArray(report.risks) ? report.risks.length : 0
+        } catch {
+          // 预检失败不影响已完成的导出
+        }
+      }
+      preflightNote = `；预检 ${riskCount} 项`
+    }
     return {
       kind: 'success',
-      text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）`,
+      text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）${preflightNote}`,
     }
   } catch (error) {
     return errorResult(
@@ -535,9 +558,34 @@ export async function handleMover(deps, invocation) {
   if (sub === 'export') {
     const includeFiles = args.includes('--files')
     const noFork = args.includes('--no-fork')
-    const rest = args.filter((arg) => arg !== '--files' && arg !== '--no-fork')
+    const full = args.includes('--full')
+    const noCompress = args.includes('--no-compress')
+    const preflight = args.includes('--preflight')
+    const excludeAt = args.indexOf('--exclude')
+    const excludedDirs =
+      excludeAt >= 0
+        ? String(args[excludeAt + 1] ?? '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        : []
+    const flags = new Set([
+      '--files',
+      '--no-fork',
+      '--full',
+      '--no-compress',
+      '--preflight',
+      '--exclude',
+    ])
+    const rest = args.filter(
+      (arg, index) => !flags.has(arg) && !(excludeAt >= 0 && index === excludeAt + 1),
+    )
     return exportAllSessions(deps, rest[0], rest.slice(1), includeFiles, {
       includeFork: !noFork,
+      full,
+      compress: !noCompress,
+      preflight,
+      excludedDirs,
     })
   }
   if (sub === 'import') return importPack(deps, args[0], args[1])
