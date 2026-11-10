@@ -43,8 +43,54 @@ export function apply(ctx, config) {
             firstSession: catalog.workspaces[0]?.sessions[0]?.title ?? null,
           })}`,
         )
+
+        if (process.env.DSH_MOVER_SELFTEST_EXPORT === '1') {
+          const { planExport, buildManifest, buildPack } = await import('../core/index.js')
+          const { writeFile } = await import('node:fs/promises')
+          const { join } = await import('node:path')
+          const { tmpdir } = await import('node:os')
+
+          const sessions = catalog.workspaces
+            .flatMap((workspace) => workspace.sessions)
+            .filter((session) => typeof session.locationPath === 'string')
+          const first = sessions[0]
+          if (!first) {
+            console.log('DSH-MOVER-EXPORT none')
+            return
+          }
+          const packPath = `sessions/${first.id}/session.v4.jsonl.zstd`
+          const plan = planExport({
+            sessions: [{ packPath, sizeBytes: first.sizeBytes }],
+            includeFiles: false,
+          })
+          const manifest = buildManifest({
+            platform: process.platform,
+            dshVersion: process.env.DSH_VERSION ?? 'selftest',
+            mode: 'sessions',
+            sessions: [
+              {
+                id: first.id,
+                title: first.title,
+                cwd: first.cwd,
+                messageCount: first.eventCount ?? 0,
+                sizeBytes: first.sizeBytes,
+                path: packPath,
+              },
+            ],
+          })
+          const pack = await buildPack({
+            plan,
+            sourcePaths: { [packPath]: first.locationPath },
+            manifest,
+          })
+          const output = join(tmpdir(), 'dsh-mover-selftest.dshpack')
+          await writeFile(output, pack)
+          console.log(`DSH-MOVER-EXPORT ${output} ${pack.length}`)
+        }
       } catch (error) {
-        console.log(`DSH-MOVER-SELFTEST-FAILED ${error instanceof Error ? error.stack : String(error)}`)
+        console.log(
+          `DSH-MOVER-SELFTEST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+        )
       }
     })()
   }

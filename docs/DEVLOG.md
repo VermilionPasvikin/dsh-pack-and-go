@@ -180,3 +180,9 @@
 - 变更：提交 `tests/unit/export-pack.test.mjs` 的期望修正；补录 `DEVLOG` 033/034。
 - 验证：131 passed / 0 failed；工作树干净。
 - 下一步：T2.5 集成验证（一次性 `DSH_HOME` 生成 `.dshpack`）。
+
+## 036 · 2026-11-10 · feat: 导出任务编排（集成验证通过）
+- 变更：`src/host/catalog.js` 增加 `locationPath`（来自 `snapshot.location.path`）；`src/host/index.js` 增加 `DSH_MOVER_SELFTEST_EXPORT` 自检导出（catalog → `planExport` → `buildManifest` → `buildPack` → 写包）。
+- 验证：一次性 `DSH_HOME` 的 `mover-test` profile 中导出 `%TEMP%\dsh-mover-selftest.dshpack`（1128 B）；外部 `readZip` 校验：3 条目（manifest 579B / README 20B / 会话 349B），manifest `schemaVersion=2`、`mode=sessions`、`sessionFormat=4`，会话文件与源大小一致。
+- 说明：首版为内存打包（单文件 ≤256 MiB），流式优化留给性能任务。
+- 下一步：T2.6（导入任务编排）。
