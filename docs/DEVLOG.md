@@ -286,3 +286,9 @@
 - 验证：locale/icon 合法；一次性 profile 安装成功、`--dump-config` 含插件行、boot 含 `dsh-mover/client.js`、日志含命令注册。
 - 限制：浏览器渲染未验证（Edge headless 截图失败）；`plugin_manager install_bundle` 不适用于一次性 home。
 - 下一步：T5.1（单元测试收尾与覆盖记录）。
+
+## 054 · 2026-11-10 · test: M5 跨平台/性能/安全验收（T5.1–T5.5）
+- 变更：新增 `tests/e2e/cross-platform.test.mjs`、`tests/e2e/performance.test.mjs`、`tests/e2e/security.test.mjs`、`docs/ACCEPTANCE.md`；TASKS 的 T5.1–T5.5 更新状态。
+- 验证：覆盖率 行 92.67% / 分支 81.46% / 函数 96.21%；跨平台 3 项、安全 3 项通过；性能 100MB：scan 1ms、pack 368ms、rss 增量 101MB；SPEC §11 走查见 `docs/ACCEPTANCE.md`（4/5/6/7/9 通过；1/2/3/10 部分；8 未达标）。
+- 限制：内存实现导致 500MB 场景 rss 会超过 NFR-2 的 300MB（**已知技术债：流式打包未实现**）；浏览器渲染仍未验证。
+- 下一步：M5 DoD 与 M7（发布准备）。
