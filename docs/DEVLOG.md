@@ -412,6 +412,11 @@
 - 变更：`DECISIONS.md` ADR-0010 标记取消；`TASKS.md` T3.5 标 ✅（备注）。
 - 下一步：T3.17（附件显示与缺失报告）。
 
+## 078 · 2026-11-10 · feat: 附件打包与导入恢复（T3.17）
+- 变更：`mover export --attachments` 从会话事件提取附件引用并打包（缺失仅记录，不阻断）；`importPack` 调用 `restoreAttachments` 写回 `<DSH_HOME>/attachments/v1`，结果文本附附件数与警告；导出页高级选项新增「包含附件」。
+- 验证：`tests/unit/**` 175 项 + `client-render` 3 项（共 178）全绿。
+- 下一步：TASKS 收尾（全量验收 + INDEX/FINAL-REPORT 更新）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

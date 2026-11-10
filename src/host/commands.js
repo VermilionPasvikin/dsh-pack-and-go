@@ -18,11 +18,17 @@ import {
   buildManifest,
   buildPackToFile,
   DEFAULT_EXCLUDED_DIRS,
+  extractAttachmentRefs,
+  fileObjectPath,
+  fileReferencePath,
+  imageObjectPath,
   importSessionsToDisk,
+  packAttachmentPath,
   parseManifest,
   planExport,
   preflightWorkspace,
   readZip,
+  restoreAttachments,
   restoreWorkspaceFiles,
   safeDirName,
   scanWorkspace,
@@ -263,9 +269,58 @@ export async function exportAllSessions(
       }
     }
 
+    const attachments = []
+    if (options.attachments === true) {
+      const attachmentsRoot = join(deps.dshHome, 'attachments', 'v1')
+      const seenAttachments = new Set()
+      for (const session of sessions) {
+        try {
+          const data = await readFile(session.locationPath)
+          for (const ref of extractAttachmentRefs(data)) {
+            if (seenAttachments.has(ref.attachmentId)) continue
+            seenAttachments.add(ref.attachmentId)
+            try {
+              if (ref.kind === 'image') {
+                const packPath = packAttachmentPath('image', ref.attachmentId)
+                const source = imageObjectPath(attachmentsRoot, ref.attachmentId)
+                await stat(source)
+                sourcePaths[packPath] = source
+                attachments.push({ id: ref.attachmentId, kind: 'image', path: packPath })
+              } else {
+                const packPath = packAttachmentPath('file-object', ref.attachmentId)
+                const source = fileObjectPath(attachmentsRoot, ref.attachmentId)
+                await stat(source)
+                sourcePaths[packPath] = source
+                attachments.push({ id: ref.attachmentId, kind: 'file', path: packPath })
+                if (typeof ref.name === 'string' && ref.name.length > 0) {
+                  const refPath = packAttachmentPath(
+                    'file-reference',
+                    ref.attachmentId,
+                    ref.name,
+                  )
+                  const refSource = fileReferencePath(
+                    attachmentsRoot,
+                    ref.attachmentId,
+                    ref.name,
+                  )
+                  await stat(refSource)
+                  sourcePaths[refPath] = refSource
+                }
+              }
+            } catch {
+              console.log('[dsh-mover] attachment missing', ref.attachmentId)
+            }
+          }
+        } catch {
+          // 会话不可读时跳过附件
+        }
+      }
+    }
+
     const plan = planExport({
       sessions: planSessions,
       workspaces,
+      attachments: attachments.map((item) => ({ packPath: item.path, sizeBytes: 0 })),
       includeFiles,
     })
     const manifestWorkspaces = workspaces.map(({ files, ...rest }) => rest)
@@ -292,6 +347,12 @@ export async function exportAllSessions(
           : {}),
       })),
       workspaces: manifestWorkspaces,
+      attachments: attachments.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        sizeBytes: 0,
+        path: item.path,
+      })),
     })
 
     const resolvedTarget = await resolveExportTarget(targetPath)
@@ -511,6 +572,16 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
 
     const sessionRoot = join(deps.dshHome, 'sessions')
     const sessions = await importSessionsToDisk({ buffer, sessionRoot, pathMap })
+    const attachmentEntries = entries
+      .filter((entry) => entry.name.startsWith('attachments/'))
+      .map((entry) => ({ packPath: entry.name, data: entry.data }))
+    const attachments =
+      attachmentEntries.length > 0
+        ? await restoreAttachments({
+            entries: attachmentEntries,
+            attachmentsRoot: join(deps.dshHome, 'attachments', 'v1'),
+          })
+        : { restored: 0, warnings: [] }
     const workspaceEntries = entries
       .filter((entry) => entry.name.startsWith('workspaces/'))
       .map((entry) => ({ packPath: entry.name, data: entry.data }))
@@ -558,7 +629,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
 
     return {
       kind: 'success',
-      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。${
+      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，附件 ${attachments.restored} 个${
+        attachments.warnings.length > 0 ? `（警告 ${attachments.warnings.length}）` : ''
+      }，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。${
         mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
       }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
@@ -640,6 +713,7 @@ export async function handleMover(deps, invocation) {
     const full = args.includes('--full')
     const noCompress = args.includes('--no-compress')
     const preflight = args.includes('--preflight')
+    const attachmentMode = args.includes('--attachments')
     const excludeAt = args.indexOf('--exclude')
     const excludedDirs =
       excludeAt >= 0
@@ -655,6 +729,7 @@ export async function handleMover(deps, invocation) {
       '--no-compress',
       '--preflight',
       '--exclude',
+      '--attachments',
     ])
     const rest = args.filter(
       (arg, index) => !flags.has(arg) && !(excludeAt >= 0 && index === excludeAt + 1),
@@ -665,6 +740,7 @@ export async function handleMover(deps, invocation) {
       compress: !noCompress,
       preflight,
       excludedDirs,
+      attachments: attachmentMode,
     })
   }
   if (sub === 'import') {

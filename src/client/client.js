@@ -56,6 +56,7 @@ window.__ModuleLoader__.load({
         preflight: '导出前预检',
         excludePlaceholder: '额外排除目录，逗号分隔（如 .cache,tmp）',
         attachmentsTodo: '附件打包将在后续版本支持。',
+        attachments: '包含附件（图片 / 文件）',
         preview: '预览',
         previewTitle: '迁移包预览',
         previewCounts: (sessions, workspaces, attachments) =>
@@ -118,6 +119,7 @@ window.__ModuleLoader__.load({
         preflight: 'Preflight before export',
         excludePlaceholder: 'Extra excluded dirs, comma separated (e.g. .cache,tmp)',
         attachmentsTodo: 'Attachment packing is planned for a later version.',
+        attachments: 'Include attachments (images / files)',
         preview: 'Preview',
         previewTitle: 'Package preview',
         previewCounts: (sessions, workspaces, attachments) =>
@@ -407,6 +409,7 @@ window.__ModuleLoader__.load({
       const [noCompress, setNoCompress] = useState(false)
       const [preflightEnabled, setPreflightEnabled] = useState(false)
       const [extraExclude, setExtraExclude] = useState('')
+      const [includeAttachments, setIncludeAttachments] = useState(false)
       const [preview, setPreview] = useState(null)
       const [placeMode, setPlaceMode] = useState('original')
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -711,6 +714,7 @@ window.__ModuleLoader__.load({
         if (fullMode) flags.push('--full')
         if (noCompress) flags.push('--no-compress')
         if (preflightEnabled) flags.push('--preflight')
+        if (includeAttachments) flags.push('--attachments')
         const excluded = extraExclude
           .split(',')
           .map((item) => item.trim())
@@ -1122,9 +1126,23 @@ window.__ModuleLoader__.load({
                 style: fieldStyle(),
               }),
               h(
-                'div',
-                { style: { fontSize: 10, color: THEME.textMuted } },
-                t.attachmentsTodo,
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 12,
+                    color: THEME.text,
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: includeAttachments,
+                  disabled: busy,
+                  onChange: (event) => setIncludeAttachments(event.target.checked),
+                }),
+                h('span', null, t.attachments),
               ),
             ),
           ),
