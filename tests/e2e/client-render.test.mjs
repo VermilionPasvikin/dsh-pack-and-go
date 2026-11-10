@@ -124,6 +124,7 @@ test('Client factory 注册侧边栏底部按钮与全局浮层', async () => {
   const keys = registrations.map((item) => item.key)
   assert.ok(keys.includes('sidebar.footer.action'))
   assert.ok(keys.includes('shell.overlay'))
+  assert.ok(keys.includes('settings.section'))
   const footer = registrations.find((item) => item.key === 'sidebar.footer.action')
   assert.equal(footer.result.options.id, 'mover')
   const overlay = registrations.find((item) => item.key === 'shell.overlay')

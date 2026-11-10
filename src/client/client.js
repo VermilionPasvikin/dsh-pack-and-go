@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
         pickPack: '选择文件',
         pickPackEmpty: '该目录下没有 .dshpack 文件。',
         packageOptions: '选择迁移包：',
+        openOverlay: '打开迁移面板',
         commandNotExecuted: '命令未执行：未找到命令或会话上下文不可用。',
         commandFailed: '命令调用失败：',
         defaultWorkspace: '默认工作区',
@@ -104,6 +105,7 @@ window.__ModuleLoader__.load({
         pickPack: 'Choose package',
         pickPackEmpty: 'No .dshpack files in that folder.',
         packageOptions: 'Choose a package:',
+        openOverlay: 'Open migration panel',
         commandNotExecuted: 'Command did not run: unknown command or unavailable session context.',
         commandFailed: 'Command call failed: ',
         defaultWorkspace: 'Default Workspace',
@@ -278,6 +280,44 @@ window.__ModuleLoader__.load({
         }
         return this.props.children
       }
+    }
+
+    /** 设置页备用入口（SPEC FR-1）：点击打开迁移浮层并关闭设置面板。 */
+    function MoverSettingsSection(props) {
+      const [localeId, setLocaleId] = useState(currentLocaleId)
+      useEffect(() => {
+        const locale = getService('locale')
+        const disposer =
+          locale && typeof locale.subscribe === 'function'
+            ? locale.subscribe(() => setLocaleId(currentLocaleId()))
+            : undefined
+        return () => {
+          if (typeof disposer === 'function') disposer()
+        }
+      }, [])
+      const t = TEXTS[localeId] ?? TEXTS.zh
+      return h(
+        'div',
+        { style: { padding: 16 } },
+        h('div', { style: { fontSize: 14, fontWeight: 600, color: THEME.text } }, t.title),
+        h(
+          'div',
+          { style: { fontSize: 12, color: THEME.textMuted, marginTop: 4, marginBottom: 12 } },
+          t.subtitle,
+        ),
+        h(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              overlayStore.set(true)
+              if (props && typeof props.close === 'function') props.close()
+            },
+            style: primaryButtonStyle(false),
+          },
+          t.openOverlay,
+        ),
+      )
     }
 
     function MoverOverlay() {
@@ -1141,6 +1181,17 @@ window.__ModuleLoader__.load({
         )
         ctx.slots.inject('shell.overlay', () =>
           ctx.slots.register({ name: 'shell.overlay', id: 'mover-overlay', order: 60 }, MoverOverlay),
+        )
+        ctx.slots.inject('settings.section', () =>
+          ctx.slots.register(
+            {
+              name: 'settings.section',
+              id: 'mover',
+              order: 60,
+              label: () => TEXTS[currentLocaleId()].launcher,
+            },
+            MoverSettingsSection,
+          ),
         )
       },
     }
