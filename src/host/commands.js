@@ -641,6 +641,23 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       (item) => item.action === 'overwrite',
     ).length
 
+    // 热重载：对每个登记工作区触发一次顺序变更，让 workspace.follow 发出增量帧，
+    // DSH 侧边栏无需重启即可看到导入的会话（失败不影响导入结果）。
+    for (const [workspaceKey, entity] of entityByKey) {
+      const importedIds = sessions.written
+        .filter((written) => {
+          const source = manifest.sessions.find((item) => item.id === written.id)
+          return source?.workspaceKey === workspaceKey
+        })
+        .map((written) => written.targetId)
+      if (importedIds.length === 0) continue
+      try {
+        await entity.insertSessionBefore(importedIds[0])
+      } catch {
+        // 顺序变更失败时退回“重启后可见”的提示
+      }
+    }
+
     return {
       kind: 'success',
       text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，附件 ${attachments.restored} 个${

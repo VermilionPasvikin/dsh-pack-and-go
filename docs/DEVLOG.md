@@ -453,6 +453,11 @@
 - 验证：`node --check`；`commands.test` 11 项、`client-render` 3 项通过。
 - 下一步：导入后热重载（`insertSessionBefore` 触发 follow 增量）实测。
 
+## 086 · 2026-11-10 · feat: 导入后热重载尝试
+- 变更：`importPack` 在 attach 后对每个登记工作区调用一次 `entity.insertSessionBefore(首个导入会话)`，以触发 `workspace.follow` 增量帧；失败不阻断导入。
+- 验证：`node --check`；`commands.test` 11 项通过；浏览器侧边栏是否即时更新待用户实测（失败则回退重启提示）。
+- 下一步：部署验证 + 等待 ADR-0011/0012 审核。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
