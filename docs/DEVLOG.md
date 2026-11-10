@@ -274,3 +274,9 @@
 - 验证：163 项单测全绿；`node --check` 全过；一次性 profile 启动 boot 含 `dsh-mover/client.js`。
 - 限制：浏览器渲染/交互未验证（本环境无浏览器控制），作为 M4/T4.3 实机验证的一部分。
 - 下一步：T4.1（bundle 清单：locale/icon/meta）。
+
+## 052 · 2026-11-10 · feat: bundle 清单与安装验证（T4.1–T4.3）
+- 变更：新增 `locale/zh.json`、`locale/en.json`、`icon.svg`；`package.json` 的 `exports` 增加 `./locale/*.json`、`./icon`。
+- 验证：locale JSON 合法、SVG 合法（524 B）；一次性 profile 同步后启动：`--dump-config` 含 `dsh-mover` 行、boot 含 `dsh-mover/client.js`、日志 `[dsh-mover] command registered: mover`。
+- 限制：`plugin_manager install_bundle` 只作用于**当前 profile**，不能用于一次性 home，因此 T4.2 改用 CLI `dsh plugin add`；Edge headless 截图失败（进程不退出、未生成文件），**浏览器渲染仍未验证**。
+- 下一步：M4 DoD 与 M5。

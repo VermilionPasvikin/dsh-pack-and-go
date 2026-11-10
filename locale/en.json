@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Conversation & Workspace Migration",
+    "description": "Package DSH conversations and workspaces into a portable file, then import them on another machine or profile."
+  }
+}

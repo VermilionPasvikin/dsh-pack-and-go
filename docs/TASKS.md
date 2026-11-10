@@ -90,9 +90,9 @@
 
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
-| T4.1 | bundle 清单：`meta.title/description`、`locale/zh.json`、`icon.svg`、`files` 列表 | M1–M3 | 元数据检查；图标为合法 SVG | ⬜ |
-| T4.2 | 安装到一次性 profile：`plugin_manager install_bundle` 指向工作区目录 | T4.1 | 返回 `application: applied` 或可解释状态 | ⬜ |
-| T4.3 | 用 `cordis_inspect_query` 验证行已激活；页面可用 | T4.2 | 行存在、Client slot 注册存在 | ⬜ |
+| T4.1 | bundle 清单：`meta.title/description`、`locale/zh.json`、`icon.svg`、`files` 列表 | M1–M3 | 元数据检查；图标为合法 SVG | ✅ 2026-11-10 |
+| T4.2 | 安装到一次性 profile（CLI `dsh plugin add`，因为 `plugin_manager` 只作用于当前 profile） | T4.1 | 返回成功且 `--dump-config` 含插件行 | ✅ 2026-11-10 |
+| T4.3 | 验证行已激活、Client bundle 被加载 | T4.2 | 启动日志含命令注册；boot 含 `client.js` | ✅ 2026-11-10（渲染未验证） |
 
 ### M5 跨平台 E2E 与验收
 

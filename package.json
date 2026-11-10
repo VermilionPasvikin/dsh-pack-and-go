@@ -10,7 +10,9 @@
   },
   "exports": {
     ".": "./src/host/index.js",
-    "./client": "./src/client/client.js"
+    "./client": "./src/client/client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
   },
   "files": [
     "src/host/**/*.js",
