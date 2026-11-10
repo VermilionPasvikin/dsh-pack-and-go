@@ -215,3 +215,10 @@
 - 变更：新增 `src/core/backup.js`（`createBackupTransaction`：`track` 备份并记录是否存在、`rollback` 逆序恢复/删除）；`src/core/index.js` 导出；`package.json` check 同步；新增 `tests/unit/backup.test.mjs`。
 - 验证：154 项单测全绿（覆盖已有文件回滚、新文件回滚删除、混合逆序、时间戳目录、缺 backupRoot 报错）。
 - 下一步：T2.11（Remote 接口：导出/导入/进度流/取消）。
+
+## 042 · 2026-11-10 · docs: T2.11 调研（Remote 需要 Typert 构建）并标记待拍板
+- 结论：`@Remote` 是 Typert 装饰器，Client 契约由构建生成（`docs/api-gateway.md`：生成器分析 Host `ts.Program`；Client 拒绝无 strict codec 的 SRC 描述符）。纯 JS 插件**无法直接**走 `ctx.remote`。
+- 备选：A 自定义 HTTP 路由（`WebResourceRoute`）+ Client fetch；B session command（复用 `commands` 的已有 Remote，非流式）；C 引入 Typert TS 构建。
+- 状态：T2.11 标记 🟨，等待 **ADR-0008** 拍板；本轮未改代码。
+- 验证：`docs/api-gateway.md`；`Service.listService`（`webServer` / `commands`）签名。
+- 下一步：等待用户拍板 ADR-0008。
