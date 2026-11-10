@@ -462,6 +462,12 @@
 - 变更：部署本轮修复（语言/归档/精简选项/导入目录/包名/热重载），标记更新便于验收。
 - 下一步：用户按黑盒用例复验；ADR-0011/0012 等待审核。
 
+## 088 · 2026-11-10 · fix: 语言注入 + 诊断增强
+- 语言：Client `inject` 增加 `locale`，`currentLocaleId` 优先 `ownerCtx.locale`（inject 后可直接访问），并保留 `getService` 兜底；诊断行显示 `locale=zh|en`。
+- 诊断：Host `listCatalog` / `importPack` 的 catch 打印完整错误；Client load catch 打印 `console.error('[dsh-mover] load failed', ...)`。
+- 背景：用户归档会话后导入，出现 `Failed to load: Cannot read properties of undefined (reading 'size')`，需日志定位。
+- 下一步：部署后请用户复现一次，提供 Host 日志与浏览器控制台错误。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2110-2325'
+    const BUILD_TAG = 'b2110-2345'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -192,7 +192,8 @@ window.__ModuleLoader__.load({
 
     function currentLocaleId() {
       try {
-        const locale = getService('locale')
+        const locale =
+          (ownerCtx && ownerCtx.locale) || getService('locale')
         const snapshot =
           locale && typeof locale.getLocale === 'function' ? locale.getLocale() : null
         const id = snapshot && (snapshot.active ?? snapshot.id ?? snapshot.locale ?? snapshot.language)
@@ -490,6 +491,7 @@ window.__ModuleLoader__.load({
             setStatus('ready')
           } catch (loadError) {
             if (cancelled) return
+            console.error('[dsh-mover] load failed', loadError)
             setStatus('error')
             setError(loadError instanceof Error ? loadError.message : String(loadError))
           }
@@ -1508,7 +1510,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { padding: '0 12px 8px', fontSize: 10, color: THEME.textMuted, opacity: 0.7 } },
-            `${t.diagnostics(rawItems.length, allSessions.length)} · ${BUILD_TAG}`,
+            `${t.diagnostics(rawItems.length, allSessions.length)} · locale=${localeId} · ${BUILD_TAG}`,
           ),
         )
       }
@@ -1664,6 +1666,7 @@ window.__ModuleLoader__.load({
     return {
       inject: [
         'slots',
+        'locale',
         'remote',
         'remote.session',
         'remote.workspace',

@@ -476,6 +476,7 @@ export async function findPacks(directory) {
       .sort((left, right) => left.name.localeCompare(right.name))
     return { kind: 'success', text: JSON.stringify({ directory, packs }) }
   } catch (error) {
+    console.error('[dsh-mover] list failed', error)
     return errorResult(
       `读取目录失败：${error instanceof Error ? error.message : String(error)}`,
     )
@@ -667,6 +668,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
+    console.error('[dsh-mover] import failed', error)
     return errorResult(
       `导入失败：${error instanceof Error ? error.message : String(error)}`,
     )
