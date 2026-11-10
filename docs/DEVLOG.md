@@ -377,6 +377,11 @@
 - 验证：`tests/unit/commands.test.mjs` 10 项（含 `measureWorkspaces`）、`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.12（搜索 / 只带文件 / 已归档）。
 
+## 071 · 2026-11-10 · feat: 搜索、只带文件与归档开关（T3.12）
+- 变更：搜索框（对话 >20 时显示，按标题过滤）；工作区行「只带文件」（保留首个对话 + 打开文件开关）；「显示已归档」开关与说明（归档会话暂不参与导出，需先在 DSH 取消归档）。
+- 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 10 项通过。
+- 下一步：T3.13（高级折叠 + 完成页）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

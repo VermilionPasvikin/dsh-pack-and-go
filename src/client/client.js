@@ -45,6 +45,10 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `已选 ${workspaces} 个工作区 · ${sessions} 个对话`,
         fileEstimate: (size) => `含项目文件约 ${size}`,
+        searchPlaceholder: '搜索对话标题',
+        onlyFiles: '只带文件',
+        showArchived: '显示已归档',
+        archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
         sessionsUnit: (n) => `${n} 个对话`,
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
@@ -89,6 +93,10 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `${workspaces} workspaces · ${sessions} conversations`,
         fileEstimate: (size) => `~${size} with files`,
+        searchPlaceholder: 'Search conversation titles',
+        onlyFiles: 'Files only',
+        showArchived: 'Show archived',
+        archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
         sessionsUnit: (n) => `${n} conversations`,
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
@@ -364,6 +372,8 @@ window.__ModuleLoader__.load({
       const [meta, setMeta] = useState(null)
       const [sizeById, setSizeById] = useState(() => new Map())
       const [workspaceBytes, setWorkspaceBytes] = useState(() => new Map())
+      const [query, setQuery] = useState('')
+      const [showArchived, setShowArchived] = useState(false)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
 
@@ -512,6 +522,19 @@ window.__ModuleLoader__.load({
             0,
           )
         : 0
+      const visibleGroups = useMemo(() => {
+        const trimmed = query.trim().toLowerCase()
+        if (trimmed.length === 0) return groups
+        return groups
+          .map((group) => ({
+            ...group,
+            sessions: group.sessions.filter((session) =>
+              String(session.title).toLowerCase().includes(trimmed),
+            ),
+          }))
+          .filter((group) => group.sessions.length > 0)
+      }, [groups, query])
+
       const statsText = `${t.selectedStats(selectedGroups.length, selected.size)}${
         includeFiles ? ` · ${t.fileEstimate(formatBytes(sessionBytes + fileBytes))}` : ''
       }`
@@ -557,6 +580,12 @@ window.__ModuleLoader__.load({
           else next.add(sessionId)
           return next
         })
+      }
+
+      function onlyFiles(group) {
+        const keep = group.sessions[0]
+        setSelected(new Set(keep ? [keep.sessionId] : []))
+        setIncludeFiles(true)
       }
 
       function toggleGroup(group) {
@@ -1058,7 +1087,7 @@ window.__ModuleLoader__.load({
       }
 
       function treeBox() {
-        if (groups.length === 0) {
+        if (visibleGroups.length === 0) {
           return h(
             'div',
             {
@@ -1083,12 +1112,52 @@ window.__ModuleLoader__.load({
               overflowY: 'auto',
             },
           },
-          groups.map((group) => renderGroup(group)),
+          allSessions.length > 20
+            ? h(
+                'div',
+                { style: { padding: '6px 8px' } },
+                h('input', {
+                  type: 'text',
+                  value: query,
+                  placeholder: t.searchPlaceholder,
+                  onChange: (event) => setQuery(event.target.value),
+                  style: fieldStyle(),
+                }),
+              )
+            : null,
+          visibleGroups.map((group) => renderGroup(group)),
           h(
             'div',
             { style: { padding: '6px 12px', fontSize: 11, color: THEME.textMuted } },
             statsText,
           ),
+          h(
+            'label',
+            {
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '0 12px 6px',
+                fontSize: 11,
+                color: THEME.textMuted,
+                cursor: 'pointer',
+              },
+            },
+            h('input', {
+              type: 'checkbox',
+              checked: showArchived,
+              onChange: (event) => setShowArchived(event.target.checked),
+            }),
+            h('span', null, t.showArchived),
+          ),
+          showArchived
+            ? h(
+                'div',
+                { style: { padding: '0 12px 8px', fontSize: 10, color: THEME.textMuted } },
+                t.archivedNotice,
+              )
+            : null,
           h(
             'div',
             { style: { padding: '0 12px 8px', fontSize: 10, color: THEME.textMuted, opacity: 0.7 } },
@@ -1134,6 +1203,27 @@ window.__ModuleLoader__.load({
               'span',
               { style: { fontWeight: 400, opacity: 0.55, fontSize: 11 } },
               t.sessionsUnit(group.sessions.length),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                onClick: (event) => {
+                  event.preventDefault()
+                  onlyFiles(group)
+                },
+                style: {
+                  marginLeft: 'auto',
+                  border: 'none',
+                  background: 'transparent',
+                  color: THEME.textMuted,
+                  fontSize: 11,
+                  cursor: 'pointer',
+                  padding: '0 4px',
+                  fontWeight: 400,
+                },
+              },
+              t.onlyFiles,
             ),
           ),
           h(
