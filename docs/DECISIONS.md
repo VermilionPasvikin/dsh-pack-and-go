@@ -210,4 +210,78 @@ ctx.connection.fetch.register({
 
 **状态**：Rejected（2026-11-10，用户取消）。维持「目录选择 + 扫描」，不新增路由与临时目录。
 
+## ADR-0011 · 操作入口改为 Exact Fetch 路由（2026-11-10，Proposed，待批准）
+
+**背景（已确认的缺陷）**
+- 当前 UI 通过 `ctx.commands.execute` 调用 `mover` 命令。DSH 的命令实现会在会话日志中追加
+  `command/run` 与 `command/done` 两条事件（官方行为，不可关闭）→ **每次导出/导入都让会话文件增长**；
+- 命令必须绑定一个 Agent/Session 上下文（`sessionId` 作为 agent id）→ **0 对话时无法操作**；
+- 用户要求迁移操作与对话上下文解耦。
+
+**方案**
+新增一条 **Connection Exact Fetch 路由**（DSH 官方推荐的 RPC 信封之外入口）：
+
+```
+POST /api/mover/exec
+Content-Type: application/json
+body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "args": { ... } }
+200:  { "ok": true, "result": <执行结果> }
+4xx:  { "ok": false, "error": { "code": "...", "message": "..." } }
+```
+
+**Host**
+- 在 `apply` 中：`ctx.get('connection')?.fetch.register({ path: '/api/mover/exec', methods: ['POST'], requestBody: 'buffered', fetch })`；
+- handler：解析 JSON → 白名单 action → 调用已抽出的 `listCatalog / exportAllSessions / importPack / inspectPack / findPacks / measureWorkspaces`（与命令共用）；
+- 认证：由 Connection 的共享 Fetch handler 负责（Host/Origin 检查 + 浏览器凭据），路由不自行复制信任逻辑；
+- 缺失 `connection`（非 Web 组合）时不注册路由，UI 回退到命令通道。
+
+**Client**
+- `runAction(action, args)` 改为 `fetch('/api/mover/exec', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, args }) })`（同源自动携带 cookie）；
+- 导出/导入/list/inspect/size/find 全部改走该通道；
+- 命令通道（`/mover ...`）保留给聊天命令行与 CLI，UI 不再使用。
+
+**为什么不是 ADR-0010**：ADR-0010 是**文件上传**通道（接收 `.dshpack` 字节、落临时目录），已被取消；
+本 ADR 只增加一个**小型 JSON 操作入口**，不接收文件、不写临时目录。
+
+**风险与缓解**
+- 新增路由面：仅 POST + 白名单 action + 参数校验；认证复用 Connection；
+- 破坏命令通道：保留命令并共享同一批函数，UI 切换后命令仍可用；
+- 版本兼容：`connection.fetch.register` 不存在时回退命令通道（保留旧路径）。
+
+**实施范围**：新增 `src/host/exec-route.js`；`host/index.js` 注册；`client/client.js` 的 `runCommand` → `runAction`；单测（action 分发、错误映射、回退）。
+
+**验收**
+1. 在**没有任何对话**的一次性 home 中可完成导出/导入；
+2. 操作前后对比会话文件大小：不再增长；
+3. 命令通道仍可手动使用。
+
+**状态**：Proposed，等待用户批准后实施。
+
+## ADR-0012 · 预检改为“默认执行、不可关闭”（2026-11-10，Proposed，待决定）
+
+**背景**
+- 当前「导出前预检」是可选勾选项；`preflightWorkspace` 检查的是**跨平台**风险（Windows 非法文件名、
+  大小写冲突、路径过长、符号链接、权限位）。同平台导出（Windows→Windows）通常为 0 项 →
+  用户观察到“勾了也永远 0 项”，选项显得无意义；
+- 用户提议：**取消该选项，导出时默认做一次预检**。
+
+**收益**
+1. UI 更简（少一个参数，符合 NFR-1.5 “只暴露必要控制”）；
+2. 用户不会因为忘记勾选而在导入端才发现跨平台问题；
+3. 预检结果可并入导出完成页摘要（“0 项风险”/“N 项需转换”），信息更完整。
+
+**风险与成本**
+1. **每次导出多一次目录遍历**：`preflightWorkspace` 需要扫描文件名/属性（不读内容）。500 MiB
+   工作区约 +1–2 s；GB 级工作区可能 +5–10 s（与打包本身同量级，可接受但需实测）；
+2. **大目录/权限异常时的失败处理**：预检失败不应阻断导出（建议：记警告、继续导出）；
+3. **“0 项”仍可能出现**：同平台导出没有转换需求，默认预检的结果仍是 0 项——只是不再需要用户勾选，
+   文案需解释“0 项 = 当前平台无需转换”；
+4. 与 T3.13 高级选项的一致性：移除该开关后，高级选项只剩全量/额外排除/包名等。
+
+**建议**
+- 采纳用户提议：**默认预检、无开关**；预检结果并入完成页（`预检 N 项` / `预检通过`），失败仅警告不阻断；
+- 若实测大工作区预检耗时不可接受，回退为“后台异步预检 + 完成页提示”（不阻塞导出）。
+
+**状态**：Proposed，等待用户决定（采纳 / 保留选项 / 移除预检）。
+
 **关联**：TASKS T3.5；ADR-0008。
