@@ -244,3 +244,9 @@
 - 变更：M2 全部 12 个任务完成；`TASKS.md` M2 置 ✅；`INDEX.md` 下一步更新为 T3.1。
 - 验证：163 项单测全绿；一次性 `DSH_HOME` 中完成真实导出（1128B 包）、导入（会话 + 工作区 + attach）、跨版本重建（sessions 1→2）；依赖图 `errors: 0`。
 - 下一步：M3（Web UI），从 T3.1 开始。
+
+## 047 · 2026-11-10 · feat: Client bundle 骨架
+- 变更：新增 `src/client/client.js`（`window.__ModuleLoader__.load` + factory，注册占位面板到 `main` slot 的 `mover` key）；根 `package.json` 增加 `exports["./client"]`、`dsh.client`（`platform: web`、`immediately`、`inject: ui-chat`），`files` 增加 `src/client/**/*.js`。
+- 验证：`node --check` 通过；一次性 home 启动后首页 `__DSH_BOOT__` 包含 `dsh-mover/client.js`（HTTP 200），stderr 无错误。
+- 说明：实际渲染需在 T3.2 页面可见后验证；本环境无法读取浏览器控制台。
+- 下一步：T3.2（侧边栏入口 + `main` 页面壳）。

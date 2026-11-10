@@ -77,7 +77,7 @@
 
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
-| T3.1 | Client bundle 骨架：`dsh.client` 声明、`src/client/client.js` factory、注册一个空组件 | T2.1 | `node --check` 通过；`dsh.client` 与 factory 结构对照模板正确；在一次性 profile 安装后控制台无报错 | ⬜ |
+| T3.1 | Client bundle 骨架：`dsh.client` 声明、`src/client/client.js` factory、注册一个空组件 | T2.1 | `node --check` 通过；`dsh.client` 与 factory 结构对照模板正确；在一次性 profile 安装后控制台无报错 | ✅ 2026-11-10 |
 | T3.2 | 侧边栏入口（`sidebar.panellist`）+ `main` 页面壳（key `mover`） | T3.1 | 点击图标打开页面；主题/语言跟随 DSH | ⬜ |
 | T3.3 | 选择树组件：工作区（一级）、对话（二级）、未分组、已归档开关 | T3.2, T2.11 | 勾选联动正确（全选/部分选中/仅文件）；数据来自 Host | ⬜ |
 | T3.4 | 导出流程：选择 → 项目文件开关 → 高级折叠 → 开始 → 进度 → 完成页 | T3.3, T2.11 | 手工走通；进度 ≤500ms 刷新；完成页显示路径/大小 | ⬜ |
