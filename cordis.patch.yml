@@ -1,0 +1,6 @@
+# dsh-mover 的插件行。
+# 由根 package.json 的 dsh.bundle.patch 引用；安装到 profile 后加载。
+- insert:
+    - id: dsh-mover
+      name: dsh-mover
+      config: {}

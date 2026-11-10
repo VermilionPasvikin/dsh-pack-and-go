@@ -137,3 +137,8 @@
 - 变更：M1 全部 15 个任务完成；**补记 T1.6 状态**（提交 016 时漏标，已更正）；`TASKS.md` 里程碑 M1 置 ✅；`INDEX.md` 下一步更新为 T2.1。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 112 passed / 0 failed；依赖图 `errors: 0`；`src/core` 导入仅 `node:` 内置与相对模块；无裸 `throw new Error`。
 - 下一步：T2.1（Host 插件骨架）。
+
+## 028 · 2026-11-10 · feat: 建立 Host 插件骨架并在一次性 profile 中验证加载
+- 变更：新增 `src/host/index.js`（`name` + `apply` 骨架）、`cordis.patch.yml`（insert 行）；根 `package.json` 增加 `exports`/`files`/`dsh.bundle.patch`。
+- 验证：一次性 `DSH_HOME`（`%TEMP%\dsh-e2e-7ee81587c7ac4c8e9fb7acd46e177cad`，带 `.dsh-e2e-marker`）中执行 `dsh mover-test --from-default-profile web --dump-config` 创建 profile；`dsh plugin --profile mover-test add "file:F:\PersonalProjects\python\新建文件夹"` 安装成功（pnpm，811ms）；`--dump-config` 输出包含 `- id: dsh-mover` / `name: dsh-mover`。
+- 下一步：T2.2（确认 DSH 服务实际签名并更新 DESIGN）。
