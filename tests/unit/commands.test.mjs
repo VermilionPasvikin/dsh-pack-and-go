@@ -53,12 +53,18 @@ async function makeDeps(dir, sessionFile, bytes) {
   }
 }
 
-test('parseMoverArgs 兼容 /mover 前缀', () => {
+test('parseMoverArgs 兼容 /mover 前缀与引号路径', () => {
   assert.deepEqual(parseMoverArgs('export /tmp/a.dshpack'), ['export', '/tmp/a.dshpack'])
   assert.deepEqual(parseMoverArgs('/mover import /tmp/a.dshpack /tmp/t'), [
     'import',
     '/tmp/a.dshpack',
     '/tmp/t',
+  ])
+  assert.deepEqual(parseMoverArgs('export "C:\\My Files\\a.dshpack" s1 s2'), [
+    'export',
+    'C:\\My Files\\a.dshpack',
+    's1',
+    's2',
   ])
   assert.deepEqual(parseMoverArgs('   '), [])
 })

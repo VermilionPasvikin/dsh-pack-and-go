@@ -250,3 +250,9 @@
 - 验证：`node --check` 通过；一次性 home 启动后首页 `__DSH_BOOT__` 包含 `dsh-mover/client.js`（HTTP 200），stderr 无错误。
 - 说明：实际渲染需在 T3.2 页面可见后验证；本环境无法读取浏览器控制台。
 - 下一步：T3.2（侧边栏入口 + `main` 页面壳）。
+
+## 048 · 2026-11-10 · feat: 迁移面板 UI（侧边栏/选择树/导出/导入）
+- 变更：`src/client/client.js` 完成侧边栏 `mover` 图标、`main` 面板、会话按 cwd 分组、组/单项勾选、导出与导入表单、转圈与结果/错误提示；`src/host/commands.js` 导出支持 `sessionIds`、参数支持引号路径、导入目标默认 `~/dsh-mover-import`；`tests/unit/commands.test.mjs` 同步。
+- 验证：`node --check` 通过；163 项单测全绿；一次性 profile 启动 boot 含 `dsh-mover/client.js`（HTTP 200），stderr 无错误。
+- 说明：浏览器渲染与点击未验证（无浏览器控制），待 M4 实机确认；T3.4 的“项目文件开关”暂未接入（当前命令只打包对话）。
+- 下一步：T3.6–T3.8（冲突提示、文案/locale、状态刷新）。

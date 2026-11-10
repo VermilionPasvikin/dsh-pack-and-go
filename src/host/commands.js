@@ -10,6 +10,7 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import {
@@ -36,26 +37,52 @@ function errorResult(text) {
 }
 
 /**
+ * 解析命令行参数（支持双/单引号包裹的路径）。
+ * @param {string} rawInput
+ * @returns {string[]}
+ */
+export function tokenizeMoverInput(rawInput) {
+  const tokens = []
+  let current = ''
+  let quote = null
+  for (const ch of String(rawInput ?? '')) {
+    if (quote !== null) {
+      if (ch === quote) quote = null
+      else current += ch
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+    } else if (/\s/.test(ch)) {
+      if (current.length > 0) {
+        tokens.push(current)
+        current = ''
+      }
+    } else {
+      current += ch
+    }
+  }
+  if (current.length > 0) tokens.push(current)
+  return tokens
+}
+
+/**
  * 解析命令参数（兼容 `/mover export ...` 与 `export ...`）。
  * @param {string} rawInput
  * @returns {string[]}
  */
 export function parseMoverArgs(rawInput) {
-  const tokens = String(rawInput ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter((token) => token.length > 0)
+  const tokens = tokenizeMoverInput(rawInput)
   if (tokens[0] === 'mover' || tokens[0] === '/mover') tokens.shift()
   return tokens
 }
 
 /**
- * 导出全部对话到一个 `.dshpack`。
+ * 导出对话到一个 `.dshpack`。
  * @param {object} deps
  * @param {string} targetPath
+ * @param {string[]} [sessionIds] 为空时导出全部
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
-export async function exportAllSessions(deps, targetPath) {
+export async function exportAllSessions(deps, targetPath, sessionIds = []) {
   if (!targetPath) return errorResult(`缺少目标文件。${USAGE}`)
   try {
     const catalog = await loadCatalog({
@@ -65,10 +92,15 @@ export async function exportAllSessions(deps, targetPath) {
       platform: deps.platform ?? process.platform,
       logger: deps.logger,
     })
+    const wanted = new Set(sessionIds)
     const sessions = [
       ...catalog.workspaces.flatMap((workspace) => workspace.sessions),
       ...catalog.ungrouped,
-    ].filter((session) => typeof session.locationPath === 'string')
+    ].filter(
+      (session) =>
+        typeof session.locationPath === 'string' &&
+        (wanted.size === 0 || wanted.has(session.id)),
+    )
 
     if (sessions.length === 0) {
       return errorResult('没有可导出的对话。')
@@ -113,11 +145,14 @@ export async function exportAllSessions(deps, targetPath) {
  * 导入一个 `.dshpack`。
  * @param {object} deps
  * @param {string} packPath
- * @param {string} targetRoot
+ * @param {string} [targetRoot] 省略时使用 `~/dsh-mover-import`
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
 export async function importPack(deps, packPath, targetRoot) {
-  if (!packPath || !targetRoot) return errorResult(`缺少参数。${USAGE}`)
+  if (!packPath) return errorResult(`缺少迁移包路径。${USAGE}`)
+  const root = typeof targetRoot === 'string' && targetRoot.length > 0
+    ? targetRoot
+    : join(homedir(), 'dsh-mover-import')
   try {
     const buffer = await readFile(packPath)
     const { entries } = readZip(buffer)
@@ -191,7 +226,7 @@ export async function importPack(deps, packPath, targetRoot) {
 export async function handleMover(deps, invocation) {
   const args = parseMoverArgs(invocation?.rawInput)
   const sub = args.shift()
-  if (sub === 'export') return exportAllSessions(deps, args[0])
+  if (sub === 'export') return exportAllSessions(deps, args[0], args.slice(1))
   if (sub === 'import') return importPack(deps, args[0], args[1])
   return errorResult(USAGE)
 }
