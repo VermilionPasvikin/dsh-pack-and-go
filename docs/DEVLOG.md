@@ -117,3 +117,8 @@
 - 变更：新增 `src/core/path-map.js`（`buildPathMap`、`safeDirName`、`mapCwdForWorkspace`）；支持 `auto`（同平台保留、跨平台放根目录）、`original`、`under-root`；标题去重加后缀；非法/保留名安全化；冲突报告。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 92 passed / 0 failed（跨平台、同平台、POSIX→Windows、标题冲突、安全化、original 冲突、缺根目录、mapCwd）。
 - 下一步：T1.13（导出计划）。
+
+## 024 · 2026-11-10 · feat: 实现导出计划
+- 变更：新增 `src/core/plan-export.js`（`inferMode`、`planExport`：包内文件清单、附件、体积预估、模式推断；仅工作区模式无文件时报错）；`errors.js` 增加 `E_PLAN_INVALID`；新增 `tests/unit/plan-export.test.mjs`。
+- 验证：`node --test "tests/unit/**/*.test.mjs"` → 99 passed / 0 failed（仅对话、仅工作区、对话+工作区、includeFiles 开关、附件、空选择）。
+- 下一步：T1.14（导入计划）。
