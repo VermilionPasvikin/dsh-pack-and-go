@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -11,6 +11,8 @@ import {
   importPack,
   handleMover,
   createMoverCommand,
+  resolveExportTarget,
+  listCatalog,
 } from '../../src/host/commands.js'
 import { readZip } from '../../src/core/zip-reader.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -142,4 +144,117 @@ test('createMoverCommand 暴露 name/description/handler', () => {
   assert.equal(command.name, 'mover')
   assert.equal(typeof command.description, 'string')
   assert.equal(typeof command.handler, 'function')
+})
+
+test('resolveExportTarget：目录自动生成文件名，文件原样，父目录不存在报错', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const resolvedDir = await resolveExportTarget(dir)
+    assert.ok(resolvedDir.startsWith(dir))
+    assert.match(resolvedDir, /dsh-mover-\d{8}-\d{6}\.dshpack$/)
+
+    const file = join(dir, 'a.dshpack')
+    assert.equal(await resolveExportTarget(file), file)
+
+    await assert.rejects(
+      () => resolveExportTarget(join(dir, 'missing', 'b.dshpack')),
+      /目标目录不存在/,
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('export 到目录时自动生成包文件', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const result = await exportAllSessions(deps, dir)
+    assert.equal(result.kind, 'success')
+    const names = await readdir(dir)
+    assert.ok(names.some((name) => /^dsh-mover-\d{8}-\d{6}\.dshpack$/.test(name)))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('listCatalog 返回可解析的 JSON', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const result = await listCatalog(deps)
+    assert.equal(result.kind, 'success')
+    const data = JSON.parse(result.text)
+    assert.equal(data.workspaces.length, 1)
+    assert.equal(data.workspaces[0].sessions[0].id, 's1')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('导出默认连带 fork 子代理会话，--no-fork 只导出选中', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const parentBytes = makeSessionBytes('s1', '/p')
+    const childBytes = makeSessionBytes('s2', '/p')
+    const parentFile = join(dir, 's1.v4.jsonl.zstd')
+    const childFile = join(dir, 's2.v4.jsonl.zstd')
+    await writeFile(parentFile, parentBytes)
+    await writeFile(childFile, childBytes)
+    const deps = {
+      workspaceRegistry: {
+        list: () => [{ id: 'w1', path: '/p', title: 'P', sessionIds: ['s1'] }],
+      },
+      sessionPersistence: {
+        list: async () => [
+          {
+            header: { id: 's1', cwd: '/p', createdAt: 1, isSeeded: false, delegationDepth: 0 },
+            sizeBytes: parentBytes.length,
+            location: { kind: 'jsonl', path: parentFile },
+          },
+          {
+            header: {
+              id: 's2',
+              cwd: '/p',
+              createdAt: 2,
+              parentSession: 's1',
+              origin: 'subagent',
+              isSeeded: false,
+              delegationDepth: 1,
+            },
+            sizeBytes: childBytes.length,
+            location: { kind: 'jsonl', path: childFile },
+          },
+        ],
+      },
+      sessionQuery: undefined,
+      dshHome: join(dir, 'home'),
+      platform: 'linux',
+      dshVersion: 'test',
+    }
+
+    const withFork = join(dir, 'with-fork.dshpack')
+    const result = await exportAllSessions(deps, withFork, ['s1'])
+    assert.equal(result.kind, 'success')
+    const names = readZip(await readFile(withFork)).entries.map((entry) => entry.name)
+    assert.ok(names.includes('sessions/s1/session.v4.jsonl.zstd'))
+    assert.ok(names.includes('sessions/s2/session.v4.jsonl.zstd'))
+
+    const withoutFork = join(dir, 'without-fork.dshpack')
+    const result2 = await exportAllSessions(deps, withoutFork, ['s1'], false, {
+      includeFork: false,
+    })
+    assert.equal(result2.kind, 'success')
+    const names2 = readZip(await readFile(withoutFork)).entries.map((entry) => entry.name)
+    assert.ok(names2.includes('sessions/s1/session.v4.jsonl.zstd'))
+    assert.ok(!names2.includes('sessions/s2/session.v4.jsonl.zstd'))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })

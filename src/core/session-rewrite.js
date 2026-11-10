@@ -22,9 +22,9 @@ function headerError(message, details = {}) {
 }
 
 /**
- * 改写会话首帧 header 的字段（cwd / id），不触碰其余帧。
+ * 改写会话首帧 header 的字段（cwd / id / parentSession），不触碰其余帧。
  * @param {Buffer} buffer 完整会话日志文件内容
- * @param {{ cwd?: string, id?: string }} patch 要覆盖的字段
+ * @param {{ cwd?: string, id?: string, parentSession?: string }} patch 要覆盖的字段
  * @returns {Buffer} 新的会话日志内容
  * @throws {MoverError} 结构损坏或版本不是当前版本（跨版本应走 ADR-0007 方案 C）
  */
@@ -37,6 +37,12 @@ export function rewriteSessionHeader(buffer, patch = {}) {
   }
   if (patch.id !== undefined && (typeof patch.id !== 'string' || patch.id.length === 0)) {
     throw headerError('id 必须是非空字符串', { reason: 'invalid-id' })
+  }
+  if (
+    patch.parentSession !== undefined &&
+    (typeof patch.parentSession !== 'string' || patch.parentSession.length === 0)
+  ) {
+    throw headerError('parentSession 必须是非空字符串', { reason: 'invalid-parent' })
   }
 
   const frames = scanFrames(buffer)
@@ -88,6 +94,7 @@ export function rewriteSessionHeader(buffer, patch = {}) {
 
   if (patch.cwd !== undefined) header.cwd = patch.cwd
   if (patch.id !== undefined) header.id = patch.id
+  if (patch.parentSession !== undefined) header.parentSession = patch.parentSession
   const line = `${JSON.stringify(header)}\n`
 
   const options = first.checksum

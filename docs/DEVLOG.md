@@ -352,6 +352,11 @@
 - 验证：`tests/unit/commands.test.mjs` 8 项通过；导入文本断言通过。
 - 下一步：按 TASKS 顺序执行 M2 补充任务 T2.13（fork 链导入）。
 
+## 066 · 2026-11-10 · feat: fork 链与子代理会话（T2.13）
+- 变更：`catalog.js` 提取 `parentSessionId/origin/delegationDepth`；`exportAllSessions` 默认连带 fork 祖先与子代理后代（`--no-fork` 关闭）；`rewriteSessionHeader` 支持 `parentSession`；`import-pack.js` 预分配 targetId 并映射父 id。
+- 验证：`commands.test` 9 项（含连带导出与 `--no-fork`）、`import-pack.test` 7 项（含 new-id 父子映射）通过。
+- 下一步：T3.9（浮层顶部平台/DSH_HOME/版本）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。

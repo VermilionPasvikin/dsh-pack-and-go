@@ -127,14 +127,21 @@ export function parseMoverArgs(rawInput) {
 }
 
 /**
- * 导出对话（可选含工作区文件）到一个 `.dshpack`。
+ * 导出对话（可选含工作区文件与 fork 链）到一个 `.dshpack`。
  * @param {object} deps
  * @param {string} targetPath
  * @param {string[]} [sessionIds] 为空时导出全部
  * @param {boolean} [includeFiles] 是否把所属工作区文件一并打包
+ * @param {{ includeFork?: boolean }} [options] 默认连带 fork 祖先与子代理会话
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
-export async function exportAllSessions(deps, targetPath, sessionIds = [], includeFiles = false) {
+export async function exportAllSessions(
+  deps,
+  targetPath,
+  sessionIds = [],
+  includeFiles = false,
+  options = {},
+) {
   if (!targetPath) return errorResult(`缺少目标文件。${USAGE}`)
   try {
     const catalog = await loadCatalog({
@@ -145,10 +152,11 @@ export async function exportAllSessions(deps, targetPath, sessionIds = [], inclu
       logger: deps.logger,
     })
     const wanted = new Set(sessionIds)
-    const sessions = [
+    const allSessions = [
       ...catalog.workspaces.flatMap((workspace) => workspace.sessions),
       ...catalog.ungrouped,
-    ].filter(
+    ]
+    const sessions = allSessions.filter(
       (session) =>
         typeof session.locationPath === 'string' &&
         (wanted.size === 0 || wanted.has(session.id)),
@@ -156,6 +164,43 @@ export async function exportAllSessions(deps, targetPath, sessionIds = [], inclu
 
     if (sessions.length === 0) {
       return errorResult('没有可导出的对话。')
+    }
+
+    // FORK 连带（SPEC FR-14）：默认带上 fork 祖先与子代理后代，可用 --no-fork 关闭。
+    if (options.includeFork !== false) {
+      const byId = new Map(allSessions.map((session) => [session.id, session]))
+      const selected = new Set(sessions.map((session) => session.id))
+      const queue = [...sessions]
+      let added = 0
+      while (queue.length > 0) {
+        const current = queue.pop()
+        const parentId = current.parentSessionId
+        if (typeof parentId === 'string' && !selected.has(parentId)) {
+          const parent = byId.get(parentId)
+          if (parent && typeof parent.locationPath === 'string') {
+            selected.add(parentId)
+            sessions.push(parent)
+            queue.push(parent)
+            added += 1
+          }
+        }
+        for (const candidate of allSessions) {
+          if (
+            candidate.parentSessionId === current.id &&
+            candidate.origin === 'subagent' &&
+            !selected.has(candidate.id) &&
+            typeof candidate.locationPath === 'string'
+          ) {
+            selected.add(candidate.id)
+            sessions.push(candidate)
+            queue.push(candidate)
+            added += 1
+          }
+        }
+      }
+      if (added > 0) {
+        console.log('[dsh-mover] fork chain added', added, 'sessions')
+      }
     }
 
     const planSessions = sessions.map((session) => ({
@@ -226,6 +271,13 @@ export async function exportAllSessions(deps, targetPath, sessionIds = [], inclu
         messageCount: session.eventCount ?? 0,
         sizeBytes: session.sizeBytes,
         path: `sessions/${session.id}/session.v4.jsonl.zstd`,
+        ...(typeof session.parentSessionId === 'string'
+          ? { parentSessionId: session.parentSessionId }
+          : {}),
+        ...(typeof session.origin === 'string' ? { origin: session.origin } : {}),
+        ...(typeof session.delegationDepth === 'number'
+          ? { delegationDepth: session.delegationDepth }
+          : {}),
         ...(includeFiles && workspaceKeyByCwd.has(session.cwd)
           ? { workspaceKey: workspaceKeyByCwd.get(session.cwd) }
           : {}),
@@ -431,8 +483,11 @@ export async function handleMover(deps, invocation) {
   const sub = args.shift()
   if (sub === 'export') {
     const includeFiles = args.includes('--files')
-    const rest = args.filter((arg) => arg !== '--files')
-    return exportAllSessions(deps, rest[0], rest.slice(1), includeFiles)
+    const noFork = args.includes('--no-fork')
+    const rest = args.filter((arg) => arg !== '--files' && arg !== '--no-fork')
+    return exportAllSessions(deps, rest[0], rest.slice(1), includeFiles, {
+      includeFork: !noFork,
+    })
   }
   if (sub === 'import') return importPack(deps, args[0], args[1])
   if (sub === 'list') return listCatalog(deps)

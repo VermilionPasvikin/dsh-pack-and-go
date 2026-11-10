@@ -11,15 +11,16 @@ import { sessionDir } from '../../src/core/paths.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
 
-function makeSessionBytes({ cwd = 'F:\\proj', version = 4 } = {}) {
+function makeSessionBytes({ cwd = 'F:\\proj', version = 4, id = 's1', parentSession } = {}) {
   const header = {
     type: 'session',
     version,
-    id: 's1',
+    id,
     createdAt: 1700000000000,
     isSeeded: false,
     delegationDepth: 0,
     cwd,
+    ...(parentSession !== undefined ? { parentSession } : {}),
   }
   return Buffer.concat([
     zlib.zstdCompressSync(Buffer.from(`${JSON.stringify(header)}\n`)),
@@ -27,6 +28,74 @@ function makeSessionBytes({ cwd = 'F:\\proj', version = 4 } = {}) {
     zlib.zstdCompressSync(Buffer.from('{"type":"turn/end","seq":1}\n')),
   ])
 }
+
+function makeForkPack(parentBytes, childBytes) {
+  const manifest = {
+    schemaVersion: 2,
+    createdAt: '2026-11-10T15:30:00+08:00',
+    source: { platform: 'win32', dshVersion: 'test', sessionFormat: 4 },
+    mode: 'sessions',
+    sessions: [
+      {
+        id: 'parent-1',
+        title: '父会话',
+        cwd: 'F:\\proj',
+        messageCount: 1,
+        sizeBytes: parentBytes.length,
+        path: 'sessions/parent-1/session.v4.jsonl.zstd',
+      },
+      {
+        id: 'child-1',
+        title: '子会话',
+        parentSessionId: 'parent-1',
+        cwd: 'F:\\proj',
+        messageCount: 1,
+        sizeBytes: childBytes.length,
+        path: 'sessions/child-1/session.v4.jsonl.zstd',
+      },
+    ],
+    attachments: [],
+    workspaces: [],
+  }
+  return createZip([
+    { name: 'manifest.json', data: Buffer.from(JSON.stringify(manifest), 'utf8') },
+    { name: 'sessions/parent-1/session.v4.jsonl.zstd', data: parentBytes },
+    { name: 'sessions/child-1/session.v4.jsonl.zstd', data: childBytes },
+  ])
+}
+
+test('fork 链：new-id 导入时子会话 parentSession 映射到新父 id', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const parentBytes = makeSessionBytes({ id: 'parent-1' })
+    const childBytes = makeSessionBytes({ id: 'child-1', parentSession: 'parent-1' })
+    const result = await importSessionsToDisk({
+      buffer: makeForkPack(parentBytes, childBytes),
+      sessionRoot,
+      pathMap: { byKey: {} },
+      existingSessionIds: ['parent-1', 'child-1'],
+      policy: { session: 'new-id' },
+    })
+    assert.equal(result.written.length, 2)
+    const parent = result.written.find((item) => item.id === 'parent-1')
+    const child = result.written.find((item) => item.id === 'child-1')
+    assert.ok(parent && child)
+    assert.notEqual(parent.targetId, 'parent-1')
+    const childData = await readFile(child.path)
+    const childFrames = scanFrames(childData)
+    const childHeader = JSON.parse(
+      zlib
+        .zstdDecompressSync(childData.subarray(childFrames[0].start, childFrames[0].end))
+        .toString('utf8')
+        .slice(0, -1),
+    )
+    assert.equal(childHeader.parentSession, parent.targetId)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
 
 function makePack(sessionBytes) {
   const manifest = {

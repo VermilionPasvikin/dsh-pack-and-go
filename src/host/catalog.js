@@ -69,6 +69,9 @@ export function assembleCatalog(input) {
       eventCount: snapshot.eventCount,
       formatStatus: snapshot.formatStatus,
       locationPath: snapshot.location?.path,
+      parentSessionId: header.parentSession,
+      origin: header.origin,
+      delegationDepth: header.delegationDepth,
     })
   }
 

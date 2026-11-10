@@ -107,6 +107,16 @@ export async function importSessionsToDisk(input) {
   const written = []
   const skipped = []
 
+  // 先分配目标 id，供 fork 链（parentSession）映射使用。
+  const targetIdById = new Map()
+  for (const session of plan.sessions) {
+    if (session.action === 'skip') continue
+    targetIdById.set(
+      session.id,
+      session.action === 'new-id' ? `session-${randomUUID()}` : session.id,
+    )
+  }
+
   for (const session of plan.sessions) {
     if (session.action === 'skip') {
       skipped.push(session.id)
@@ -122,8 +132,7 @@ export async function importSessionsToDisk(input) {
       throw importError(`包内缺少会话文件: ${source.path}`, { id: session.id, path: source.path })
     }
 
-    const targetId =
-      session.action === 'new-id' ? `session-${randomUUID()}` : session.id
+    const targetId = targetIdById.get(session.id)
 
     // DSH 要求会话文件所在目录与 header.cwd 一致（assertStoredIdentity）。
     // 未指定目标 cwd 时保留源 cwd 并按其计算目录；只有源与目标都无 cwd 才用 _no-cwd。
@@ -134,10 +143,13 @@ export async function importSessionsToDisk(input) {
     const patch = {}
     if (session.targetCwd !== undefined) patch.cwd = session.targetCwd
     if (session.action === 'new-id') patch.id = targetId
+    // fork 链：父会话若也在包内且目标 id 变化，则改写 parentSession 指向目标父 id。
+    if (typeof source.parentSessionId === 'string') {
+      const mappedParent = targetIdById.get(source.parentSessionId)
+      patch.parentSession = mappedParent ?? source.parentSessionId
+    }
     const finalData =
-      patch.cwd !== undefined || patch.id !== undefined
-        ? rewriteSessionHeader(packed, patch)
-        : packed
+      Object.keys(patch).length > 0 ? rewriteSessionHeader(packed, patch) : packed
 
     let backupPath
     if (session.action === 'overwrite' && backupDir) {
