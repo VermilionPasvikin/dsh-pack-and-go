@@ -49,7 +49,7 @@
 | T1.7 | 复刻路径规则 `projectKey(cwd)` / `encodeSegment(id)`（对照源码规则） | T1.1 | 单测用例：Windows/POSIX/中文/`..`/超长/空 → 与源码算法一致 | ✅ 2026-11-10 |
 | T1.8 | 实现平台预检 `preflightWorkspace(dir, targetPlatform)`：非法文件名、保留名、大小写冲突、路径长度、符号链接、权限位 | T1.7 | 单测覆盖 6 类风险，返回可序列化报告 | ✅ 2026-11-10 |
 | T1.9 | 实现工作区扫描与排除规则（流式统计，不读内容） | T1.8 | 单测：排除目录被跳过、大小统计正确；1 万文件扫描 < 2s | ✅ 2026-11-10 |
-| T1.10 | 实现 zip 容器写入器（不新增依赖，store + deflate） | T1.1 | 生成的 `.dshpack` 可被 Windows `tar -tf` 或 7-Zip 列出文件 | ⬜ |
+| T1.10 | 实现 zip 容器写入器（不新增依赖，store + deflate） | T1.1 | 生成的 `.dshpack` 可被 Windows `tar -tf` 或 7-Zip 列出文件 | ✅ 2026-11-10 |
 | T1.11 | 实现 zip 容器读取器与安全校验（路径穿越、绝对路径、截断、校验和） | T1.10 | 单测：正常包、截断包、`../` 条目、校验和不符 | ⬜ |
 | T1.12 | 实现路径映射 `buildPathMap(sourcePlatform, targetRoot, workspaces)` | T1.7 | 单测：多工作区映射、Windows→POSIX、POSIX→Windows | ⬜ |
 | T1.13 | 实现导出计划 `planExport(selection)`：仅对话 / 仅工作区 / 对话+工作区 → 文件清单+预估大小 | T1.2, T1.9 | 单测：三种组合的计划条数与大小符合预期 | ⬜ |
