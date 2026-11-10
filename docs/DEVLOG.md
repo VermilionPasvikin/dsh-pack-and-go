@@ -298,3 +298,8 @@
 - 验证：见 DEVLOG 054 与 `docs/ACCEPTANCE.md`。
 - 结论：跨平台、安全、重复导入等通过；内存指标（SPEC §11-8）未达标；浏览器渲染未验证。
 - 下一步：M7（发布准备）。
+
+## 056 · 2026-11-10 · docs: README、版本与安装说明（T7.1–T7.3）
+- 变更：重写 `README.md`（使用、跨平台注意、安装/卸载、文档索引、状态）；`package.json` 版本改为 `0.1.0`，description 更新为 “Cross-platform migration for DSH conversations and workspaces”。
+- 验证：`files` 覆盖 `src/host`(5 个 JS)/`src/client`(1)/`src/core`(21)、`cordis.patch.yml`、`locale/zh|en.json`、`icon.svg`。
+- 下一步：T7.4（最终验收报告）。
