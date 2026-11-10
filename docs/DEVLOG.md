@@ -210,3 +210,8 @@
 - 发现：启动后导入不会触发 registry 的启动索引，会话不会自动归组；需调用 `Workspace.attachSession(sessionId)`。
 - 验证：149 项单测全绿；home C（全新一次性 `DSH_HOME`）导入后：`DSH-MOVER-IMPORT {"sessions":1,"files":1,"registered":1,"warnings":[]}`、`DSH-MOVER-ATTACH {"attached":1}`、`DSH-MOVER-AFTER` 显示 `Proj` 工作区有 1 个会话、ungrouped 0。
 - 下一步：T2.10（备份与回滚）。
+
+## 041 · 2026-11-10 · feat: 备份事务与回滚
+- 变更：新增 `src/core/backup.js`（`createBackupTransaction`：`track` 备份并记录是否存在、`rollback` 逆序恢复/删除）；`src/core/index.js` 导出；`package.json` check 同步；新增 `tests/unit/backup.test.mjs`。
+- 验证：154 项单测全绿（覆盖已有文件回滚、新文件回滚删除、混合逆序、时间戳目录、缺 backupRoot 报错）。
+- 下一步：T2.11（Remote 接口：导出/导入/进度流/取消）。
