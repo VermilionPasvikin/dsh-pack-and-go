@@ -35,3 +35,78 @@ export const ERROR_CODES = Object.freeze({
   PACK_INVALID: 'E_PACK_INVALID',
   PLAN_INVALID: 'E_PLAN_INVALID',
 })
+
+/**
+ * 每个错误码对应的中文说明与下一步建议（面向 0 技术背景用户）。
+ * key 必须与 ERROR_CODES 的值一一对应（单测校验）。
+ */
+export const ERROR_MESSAGES = Object.freeze({
+  E_MANIFEST_INVALID: {
+    title: '迁移包清单格式不正确',
+    next: '请确认文件完整，或让来源方使用当前版本重新导出',
+  },
+  E_MANIFEST_VERSION_TOO_NEW: {
+    title: '迁移包版本高于本机插件',
+    next: '请先升级本机 DSH 插件，再重新导入',
+  },
+  E_MANIFEST_VERSION_UNSUPPORTED: {
+    title: '迁移包版本过旧',
+    next: '请让来源方使用当前版本重新导出',
+  },
+  E_SESSION_FRAME_INVALID: {
+    title: '会话日志损坏或截断',
+    next: '请重新导出该对话；若持续出现，请附上诊断信息',
+  },
+  E_SESSION_HEADER_INVALID: {
+    title: '会话头无法解析',
+    next: '请重新导出该对话',
+  },
+  E_SESSION_VERSION_UNSUPPORTED: {
+    title: '会话格式版本不受支持',
+    next: '跨版本导入需要目标机支持该会话格式，请升级 DSH 后重试',
+  },
+  E_PATH_INVALID: {
+    title: '路径无效',
+    next: '请检查目标位置是否为合法路径',
+  },
+  E_PREFLIGHT_INVALID: {
+    title: '平台预检失败',
+    next: '请确认工作区可读，且目标平台受支持',
+  },
+  E_SCAN_INVALID: {
+    title: '工作区扫描失败',
+    next: '请确认工作区存在且可读',
+  },
+  E_PACK_INVALID: {
+    title: '迁移包损坏或被篡改',
+    next: '请重新拷贝文件；若仍失败，请让来源方重新导出',
+  },
+  E_PLAN_INVALID: {
+    title: '打包/导入计划无效',
+    next: '请检查选择内容与目标路径后重试',
+  },
+})
+
+/**
+ * 把任意错误转换为可展示的中文描述。
+ * @param {unknown} error
+ * @returns {{ code: string, title: string, next: string, message: string }}
+ */
+export function describeError(error) {
+  const code =
+    error !== null && typeof error === 'object' && typeof error.code === 'string'
+      ? error.code
+      : 'E_UNKNOWN'
+  const known = ERROR_MESSAGES[code]
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : String(error)
+  if (known) {
+    return { code, title: known.title, next: known.next, message }
+  }
+  return {
+    code: 'E_UNKNOWN',
+    title: '操作失败',
+    next: '请重试；若持续出现，请导出诊断信息并反馈',
+    message,
+  }
+}

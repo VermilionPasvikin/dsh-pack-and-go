@@ -54,7 +54,7 @@
 | T1.12 | 实现路径映射 `buildPathMap(sourcePlatform, targetRoot, workspaces)` | T1.7 | 单测：多工作区映射、Windows→POSIX、POSIX→Windows | ✅ 2026-11-10 |
 | T1.13 | 实现导出计划 `planExport(selection)`：仅对话 / 仅工作区 / 对话+工作区 → 文件清单+预估大小 | T1.2, T1.9 | 单测：三种组合的计划条数与大小符合预期 | ✅ 2026-11-10 |
 | T1.14 | 实现导入计划 `planImport(manifest, targetRoot)`：目标路径、冲突、需转换项 | T1.3, T1.12 | 单测：冲突检测、转换项清单、默认冲突策略 | ✅ 2026-11-10 |
-| T1.15 | 核心模块统一错误码（`E_PACK_*`、`E_SESSION_*`、`E_PREFLIGHT_*`）与中文消息表 | T1.13, T1.14 | 单测：每个错误码都有稳定消息；无裸 `throw new Error('...')` | ⬜ |
+| T1.15 | 核心模块统一错误码（`E_PACK_*`、`E_SESSION_*`、`E_PREFLIGHT_*`）与中文消息表 | T1.13, T1.14 | 单测：每个错误码都有稳定消息；无裸 `throw new Error('...')` | ✅ 2026-11-10 |
 
 ### M2 Host 服务与 DSH 对接
 
