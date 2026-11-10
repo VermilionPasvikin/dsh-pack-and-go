@@ -1,18 +1,24 @@
 /**
- * 导入编排：读包 → 计划 → 会话写盘（T2.6）。
+ * 导入编排：读包 → 计划 → 会话写盘（T2.6/T2.7）。
  *
- * 首版聚焦会话写盘；附件（T2.8）与工作区文件/登记（T2.9）在后续任务实现。
- * 写盘前先做 manifest 校验、冲突计划与 cwd 改写（ADR-0007 方案 A）。
+ * 会话动作：
+ * - import：写入目标目录；
+ * - skip：不写；
+ * - overwrite：先备份已有文件，再覆盖；
+ * - new-id：生成新 session id，改写 header.id 后写入新目录。
+ *
+ * 附件（T2.8）与工作区文件/登记（T2.9）在后续任务实现。
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { randomUUID } from 'node:crypto'
+import { access, copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { basename, dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
 import { parseManifest } from './manifest-io.js'
 import { sessionDir } from './paths.js'
 import { planImport } from './plan-import.js'
-import { rewriteSessionCwd } from './session-rewrite.js'
+import { rewriteSessionHeader } from './session-rewrite.js'
 import { readZip } from './zip-reader.js'
 
 /**
@@ -30,6 +36,24 @@ function sessionLogName(version) {
 }
 
 /**
+ * 备份已存在的目标文件。
+ * @param {string} file
+ * @param {string} backupDir
+ * @returns {Promise<string | undefined>}
+ */
+async function backupExisting(file, backupDir) {
+  try {
+    await access(file)
+  } catch {
+    return undefined
+  }
+  await mkdir(backupDir, { recursive: true })
+  const dest = join(backupDir, `${basename(dirname(file))}-${basename(file)}`)
+  await copyFile(file, dest)
+  return dest
+}
+
+/**
  * 把迁移包中的会话写入目标磁盘。
  * @param {{
  *   buffer: Buffer,
@@ -38,12 +62,14 @@ function sessionLogName(version) {
  *   existingSessionIds?: readonly string[],
  *   existingWorkspacePaths?: readonly string[],
  *   policy?: { session?: string, workspace?: string },
- *   preflight?: { risks?: Array<object> }
+ *   preflight?: { risks?: Array<object> },
+ *   backupRoot?: string,
+ *   now?: Date
  * }} input
  * @returns {Promise<{
  *   manifest: object,
  *   plan: object,
- *   written: Array<{ id: string, path: string, cwd?: string, action: string }>,
+ *   written: Array<{ id: string, targetId: string, path: string, cwd?: string, action: string, backupPath?: string }>,
  *   skipped: string[]
  * }>}
  */
@@ -75,6 +101,9 @@ export async function importSessionsToDisk(input) {
   })
 
   const version = manifest.source.sessionFormat
+  const stamp = (input.now ?? new Date()).toISOString().replace(/[:.]/g, '-')
+  const backupDir = input.backupRoot ? join(input.backupRoot, stamp) : undefined
+
   const written = []
   const skipped = []
 
@@ -93,21 +122,38 @@ export async function importSessionsToDisk(input) {
       throw importError(`包内缺少会话文件: ${source.path}`, { id: session.id, path: source.path })
     }
 
-    let finalData = packed
-    if (session.targetCwd !== undefined) {
-      finalData = rewriteSessionCwd(packed, session.targetCwd)
+    const targetId =
+      session.action === 'new-id' ? `session-${randomUUID()}` : session.id
+
+    // DSH 要求会话文件所在目录与 header.cwd 一致（assertStoredIdentity）。
+    // 未指定目标 cwd 时保留源 cwd 并按其计算目录；只有源与目标都无 cwd 才用 _no-cwd。
+    const effectiveCwd = session.targetCwd ?? source.cwd
+    const dir = sessionDir(sessionRoot, effectiveCwd, targetId)
+    const file = join(dir, sessionLogName(version))
+
+    const patch = {}
+    if (session.targetCwd !== undefined) patch.cwd = session.targetCwd
+    if (session.action === 'new-id') patch.id = targetId
+    const finalData =
+      patch.cwd !== undefined || patch.id !== undefined
+        ? rewriteSessionHeader(packed, patch)
+        : packed
+
+    let backupPath
+    if (session.action === 'overwrite' && backupDir) {
+      backupPath = await backupExisting(file, backupDir)
     }
 
-    const dir = sessionDir(sessionRoot, session.targetCwd, session.id)
-    const file = join(dir, sessionLogName(version))
     await mkdir(dir, { recursive: true })
     await writeFile(file, finalData)
 
     written.push({
       id: session.id,
+      targetId,
       path: file,
-      cwd: session.targetCwd,
+      cwd: effectiveCwd,
       action: session.action,
+      ...(backupPath !== undefined ? { backupPath } : {}),
     })
   }
 

@@ -192,3 +192,9 @@
 - 验证：134 项单测全绿；用 T2.5 产物（`%TEMP%\dsh-mover-selftest.dshpack`）导入临时目标根：写入 `_no-cwd/<id>/session.v4.jsonl.zstd`（349B，与源一致），2 帧可解析，header cwd 保持源值（未归组会话）。
 - 说明：附件（T2.8）与工作区文件/登记（T2.9）尚未纳入导入编排。
 - 下一步：T2.7（会话写入细节：覆盖备份/new-id、Host 内可列出）。
+
+## 038 · 2026-11-10 · feat: 会话写入细节（覆盖备份 / new-id / 身份一致）
+- 变更：`session-rewrite.js` 抽出 `rewriteSessionHeader(buffer, { cwd, id })`；`import-pack.js` 支持 overwrite 备份（`backupRoot/<时间戳>/`）、new-id（`session-<uuid>` + 改写 `header.id`），并按 `effectiveCwd = targetCwd ?? source.cwd` 计算目录。
+- 发现：DSH 的 `assertStoredIdentity` 要求**会话文件目录与 header.cwd 一致**；首次集成把未映射会话放进 `_no-cwd`，启动时报 `corrupt session log` 且 `workspaceRegistry` 不激活。
+- 验证：137 项单测全绿；home B（新一次性 `DSH_HOME`）导入后启动，输出 `DSH-MOVER-SELFTEST {"workspaces":1,"ungrouped":0,"totals":{"sessions":1,"bytes":349}}`，stderr 无 corrupt 错误。
+- 下一步：T2.8（附件解析与复制）。

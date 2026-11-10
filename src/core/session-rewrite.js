@@ -22,18 +22,21 @@ function headerError(message, details = {}) {
 }
 
 /**
- * 改写会话日志首帧 header 的 `cwd`，不触碰其余帧。
+ * 改写会话首帧 header 的字段（cwd / id），不触碰其余帧。
  * @param {Buffer} buffer 完整会话日志文件内容
- * @param {string} newCwd 目标平台绝对路径
+ * @param {{ cwd?: string, id?: string }} patch 要覆盖的字段
  * @returns {Buffer} 新的会话日志内容
  * @throws {MoverError} 结构损坏或版本不是当前版本（跨版本应走 ADR-0007 方案 C）
  */
-export function rewriteSessionCwd(buffer, newCwd) {
+export function rewriteSessionHeader(buffer, patch = {}) {
   if (!Buffer.isBuffer(buffer)) {
-    throw headerError('rewriteSessionCwd 需要 Buffer 输入', { reason: 'not-buffer' })
+    throw headerError('rewriteSessionHeader 需要 Buffer 输入', { reason: 'not-buffer' })
   }
-  if (typeof newCwd !== 'string' || newCwd.length === 0) {
-    throw headerError('newCwd 必须是非空字符串', { reason: 'invalid-cwd' })
+  if (patch.cwd !== undefined && (typeof patch.cwd !== 'string' || patch.cwd.length === 0)) {
+    throw headerError('cwd 必须是非空字符串', { reason: 'invalid-cwd' })
+  }
+  if (patch.id !== undefined && (typeof patch.id !== 'string' || patch.id.length === 0)) {
+    throw headerError('id 必须是非空字符串', { reason: 'invalid-id' })
   }
 
   const frames = scanFrames(buffer)
@@ -83,7 +86,8 @@ export function rewriteSessionCwd(buffer, newCwd) {
     )
   }
 
-  header.cwd = newCwd
+  if (patch.cwd !== undefined) header.cwd = patch.cwd
+  if (patch.id !== undefined) header.id = patch.id
   const line = `${JSON.stringify(header)}\n`
 
   const options = first.checksum
@@ -92,6 +96,16 @@ export function rewriteSessionCwd(buffer, newCwd) {
   const newFirst = zlib.zstdCompressSync(Buffer.from(line, 'utf8'), options)
 
   return Buffer.concat([newFirst, buffer.subarray(first.end)])
+}
+
+/**
+ * 改写会话日志首帧 header 的 `cwd`，不触碰其余帧。
+ * @param {Buffer} buffer 完整会话日志文件内容
+ * @param {string} newCwd 目标平台绝对路径
+ * @returns {Buffer} 新的会话日志内容
+ */
+export function rewriteSessionCwd(buffer, newCwd) {
+  return rewriteSessionHeader(buffer, { cwd: newCwd })
 }
 
 /**
