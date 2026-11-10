@@ -7,9 +7,10 @@
 聊天记录不是事实来源。每次新会话或新任务，按顺序读：
 
 1. `docs/INDEX.md` —— 当前阶段、下一步、未决项
-2. `docs/DEVLOG.md` 最近 3 条 —— 刚刚发生了什么
-3. 本次任务涉及的 `docs/SPEC.md` 章节；写代码前再读 `docs/DESIGN.md`
-4. 涉及取舍时查 `docs/DECISIONS.md`
+2. `docs/TASKS.md` —— 当前任务与下一个任务（唯一任务来源）
+3. `docs/DEVLOG.md` 最近 3 条 —— 刚刚发生了什么
+4. 本次任务涉及的 `docs/SPEC.md` 章节；写代码前再读 `docs/DESIGN.md`
+5. 涉及取舍时查 `docs/DECISIONS.md`
 
 发现文档与代码不一致：以代码与 git 历史为准，并立即修正文档（单独提交）。
 
