@@ -18,7 +18,7 @@
 | # | 里程碑 | 目标 | 依赖 | DoD（完成定义） | 状态 |
 |---|---|---|---|---|---|
 | M0 | 工程基础设施 | 仓库、文档体系、任务分解 | — | 5+ 次提交、文档互链、工作树干净 | ✅ |
-| M1 | 核心库（纯 Node） | 包格式、zstd 帧编辑、预检、路径计算，全部可单测 | M0 | `node --test tests/unit` 全绿；无 UI/DSH 依赖 | ⬜ |
+| M1 | 核心库（纯 Node） | 包格式、zstd 帧编辑、预检、路径计算，全部可单测 | M0 | `node --test "tests/unit/**/*.test.mjs"` 全绿；无 UI/DSH 依赖 | ⬜ |
 | M2 | Host 服务与 DSH 对接 | 读取数据、导出/导入编排、进度流、写回与登记 | M1 | 一次性 `DSH_HOME` 中可完成真实导出/导入 | ⬜ |
 | M3 | Web UI | 入口、选择树、导出/导入流程、进度、错误态 | M1, M2 | 页面可用；全流程手工走通 | ⬜ |
 | M4 | 插件打包与安装验证 | bundle 元数据、安装、激活 | M1–M3 | `plugin_manager` 安装成功且页面可见 | ⬜ |
@@ -40,7 +40,7 @@
 
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
-| T1.1 | 建立 `src/core/` 与 `tests/unit/`，根 `package.json` 设 `"type": "module"`；每个模块先给空导出骨架 | — | `node --check` 对每个文件通过；`node --test tests/unit` 可运行 | ⬜ |
+| T1.1 | 建立 `src/core/` 与 `tests/unit/`，根 `package.json` 设 `"type": "module"`；每个模块先给空导出骨架 | — | `node --check` 对每个文件通过；`node --test "tests/unit/**/*.test.mjs"` 可运行 | ✅ 2026-11-10 |
 | T1.2 | 定义包格式 v2 的 JS 类型与常量（`manifest`、`session`、`attachment`、`workspace`、`mapping`、`schemaVersion`） | T1.1 | 示例 JSON 通过 `validateManifest()` 单测（合法 + 缺字段 + 版本过高） | ⬜ |
 | T1.3 | 实现 `manifest` 读写与版本校验（SPEC §8 字段） | T1.2 | 单测：合法 manifest 往返一致；未知字段保留；版本过高抛明确错误 | ⬜ |
 | T1.4 | **技术验证**：Node 内置 zstd 对多帧会话文件的解码行为；确定帧扫描方案并写 ADR | T1.1 | 脚本对真实 `session.v4.jsonl.zstd` 解出全部事件；ADR-0007 记录方案与限制 | ⬜ |
@@ -97,7 +97,7 @@
 
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
-| T5.1 | 单元测试收尾：核心模块全绿；记录覆盖情况 | M1, M2 | `node --test tests/unit` 全绿；DEVLOG 记录 | ⬜ |
+| T5.1 | 单元测试收尾：核心模块全绿；记录覆盖情况 | M1, M2 | `node --test "tests/unit/**/*.test.mjs"` 全绿；DEVLOG 记录 | ⬜ |
 | T5.2 | 跨平台规则测试：Windows cwd 包在 POSIX 规则下可改写、非法文件名转换、大小写冲突 | T5.1, T1.8 | 测试通过；转换报告逐项可查 | ⬜ |
 | T5.3 | 性能测试：500MB 工作区 + 50 会话导出/导入，记录耗时与内存 | T5.1 | 记录到 DEVLOG；内存峰值 ≤300MB | ⬜ |
 | T5.4 | 安全断言：包内无凭据/缓存/node_modules；路径穿越被拒 | T5.2 | 检查脚本输出为空或明确通过 | ⬜ |

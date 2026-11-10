@@ -1,0 +1,15 @@
+{
+  "name": "dsh-mover",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH cross-platform conversation & workspace migration plugin (working title)",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.15"
+  },
+  "scripts": {
+    "test": "node --test \"tests/unit/**/*.test.mjs\"",
+    "check": "node --check src/core/constants.js && node --check src/core/index.js && node --check tests/unit/smoke.test.mjs"
+  }
+}
