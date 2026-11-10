@@ -152,3 +152,8 @@
 - 变更：新增 `src/core/progress.js`（`createProgressEvent`/`progressPercent`/`serializeProgress`/`parseProgress`、阶段与状态常量）；`errors.js` 增加 `E_PROGRESS_INVALID` 与中文消息；`DESIGN.md` 增补进度协议章节；新增 `tests/unit/progress.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 120 passed / 0 failed（合法帧、全部阶段、非法字段、百分比、往返、错误帧）。
 - 下一步：T2.4（列出工作区与会话）。
+
+## 031 · 2026-11-10 · feat: 读取工作区与会话目录
+- 变更：新增 `src/host/catalog.js`（`assembleCatalog`/`loadCatalog`/`fallbackTitle`）；`src/host/index.js` 增加 `inject` 与 `DSH_MOVER_SELFTEST` 自检开关；`errors.js` 增加 `E_CATALOG_INVALID` 与中文消息；新增 `tests/unit/catalog.test.mjs`。
+- 验证：126 项单测全绿；一次性 `DSH_HOME` 的 `mover-test` profile 启动（web 3080）后输出 `DSH-MOVER-SELFTEST {"workspaces":1,"ungrouped":0,"totals":{"workspaces":1,"sessions":1,"bytes":349},"firstWorkspace":"default-workspace","firstSession":"default-workspace"}`。
+- 下一步：T2.5（导出任务编排）。

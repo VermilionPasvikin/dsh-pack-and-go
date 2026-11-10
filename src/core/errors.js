@@ -35,6 +35,7 @@ export const ERROR_CODES = Object.freeze({
   PACK_INVALID: 'E_PACK_INVALID',
   PLAN_INVALID: 'E_PLAN_INVALID',
   PROGRESS_INVALID: 'E_PROGRESS_INVALID',
+  CATALOG_INVALID: 'E_CATALOG_INVALID',
 })
 
 /**
@@ -89,6 +90,10 @@ export const ERROR_MESSAGES = Object.freeze({
   E_PROGRESS_INVALID: {
     title: '进度数据异常',
     next: '请重试；若持续出现，请导出诊断信息并反馈',
+  },
+  E_CATALOG_INVALID: {
+    title: '无法读取工作区或会话列表',
+    next: '请确认 DSH 正在运行且数据可读，然后重试',
   },
 })
 
