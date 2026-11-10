@@ -1,33 +1,29 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, mkdir, open } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, truncate, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 
 import { scanWorkspace } from '../../src/core/scan.js'
 import { planExport } from '../../src/core/plan-export.js'
-import { buildManifest, buildPack } from '../../src/core/export-pack.js'
+import { buildManifest, buildPackToFile } from '../../src/core/export-pack.js'
 
 const MB = 1024 * 1024
 
-test('100MB 工作区打包耗时与内存记录', async () => {
+test('500MB 工作区流式打包：耗时与内存记录（NFR-2）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-perf-'))
   try {
     const project = join(dir, 'proj')
     await mkdir(project)
-    const chunk = Buffer.alloc(MB, 0x61)
-    const handle = await open(join(project, 'big.bin'), 'w')
-    for (let index = 0; index < 100; index += 1) {
-      await handle.write(chunk)
-    }
-    await handle.close()
+    const big = join(project, 'big.bin')
+    await writeFile(big, '')
+    await truncate(big, 500 * MB)
+    assert.equal((await stat(big)).size, 500 * MB)
 
     const scanStart = performance.now()
     const scan = await scanWorkspace(project)
     const scanMs = performance.now() - scanStart
-    assert.equal(scan.files, 1)
-    assert.equal(scan.totalBytes, 100 * MB)
 
     const files = scan.entries
       .filter((entry) => !entry.isDir)
@@ -52,24 +48,31 @@ test('100MB 工作区打包耗时与内存记录', async () => {
         },
       ],
     })
-    const sourcePaths = { 'workspaces/w1/files/big.bin': join(project, 'big.bin') }
+    const sourcePaths = { 'workspaces/w1/files/big.bin': big }
+    const outputPath = join(dir, 'pack.dshpack')
 
-    const rssBefore = process.memoryUsage().rss
+    let peakRss = process.memoryUsage().rss
+    const timer = setInterval(() => {
+      peakRss = Math.max(peakRss, process.memoryUsage().rss)
+    }, 50)
+
     const packStart = performance.now()
-    const pack = await buildPack({ plan, sourcePaths, manifest })
+    const result = await buildPackToFile({ plan, sourcePaths, manifest, outputPath })
     const packMs = performance.now() - packStart
-    const rssAfter = process.memoryUsage().rss
+    clearInterval(timer)
 
+    const rssBefore = peakRss
     const metrics = {
       scanMs: Math.round(scanMs),
       packMs: Math.round(packMs),
-      packBytes: pack.length,
-      rssDeltaMB: Math.round(((rssAfter - rssBefore) / MB) * 10) / 10,
+      packBytes: result.bytes,
+      peakRssMB: Math.round((rssBefore / MB) * 10) / 10,
     }
-    console.log(`DSH-MOVER-PERF ${JSON.stringify(metrics)}`)
+    console.log(`DSH-MOVER-PERF-500 ${JSON.stringify(metrics)}`)
 
-    assert.ok(pack.length > 0)
+    assert.equal(result.entries, 3) // manifest + README + big.bin
     assert.ok(packMs < 60000, `packaging took ${packMs.toFixed(0)}ms`)
+    assert.ok(result.bytes > 0)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

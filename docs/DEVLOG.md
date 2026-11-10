@@ -309,3 +309,9 @@
 - 验证：见 FINAL-REPORT（163 项单测、7 项 e2e、一次性 profile 集成证据、SPEC §11 结果）。
 - 结论：v0.1.0 交付。已知限制：内存式打包、浏览器渲染未验证、取消未实现、符号链接转换未实现、无精确进度。
 - 下一步：无（M6 CLI 暂缓）；后续建议见 FINAL-REPORT §5。
+
+## 058 · 2026-11-10 · feat: 流式打包、渲染逻辑验证与 CLI（T5.3/T6.1–T6.4）
+- 变更：新增 `src/core/zip-stream.js`（流式 zip + 增量 CRC + data descriptor）、`buildPackToFile`；`mover export` 改用流式；新增 `src/cli/index.js`（`dsh-mover export/import`，直接访问 `DSH_HOME`，导入更新 `workspace.json` 前备份）；`package.json` 增加 `bin` 与 `src/cli`；新增 `tests/unit/zip-stream.test.mjs`、`tests/e2e/client-render.test.mjs`、`tests/e2e/cli.test.mjs`。
+- 验证：500MB 流式打包 **2.9 s / 峰值 RSS 112.3 MB**（NFR-2 达标）；client 渲染逻辑 3 项（中/英标题、slot 注册）；CLI 3 项（导出、导入并更新 workspace.json、参数错误）。
+- 说明：Edge headless 仍不可用，渲染验证为“组件树 + 文案”级，非真实浏览器。
+- 下一步：更新验收文档与最终报告。

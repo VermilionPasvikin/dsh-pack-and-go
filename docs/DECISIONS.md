@@ -149,3 +149,24 @@
 - SPEC NFR-3 的“进度条 + 阶段文字”由“不确定进度 + 阶段文案”满足。
 
 **关联**：TASKS T2.11、T3.4/T3.5；DEVLOG 042/043。
+
+## ADR-0009 · CLI 入口形态（2026-11-10，Accepted，用户拍板）
+
+**背景**：ADR-0004 确认“提供 CLI 入口，阶段待定”；用户于 2026-11-10 确认启动 M6。无 GUI 的 DSH（服务器/终端）需要迁移能力。
+
+**选项**
+- A. 独立 bin `dsh-mover`（`package.json` `bin`），纯文件访问 `DSH_HOME`；
+- B. 作为 `dsh` 子命令（需要侵入 dsh CLI 或 profile 注册）；
+- C. 复用 Host 命令（需要 DSH 运行中，无法离线使用）。
+
+**决定**：A。独立 `dsh-mover` bin：
+- `dsh-mover export --home <DSH_HOME> --out <文件> [--sessions id...]`
+- `dsh-mover import --home <DSH_HOME> --pack <文件> [--target <目录>]`
+- 与 UI 共用 core 与 `.dshpack` 格式；导入后写会话/附件/工作区文件，并更新 `workspace.json`（写前备份）。
+
+**后果**
+- CLI 不依赖 DSH 进程，可用于服务器导出；
+- 导入后需重启 DSH 才能看到新会话（无服务刷新）；
+- 工作区登记通过直接更新 `workspace.json`，与运行中的 DSH 并发需用户避免同时操作。
+
+**关联**：ADR-0004、TASKS M6、`src/cli/index.js`。

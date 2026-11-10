@@ -14,9 +14,13 @@
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
   },
+  "bin": {
+    "dsh-mover": "./src/cli/index.js"
+  },
   "files": [
     "src/host/**/*.js",
     "src/client/**/*.js",
+    "src/cli/**/*.js",
     "src/core/**/*.js",
     "cordis.patch.yml",
     "locale/*.json",

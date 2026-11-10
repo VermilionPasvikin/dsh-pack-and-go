@@ -12,6 +12,7 @@ import { ERROR_CODES, MoverError } from './errors.js'
 import { validateManifest } from './manifest.js'
 import { serializeManifest } from './manifest-io.js'
 import { createZip } from './zip-writer.js'
+import { writeZipStream } from './zip-stream.js'
 
 /** 默认单文件上限（内存实现约束）。 */
 export const DEFAULT_MAX_FILE_BYTES = 256 * 1024 * 1024
@@ -127,4 +128,57 @@ export async function buildPack(input) {
   }
 
   return createZip(entries)
+}
+
+/**
+ * 流式生成包到文件（大工作区用；内存与文件大小无关）。
+ * @param {{
+ *   plan: { items: Array<{ kind: string, path: string, size: number }> },
+ *   sourcePaths: Record<string, string>,
+ *   manifest: object,
+ *   outputPath: string,
+ *   readme?: string,
+ *   extraEntries?: Array<{ name: string, data?: Buffer, isDir?: boolean, mode?: number }>
+ * }} input
+ * @returns {Promise<{ bytes: number, entries: number }>}
+ */
+export async function buildPackToFile(input) {
+  const {
+    plan,
+    sourcePaths,
+    manifest,
+    outputPath,
+    readme = 'dsh-mover 迁移包\n',
+    extraEntries = [],
+  } = input
+
+  if (plan === null || typeof plan !== 'object' || !Array.isArray(plan.items)) {
+    throw exportError('缺少导出计划 plan.items')
+  }
+  if (typeof outputPath !== 'string' || outputPath.length === 0) {
+    throw exportError('缺少 outputPath')
+  }
+
+  const entries = [
+    { name: 'manifest.json', data: Buffer.from(serializeManifest(manifest), 'utf8') },
+    { name: 'README.txt', data: Buffer.from(readme, 'utf8') },
+  ]
+
+  for (const item of plan.items) {
+    const source = sourcePaths[item.path]
+    if (typeof source !== 'string' || source.length === 0) {
+      throw exportError(`缺少源文件: ${item.path}`, { path: item.path })
+    }
+    const info = await stat(source)
+    if (!info.isFile()) {
+      throw exportError(`源路径不是文件: ${source}`, { path: item.path })
+    }
+    entries.push({ name: item.path, sourcePath: source, mode: info.mode, mtime: info.mtime })
+  }
+
+  for (const extra of extraEntries) {
+    entries.push(extra)
+  }
+
+  return writeZipStream({ entries, outputPath })
 }
