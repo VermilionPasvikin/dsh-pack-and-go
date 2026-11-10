@@ -367,6 +367,11 @@
 - 验证：`node --check` 通过；`tests/e2e/client-render.test.mjs` 3 项通过。
 - 下一步：T3.10（设置页备用入口）。
 
+## 069 · 2026-11-10 · feat: 设置页备用入口（T3.10）
+- 变更：注册 `settings.section`（id `mover`，order 60），组件显示标题/说明与「打开迁移面板」按钮；点击打开浮层并关闭设置面板；`client-render` 测试新增 `settings.section` 断言。
+- 验证：`tests/e2e/client-render.test.mjs` 3 项、`tests/unit/commands.test.mjs` 9 项通过。
+- 下一步：T3.11（底部统计与大小估算）。
+
 ## 061 · 2026-11-10 · docs: UI 调整与缺陷修复方案（待审核）
 - 背景：真实浏览器验证通过（数据通道 `remote.workspace.follow` 可用），暴露 5 个问题。
 - 变更：新增 `docs/UI-REVAMP.md`（提案，未实施）：对话标题缺失、默认工作区未本地化、导出路径改目录选择器、布局紧凑化、`打包完成` 误报且无产物（两处根因）。
