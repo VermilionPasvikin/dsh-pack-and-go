@@ -102,3 +102,8 @@
 - 变更：新增 `src/core/zip-writer.js`（`createZip`：local header + central directory + EOCD，deflate/store 自动选择，UTF-8 文件名，POSIX 权限位写入 external attributes，CRC32 优先用内置 `zlib.crc32` 并有兜底）；新增 `tests/unit/zip-writer.test.mjs`。
 - 验证：`node --test "tests/unit/**/*.test.mjs"` → 75 passed / 0 failed（两文件、deflate/store 选择、空文件、目录条目、中文名 UTF-8 标志、EOCD、非法条目拒绝、系统 tar 列出内容）。
 - 下一步：T1.11（zip 容器读取器与安全校验）。
+
+## 021 · 2026-11-10 · docs: 更新当前状态（M1 进行中）
+- 变更：`INDEX.md` 阶段更新为“M1 进行中（T1.1–T1.10 完成）”，下一步指向 T1.11。
+- 验证：与 `TASKS.md` 状态一致。
+- 下一步：T1.11（zip 容器读取器与安全校验）。
