@@ -546,3 +546,9 @@
 - 根因：`decodeSessionEvents` 解出的事件缺 `time`（源日志旧格式），服务重建写入时按 v2 行校验失败。
 - 修复：重建前补齐事件必填字段（`type`/`seq`/`time`/`data`，time 缺失用递增时间戳），create 固定 `version: 4`。
 - 测试：`commands` mock 的 `append` 校验 seq/time/type；12 项通过。
+
+## 100 · 2026-11-11 · fix: 空工作区与重名工作区
+- 现象：导入（默认 skip）后左侧多出一个空工作区；导入默认工作区后出现两个同名「默认工作区」。
+- 根因：`registerWorkspaces` 无条件登记所有包内工作区（会话全跳过时留下空工作区）；`workspaceRegistry.create` 允许不同路径同名。
+- 修复：只登记**有会话写入**的工作区（`writtenByKey`）；新路径 + 标题重名时追加「（导入 N）」后缀；同路径仍复用不改名。
+- 验证：全量 180 项测试通过。

@@ -757,9 +757,21 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       targetPlatform: platform,
     })
 
+    // 只登记真正有会话写入的工作区：避免「会话全部跳过」时出现空工作区。
+    const writtenByKey = new Map()
+    for (const written of sessions.written) {
+      const source = manifest.sessions.find((item) => item.id === written.id)
+      const key = source?.workspaceKey
+      if (typeof key === 'string') {
+        writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
+      }
+    }
+    const activeWorkspaces = manifest.workspaces.filter(
+      (workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0,
+    )
     const registered = await registerWorkspaces({
       workspaceRegistry: deps.workspaceRegistry,
-      workspaces: manifest.workspaces.map((workspace) => ({
+      workspaces: activeWorkspaces.map((workspace) => ({
         key: workspace.key,
         title: workspace.title,
         targetPath: pathMap.byKey[workspace.key],

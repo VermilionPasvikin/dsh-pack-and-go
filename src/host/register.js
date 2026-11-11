@@ -33,10 +33,31 @@ export async function registerWorkspaces(input) {
 
   const registered = []
   const warnings = []
+  const existing =
+    typeof workspaceRegistry.list === 'function' ? workspaceRegistry.list() : []
+  const existingByPath = new Set(
+    existing
+      .map((item) => (typeof item?.path === 'string' ? item.path.toLowerCase() : undefined))
+      .filter(Boolean),
+  )
+  const existingTitles = new Set(
+    existing.map((item) => item?.title).filter((title) => typeof title === 'string'),
+  )
 
   for (const workspace of workspaces) {
     try {
-      const entity = await workspaceRegistry.create(workspace.targetPath, workspace.title)
+      const pathKey = String(workspace.targetPath).toLowerCase()
+      let finalTitle = workspace.title
+      // 新路径 + 重名时追加「（导入 N）」，避免出现两个同名工作区。
+      if (!existingByPath.has(pathKey) && existingTitles.has(finalTitle)) {
+        let suffix = 1
+        while (existingTitles.has(`${workspace.title}（导入 ${suffix}）`)) suffix += 1
+        finalTitle = `${workspace.title}（导入 ${suffix}）`
+        existingTitles.add(finalTitle)
+      }
+      const entity = await workspaceRegistry.create(workspace.targetPath, finalTitle)
+      existingByPath.add(String(entity.path ?? workspace.targetPath).toLowerCase())
+      existingTitles.add(entity.title)
       registered.push({
         key: workspace.key,
         id: entity.id,
