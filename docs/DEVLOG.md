@@ -755,4 +755,9 @@
 - 内部 selftest 标记同步：`DSH-MOVER-*` → `DSH-PACK-AND-GO-*`，环境变量 `DSH_MOVER_SELFTEST` → `DSH_PACK_AND_GO_SELFTEST`（AGENTS §8 同步）。
 - 不改：命令名 `/mover`、exec 路由 `/api/mover/exec`、`DSH_HOME` 存储路径（内部契约保持稳定，改名不迁移用户数据）。
 - 验证：196 项测试通过；`node --check` 通过。
+
+## 131 · 2026-11-11 · docs: 重写 README（功能/平台/安装/原理/包协议）
+- README 重写为对外介绍：项目定位「打包就走」、能力表、平台支持矩阵、Web/CLI 安装与用法、工作原理（Host/Client/Core + Mermaid 图 + 关键设计）、`.dshpack` 包结构协议（目录树 + manifest 字段表 + 导入语义）、安全边界、文档导航、测试与状态。
+- 与实现一致：schemaVersion 2、sessions/workspaces/attachments 路径、默认导入目录 `~/dsh-pack-and-go-import`、备份 `dsh-pack-and-go-backup`、196 项测试。
+- 纯文档变更，无代码影响。
 - README/TEST-PLAN 文档导航同步。
