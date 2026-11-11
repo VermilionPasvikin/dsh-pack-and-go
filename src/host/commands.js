@@ -630,6 +630,7 @@ async function importSessionsViaService(deps, manifest, byName, pathMap, existin
   const sessionController = deps.sessionController
   const written = []
   const skipped = []
+  let unforkable = 0
   for (const session of manifest.sessions) {
     const targetCwd =
       session.workspaceKey !== undefined && pathMap.byKey[session.workspaceKey] !== undefined
@@ -660,13 +661,15 @@ async function importSessionsViaService(deps, manifest, byName, pathMap, existin
         continue
       }
       console.error('[dsh-mover] new-id skipped (source session not forkable)', session.id)
+      unforkable += 1
       skipped.push(session.id)
     } catch (error) {
       console.error('[dsh-mover] fork failed', session.id, error)
+      unforkable += 1
       skipped.push(session.id)
     }
   }
-  return { manifest, written, skipped }
+  return { manifest, written, skipped, unforkable }
 }
 
 /**
@@ -870,7 +873,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
 
     return {
       kind: 'success',
-      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在；工作区文件 ${files.written.length} 个，附件 ${attachments.restored} 个${
+      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在${
+        sessions.unforkable > 0 ? `（其中 ${sessions.unforkable} 个空会话无对话轮次，无法复制）` : ''
+      }；工作区文件 ${files.written.length} 个，附件 ${attachments.restored} 个${
         attachments.warnings.length > 0 ? `（警告 ${attachments.warnings.length}）` : ''
       }，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。${
         mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
