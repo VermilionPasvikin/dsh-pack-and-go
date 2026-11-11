@@ -141,7 +141,7 @@
 | E3 | ✅ | 会话全 skip 的导入：`登记 0 个工作区`，未产生空工作区 | `writtenByKey` 过滤 |
 | E2 | ✅ | `--new-id` 导入空会话 → 文本「其中 1 个空会话无对话轮次，无法复制」；有消息会话 fork 成功且可打开 | DSH fork 限制 |
 | D12 | ✅ | fork 会话点开 `corrupt=false`（`cdp/23-clean-state.png`） | |
-| E5 | ⏳ | 附件包未构造（需含图片/文件消息的会话），留待人工或用工具构造 | |
+| E5 | ✅ | 真实附件会话（PDF 3.5MB + DOCX 10KB）导出包 1.9MB，含 2 个 `attachments/v1/file-objects`；CLI 导入恢复 4 个附件文件；exec 导入后 fork 会话打开显示两个附件（`hasPdf/hasDocx=true`，`corrupt=false`） | 附件打包/恢复/显示全链路 |
 | D13/D14 | ⏳ | 主题/语言切换需在 DSH 设置里操作，CDP 交互成本高，留待人工 | |
 
 **第二轮结论**：工作区重名去重、空工作区避免、空会话提示均验证通过；附件包与主题/语言切换列为人工项。

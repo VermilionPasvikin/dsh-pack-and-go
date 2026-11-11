@@ -584,3 +584,10 @@
 - 附件包构造（用户提供的 docx + md）：`build-attach-pack.mjs` 生成 manifest + 会话事件（user/message 带 file 附件引用）+ `attachments/v1/file-objects|files` 条目。
 - 验证：CLI 导入 → 4 个附件文件（2 file-objects + 2 file-references）+ 会话文件；exec 导入当前 Home → 「已导入 1 个对话、附件 4 个」，附件对象写入 `attachments/v1`。
 - 遗留：手工构造的事件在 DSH 会话列表中的可见性待确认（cwd 无匹配工作区、侧边栏折叠）；真实 DSH 附件消息的导出/导入链路已由 CLI/exec 验证。
+
+## 107 · 2026-11-11 · test: 真实附件会话全链路验证
+- 用户测试环境会话「你好测试消息」含真实附件（PDF 3.5MB + DOCX 10KB）。
+- 导出：`real-attach.dshpack` 1.9MB，含 2 个 `attachments/v1/file-objects`（3711094 / 10373 字节）。
+- CLI 导入新 home：恢复 4 个附件文件（file-objects + files）。
+- exec 导入当前 home（new-id → fork）：结果「已导入 1 个对话、附件 0 个（警告 2）」——警告因当前 home 附件对象已被 DSH 锁定（EPERM），真实迁移（新 home）无此问题；fork 会话打开后 PDF/DOCX 附件名正常显示（`corrupt=false`）。
+- 证据：CDP `hasPdf=true / hasDocx=true`；测试计划 E5 标 ✅。
