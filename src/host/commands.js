@@ -68,6 +68,18 @@ async function uniquePath(base) {
 }
 
 /**
+ * 归一化路径（斜杠/大小写/尾斜杠），用于 cwd 与工作区 path 比较。
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizePathKey(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '/')
+    .toLowerCase()
+    .replace(/\/+$/, '')
+}
+
+/**
  * 清理包名：去掉路径分隔符与 Windows 非法字符、去 .dshpack 后缀。
  * @param {string} name
  * @returns {string}
@@ -613,53 +625,44 @@ export async function scanExistingSessionIds(sessionRoot) {
  * @param {{ byKey: Record<string, string> }} pathMap
  * @returns {Promise<{ manifest: object, written: Array<object>, skipped: string[] }>}
  */
-async function importSessionsViaService(deps, manifest, byName, pathMap) {
+async function importSessionsViaService(deps, manifest, byName, pathMap, existingSessionIds = []) {
+  const existing = new Set(existingSessionIds)
+  const sessionController = deps.sessionController
   const written = []
   const skipped = []
   for (const session of manifest.sessions) {
-    const packed = byName.get(session.path)
-    if (!packed) {
-      skipped.push(session.id)
-      continue
-    }
     const targetCwd =
       session.workspaceKey !== undefined && pathMap.byKey[session.workspaceKey] !== undefined
         ? pathMap.byKey[session.workspaceKey]
         : session.cwd
-    const newId = `session-${randomUUID()}`
     try {
-      const events = decodeSessionEvents(packed).map((event, index) => {
-        const record = event !== null && typeof event === 'object' ? event : {}
-        return {
-          ...record,
-          type: typeof record.type === 'string' ? record.type : 'unknown',
-          seq: index,
-          // 写入行要求 time；缺失时用递增时间戳兜底
-          time: typeof record.time === 'number' ? record.time : Date.now() + index,
-          data: record.data ?? {},
-        }
-      })
-      const handle = await deps.sessionPersistence.create({
-        // 固定当前会话格式版本，避免把旧格式行的缺字段写成 v2 行
-        version: 4,
-        id: newId,
-        createdAt: Date.now(),
-        ...(typeof targetCwd === 'string' && targetCwd.length > 0 ? { cwd: targetCwd } : {}),
-        isSeeded: false,
-        delegationDepth: 0,
-        ...(typeof session.parentSessionId === 'string'
-          ? { parentSession: session.parentSessionId }
-          : {}),
-      })
-      try {
-        if (events.length > 0) await handle.append(events)
-        await handle.flush()
-      } finally {
-        await handle.close()
+      const packed = byName.get(session.path)
+      if (!packed) {
+        skipped.push(session.id)
+        continue
       }
-      written.push({ id: session.id, targetId: newId, action: 'new-id' })
+      // 官方 fork：复制事件并生成正确的 delivery marker（手工 create+append 会破坏 marker 语义）。
+      if (
+        sessionController &&
+        typeof sessionController.fork === 'function' &&
+        existing.has(session.id)
+      ) {
+        const forked = await sessionController.fork({
+          sessionId: session.id,
+          allowMigration: true,
+        })
+        written.push({
+          id: session.id,
+          targetId: forked.sessionId,
+          action: 'new-id',
+          cwd: targetCwd ?? session.cwd,
+        })
+        continue
+      }
+      console.error('[dsh-mover] new-id skipped (source session not forkable)', session.id)
+      skipped.push(session.id)
     } catch (error) {
-      console.error('[dsh-mover] service import failed', session.id, error)
+      console.error('[dsh-mover] fork failed', session.id, error)
       skipped.push(session.id)
     }
   }
@@ -730,7 +733,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     }
     const sessions =
       sessionPolicy === 'new-id'
-        ? await importSessionsViaService(deps, manifest, byName, pathMap)
+        ? await importSessionsViaService(deps, manifest, byName, pathMap, existingSessionIds)
         : await importSessionsToDisk({
             buffer,
             sessionRoot,
@@ -781,13 +784,35 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const entityByKey = new Map(
       registered.registered.map((item) => [item.key, item.entity]),
     )
+    // 包内未登记工作区时，按会话 cwd 匹配已有工作区，让 DSH 侧边栏能归组。
+    const workspaceByPath = new Map()
+    try {
+      const allWorkspaces =
+        typeof deps.workspaceRegistry.list === 'function' ? deps.workspaceRegistry.list() : []
+      for (const workspace of allWorkspaces) {
+        workspaceByPath.set(normalizePathKey(workspace.path), workspace)
+      }
+    } catch {
+      // 列表不可用时只依赖包内 workspaceKey
+    }
     let attached = 0
     for (const written of sessions.written) {
       const source = manifest.sessions.find((item) => item.id === written.id)
-      const entity =
+      let entity =
         source?.workspaceKey !== undefined
           ? entityByKey.get(source.workspaceKey)
           : undefined
+      if (!entity) {
+        let canonicalCwd = written.cwd ?? source?.cwd
+        if (typeof canonicalCwd === 'string' && canonicalCwd.length > 0) {
+          try {
+            canonicalCwd = await realpath(canonicalCwd)
+          } catch {
+            // 无法 realpath 时保留原值
+          }
+          entity = workspaceByPath.get(normalizePathKey(canonicalCwd))
+        }
+      }
       if (entity && typeof entity.attachSession === 'function') {
         try {
           await entity.attachSession(written.targetId)

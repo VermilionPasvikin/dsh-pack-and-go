@@ -567,3 +567,9 @@
 - 首轮执行（测试工作区 `%TEMP%\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`）：A1 190 项通过；B1/B2/B3/B5 CLI 通过；D1–D8、D10 通过；D7 导出包 26495 B；D11 导入数据成功（已导入 2 个）。
 - 遗留：**D12 导入会话未出现在 DSH 侧边栏**（重启后仍不显示；会话文件 header 合法 version=4/cwd 正确，疑似 DSH `session.list` 对 blank/formatStatus 过滤，待 Host selftest 定位）。
 - 证据：`%TEMP%` 下 `cdp/*.png`、`cdp-result.json`、`logs/*.log`、`export-out/cdp-test.dshpack`。
+
+## 104 · 2026-11-11 · fix: new-id 改用官方 fork（复制会话可靠）
+- 根因：手工 `create+append` 重建会破坏 DSH 的 delivery marker 语义（time/version/marker/title/sourceEventSeqs/throughSeq 连环校验失败）；契约里 `sessionController.fork` 是唯一官方复制入口。
+- 修复：new-id 改为 `sessionController.fork`（源会话在本机时）；空会话（无 completed turn）无法 fork → 跳过并记录；exec 路由 deps 改为**请求时延迟解析**（apply 时 `sessionController` 未就绪取到 undefined）。
+- 验证（CDP 无头浏览器）：导入结果「已导入 1 个对话、跳过 1 个已存在」；侧边栏即时出现 fork 出的会话；点开历史正常加载（corrupt=false）。
+- 清理：重建失败残留的 10 个损坏会话已移到 `<home>/corrupt-backup-3-.../`。

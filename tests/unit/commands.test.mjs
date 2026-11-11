@@ -50,16 +50,13 @@ async function makeDeps(dir, sessionFile, bytes) {
         },
       ],
       create: async () => ({
-        append: async (events) => {
-          for (const [index, event] of events.entries()) {
-            assert.equal(event.seq, index)
-            assert.equal(typeof event.time, 'number')
-            assert.equal(typeof event.type, 'string')
-          }
-        },
+        append: async () => {},
         flush: async () => {},
         close: async () => {},
       }),
+    },
+    sessionController: {
+      fork: async () => ({ sessionId: 'session-forked-1' }),
     },
     sessionQuery: undefined,
     dshHome: join(dir, 'home'),

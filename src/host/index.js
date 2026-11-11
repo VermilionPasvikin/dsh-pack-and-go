@@ -49,10 +49,13 @@ export function apply(ctx, config) {
       workspaceRegistry: ctx.workspaceRegistry,
       sessionPersistence: ctx.sessionPersistence,
       sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
-      workspaceController:
-        typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined,
-      sessionController:
-        typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined,
+      // 服务延迟解析：apply 时可能尚未就绪，请求时再取。
+      get workspaceController() {
+        return typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined
+      },
+      get sessionController() {
+        return typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined
+      },
       dshHome: process.env.DSH_HOME,
       platform: process.platform,
       dshVersion: process.env.DSH_VERSION ?? 'unknown',
@@ -96,7 +99,9 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_FOLLOW === '1') {
+        if (process.env.DSH_MOVER_SELFTEST_LIST === '1') {
+          await runSessionListSelfTest(ctx)
+        } else if (process.env.DSH_MOVER_SELFTEST_FOLLOW === '1') {
           await runFollowSelfTest(ctx)
         } else if (process.env.DSH_MOVER_SELFTEST_CMD === '1') {
           await runCommandSelfTest(ctx, catalog)
@@ -156,6 +161,54 @@ async function runRebuildSelfTest(ctx, catalog) {
     )
   } catch {
     // 日志失败不影响自检
+  }
+}
+
+/**
+ * 会话列表自检：打印 DSH session.list 的 visible rows 与工作区 sessionIds，
+ * 用于定位「导入会话不出现在侧边栏」的过滤原因。
+ * @param {import('@deepseek-ai/cordis').Context} ctx
+ */
+async function runSessionListSelfTest(ctx) {
+  try {
+    const controller = ctx.get('sessionController')
+    if (!controller || typeof controller.list !== 'function') {
+      logLine('DSH-MOVER-LIST no-session-controller')
+      return
+    }
+    const result = await controller.list({}, new AbortController().signal)
+    const items = result?.items ?? []
+    logLine(`DSH-MOVER-LIST count=${items.length}`)
+    for (const item of items.slice(0, 30)) {
+      logLine(
+        `DSH-MOVER-SESSION-ROW ${JSON.stringify({
+          id: item.sessionId,
+          cwd: item.cwd,
+          blank: item.blank,
+          agentAvailable: item.agentAvailable,
+          formatStatus: item.formatStatus,
+          hasProjections: Boolean(item.projections),
+          title: item.projections?.values?.title,
+        })}`,
+      )
+    }
+    const registry = ctx.workspaceRegistry
+    if (registry && typeof registry.list === 'function') {
+      for (const workspace of registry.list()) {
+        logLine(
+          `DSH-MOVER-WS ${JSON.stringify({
+            id: workspace.id,
+            path: workspace.path,
+            title: workspace.title,
+            sessionIds: workspace.sessionIds,
+          })}`,
+        )
+      }
+    }
+  } catch (error) {
+    logLine(
+      `DSH-MOVER-LIST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+    )
   }
 }
 
