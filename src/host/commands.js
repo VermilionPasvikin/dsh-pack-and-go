@@ -616,78 +616,23 @@ export async function scanExistingSessionIds(sessionRoot) {
 }
 
 /**
- * 用服务重建的方式导入会话（new-id 策略）。
- * 只改 header id 会让事件里的投递标记仍指向旧会话（DSH 判定 corrupt），
- * 因此 create(新 header) + append(逻辑事件) 由官方后端重写。
- * @param {object} deps
- * @param {object} manifest
- * @param {Map<string, Buffer>} byName
- * @param {{ byKey: Record<string, string> }} pathMap
- * @returns {Promise<{ manifest: object, written: Array<object>, skipped: string[] }>}
- */
-async function importSessionsViaService(deps, manifest, byName, pathMap, existingSessionIds = []) {
-  const existing = new Set(existingSessionIds)
-  const sessionController = deps.sessionController
-  const written = []
-  const skipped = []
-  let unforkable = 0
-  for (const session of manifest.sessions) {
-    const targetCwd =
-      session.workspaceKey !== undefined && pathMap.byKey[session.workspaceKey] !== undefined
-        ? pathMap.byKey[session.workspaceKey]
-        : session.cwd
-    try {
-      const packed = byName.get(session.path)
-      if (!packed) {
-        skipped.push(session.id)
-        continue
-      }
-      // 官方 fork：复制事件并生成正确的 delivery marker（手工 create+append 会破坏 marker 语义）。
-      if (
-        sessionController &&
-        typeof sessionController.fork === 'function' &&
-        existing.has(session.id)
-      ) {
-        const forked = await sessionController.fork({
-          sessionId: session.id,
-          allowMigration: true,
-        })
-        written.push({
-          id: session.id,
-          targetId: forked.sessionId,
-          action: 'new-id',
-          cwd: targetCwd ?? session.cwd,
-        })
-        continue
-      }
-      console.error('[dsh-mover] new-id skipped (source session not forkable)', session.id)
-      unforkable += 1
-      skipped.push(session.id)
-    } catch (error) {
-      console.error('[dsh-mover] fork failed', session.id, error)
-      unforkable += 1
-      skipped.push(session.id)
-    }
-  }
-  return { manifest, written, skipped, unforkable }
-}
-
-/**
  * 导入一个 `.dshpack`。
  * @param {object} deps
  * @param {string} packPath
- * @param {string} [targetRoot] 省略时使用 `~/dsh-mover-import`
- * @param {{ original?: boolean, sessionPolicy?: 'skip'|'new-id' }} [options]
- *   original=true 时放回源路径；sessionPolicy 控制同 id 会话冲突（默认 skip）
+ * @param {string} targetRoot 目标目录（必填；不会回退到默认目录）
+ * @param {{ sessionPolicy?: 'skip'|'overwrite' }} [options] 同 id 会话冲突策略（默认 skip）
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
 export async function importPack(deps, packPath, targetRoot, options = {}) {
   if (!packPath) return errorResult(`缺少迁移包路径。${USAGE}`)
-  const useOriginal = options.original === true
-  const sessionPolicy = options.sessionPolicy === 'new-id' ? 'new-id' : 'skip'
-  const root = typeof targetRoot === 'string' && targetRoot.length > 0
-    ? targetRoot
-    : join(homedir(), 'dsh-mover-import')
+  if (typeof targetRoot !== 'string' || targetRoot.trim().length === 0) {
+    return errorResult('请先选择目标目录：导入必须指定目录，不会自动回退到默认位置。')
+  }
+  if (options.sessionPolicy === 'new-id') {
+    return errorResult('「另存为新对话」已移除；请选择「跳过」或「覆盖」。')
+  }
+  const sessionPolicy = options.sessionPolicy === 'overwrite' ? 'overwrite' : 'skip'
+  const root = targetRoot.trim()
   try {
     const buffer = await readFile(packPath)
     const { entries } = readZip(buffer)
@@ -700,29 +645,16 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const pathMap = { byKey: {} }
     const mappings = []
     for (const workspace of manifest.workspaces) {
-      if (useOriginal) {
-        if (
-          typeof workspace.sourcePath !== 'string' ||
-          !isAbsolute(workspace.sourcePath)
-        ) {
-          return errorResult(
-            `工作区「${workspace.title}」的原路径在当前平台不可用：${workspace.sourcePath}。请改用「指定目录」。`,
-          )
-        }
-        pathMap.byKey[workspace.key] = workspace.sourcePath
-        mappings.push(`${workspace.sourcePath} → ${workspace.sourcePath}`)
-      } else {
-        const target = join(root, safeDirName(workspace.title, platform))
-        await mkdir(target, { recursive: true })
-        let canonical = target
-        try {
-          canonical = await realpath(target)
-        } catch {
-          // 无法 realpath 时保留原路径
-        }
-        pathMap.byKey[workspace.key] = canonical
-        mappings.push(`${workspace.sourcePath} → ${canonical}`)
+      const target = join(root, safeDirName(workspace.title, platform))
+      await mkdir(target, { recursive: true })
+      let canonical = target
+      try {
+        canonical = await realpath(target)
+      } catch {
+        // 无法 realpath 时保留原路径
       }
+      pathMap.byKey[workspace.key] = canonical
+      mappings.push(`${workspace.sourcePath} → ${canonical}`)
     }
 
     const sessionRoot = join(deps.dshHome, 'sessions')
@@ -734,16 +666,13 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       // 重复 id 等异常时退回文件扫描，避免把冲突写进磁盘
       existingSessionIds = [...(await scanExistingSessionIds(sessionRoot))]
     }
-    const sessions =
-      sessionPolicy === 'new-id'
-        ? await importSessionsViaService(deps, manifest, byName, pathMap, existingSessionIds)
-        : await importSessionsToDisk({
-            buffer,
-            sessionRoot,
-            pathMap,
-            existingSessionIds,
-            policy: { session: sessionPolicy },
-          })
+    const sessions = await importSessionsToDisk({
+      buffer,
+      sessionRoot,
+      pathMap,
+      existingSessionIds,
+      policy: { session: sessionPolicy },
+    })
     const attachmentEntries = entries
       .filter((entry) => entry.name.startsWith('attachments/'))
       .map((entry) => ({ packPath: entry.name, data: entry.data }))
@@ -908,6 +837,7 @@ export async function listCatalog(deps) {
         platform: deps.platform ?? process.platform,
         dshHome: deps.dshHome,
         dshVersion: deps.dshVersion,
+        defaultImportDir: join(homedir(), 'dsh-mover-import'),
       },
       workspaces: catalog.workspaces.map((workspace) => ({
         path: workspace.path,
@@ -998,12 +928,9 @@ export async function handleMover(deps, invocation) {
     })
   }
   if (sub === 'import') {
-    const original = args.includes('--original')
-    const newId = args.includes('--new-id')
     const rest = args.filter((arg) => arg !== '--original' && arg !== '--new-id')
     return importPack(deps, rest[0], rest[1], {
-      original,
-      sessionPolicy: newId ? 'new-id' : 'skip',
+      sessionPolicy: args.includes('--overwrite') ? 'overwrite' : 'skip',
     })
   }
   if (sub === 'list') return listCatalog(deps)

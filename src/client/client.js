@@ -62,11 +62,9 @@ window.__ModuleLoader__.load({
           `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
         previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按默认策略处理）`,
         placeOriginal: '放回原路径',
-        placeFolder: '指定目录',
-        conflictSkip: '已存在对话：跳过',
-        conflictNewId: '已存在对话：另存为新对话',
-        forkCwdHint:
-          '注意：「另存为新对话」由 DSH 复制生成，会保留原对话的工作区路径，可能仍归入原工作区；如需改落点请用「跳过 / 覆盖」导入。',
+        placeFolder: '指定目录',        conflictSkip: '已存在对话：跳过',
+        conflictOverwrite: '已存在对话：覆盖',
+        importNeedsTarget: '请先选择目标目录（导入必须指定目录，不会自动回退）。',
         restartHint:
           '导入内容若未出现在左侧列表，请重启 DSH 后可见（工作区索引在启动时构建）。',
         sessionsUnit: (n) => `${n} 个对话`,
@@ -133,9 +131,8 @@ window.__ModuleLoader__.load({
         placeOriginal: 'Restore original path',
         placeFolder: 'Choose folder',
         conflictSkip: 'Existing conversations: skip',
-        conflictNewId: 'Existing conversations: copy as new',
-        forkCwdHint:
-          'Note: "copy as new" uses DSH fork, which keeps the original workspace path and may stay in the old workspace; use skip/overwrite to change the target folder.',
+        conflictOverwrite: 'Existing conversations: overwrite',
+        importNeedsTarget: 'Choose a target folder first (import requires a folder and never falls back).',
         restartHint:
           'If imported items do not appear on the left, restart DSH (the workspace index is built at startup).',
         sessionsUnit: (n) => `${n} conversations`,
@@ -424,7 +421,6 @@ window.__ModuleLoader__.load({
       const [includeAttachments, setIncludeAttachments] = useState(false)
       const [exportName, setExportName] = useState('')
       const [preview, setPreview] = useState(null)
-      const [placeMode, setPlaceMode] = useState('original')
       const [importConflictMode, setImportConflictMode] = useState('skip')
       const [needsRestartHint, setNeedsRestartHint] = useState(false)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
@@ -512,7 +508,14 @@ window.__ModuleLoader__.load({
               titleInfo = await loadTitlesFromCommand(remote, firstSessionId)
             }
             if (titleInfo) {
-              if (titleInfo.meta) setMeta(titleInfo.meta)
+              if (titleInfo.meta) {
+                setMeta(titleInfo.meta)
+                // 默认目标目录：用户目录/dsh-mover-import（可改）；留空提交会报错，不会静默回退。
+                if (typeof titleInfo.meta.defaultImportDir === 'string') {
+                  const defaultDir = titleInfo.meta.defaultImportDir
+                  setImportTarget((current) => (current.trim().length === 0 ? defaultDir : current))
+                }
+              }
               if ((titleInfo.sizes?.size ?? 0) > 0) setSizeById(titleInfo.sizes)
               for (const [id, title] of titleInfo.titles ?? []) {
                 if (!titles.has(id) && typeof title === 'string' && title.length > 0) {
@@ -986,26 +989,23 @@ window.__ModuleLoader__.load({
           setError(t.importNeedsPack)
           return
         }
-        const target = placeMode === 'original' ? undefined : importTarget.trim() || undefined
+        const target = importTarget.trim()
+        if (target.length === 0) {
+          setError(t.importNeedsTarget)
+          return
+        }
         const message = await runMoverAction(
           'import',
           {
             pack: importPackPath.trim(),
             target,
             options: {
-              original: placeMode === 'original',
-              sessionPolicy: importConflictMode === 'new-id' ? 'new-id' : 'skip',
+              sessionPolicy: importConflictMode === 'overwrite' ? 'overwrite' : 'skip',
             },
           },
           () => {
-            const newIdArg = importConflictMode === 'new-id' ? ' --new-id' : ''
-            if (placeMode === 'original') {
-              return `/mover import "${importPackPath.trim()}" --original${newIdArg}`
-            }
-            const dir = importTarget.trim()
-            return dir.length > 0
-              ? `/mover import "${importPackPath.trim()}" "${dir}"${newIdArg}`
-              : `/mover import "${importPackPath.trim()}"${newIdArg}`
+            const overwriteArg = importConflictMode === 'overwrite' ? ' --overwrite' : ''
+            return `/mover import "${importPackPath.trim()}" "${target}"${overwriteArg}`
           },
         )
         if (message && message.ok) setNeedsRestartHint(true)
@@ -1423,32 +1423,6 @@ window.__ModuleLoader__.load({
           ),
           h(
             'div',
-            { style: { display: 'flex', gap: 14, fontSize: 12, marginBottom: 8, color: THEME.text } },
-            h(
-              'label',
-              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
-              h('input', {
-                type: 'radio',
-                name: 'mover-place',
-                checked: placeMode === 'original',
-                onChange: () => setPlaceMode('original'),
-              }),
-              h('span', null, t.placeOriginal),
-            ),
-            h(
-              'label',
-              { style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
-              h('input', {
-                type: 'radio',
-                name: 'mover-place',
-                checked: placeMode === 'folder',
-                onChange: () => setPlaceMode('folder'),
-              }),
-              h('span', null, t.placeFolder),
-            ),
-          ),
-          h(
-            'div',
             {
               style: {
                 display: 'flex',
@@ -1475,19 +1449,12 @@ window.__ModuleLoader__.load({
               h('input', {
                 type: 'radio',
                 name: 'mover-conflict',
-                checked: importConflictMode === 'new-id',
-                onChange: () => setImportConflictMode('new-id'),
+                checked: importConflictMode === 'overwrite',
+                onChange: () => setImportConflictMode('overwrite'),
               }),
-              h('span', null, t.conflictNewId),
+              h('span', null, t.conflictOverwrite),
             ),
           ),
-          placeMode === 'folder' && importConflictMode === 'new-id'
-            ? h(
-                'div',
-                { style: { fontSize: 11, color: THEME.textMuted, marginBottom: 8 } },
-                t.forkCwdHint,
-              )
-            : null,
           h(
             'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
@@ -1611,17 +1578,15 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-            placeMode === 'folder'
-              ? h('input', {
-                  type: 'text',
-                  value: importTarget,
-                  placeholder: t.targetPlaceholder,
-                  onChange: (event) => setImportTarget(event.target.value),
-                  disabled: busy,
-                  style: fieldStyle(),
-                })
-              : null,
-            placeMode === 'folder' && canPickDirectory
+            h('input', {
+              type: 'text',
+              value: importTarget,
+              placeholder: t.targetPlaceholder,
+              onChange: (event) => setImportTarget(event.target.value),
+              disabled: busy,
+              style: fieldStyle(),
+            }),
+            canPickDirectory
               ? h(
                   'button',
                   {

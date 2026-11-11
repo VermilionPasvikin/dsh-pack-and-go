@@ -4,7 +4,7 @@
  *
  * 不依赖 DSH 进程，直接访问 `DSH_HOME`：
  *   dsh-mover export --home <DSH_HOME> --out <文件> [--sessions id1,id2]
- *   dsh-mover import --home <DSH_HOME> --pack <文件> [--target <目录>]
+ *   dsh-mover import --home <DSH_HOME> --pack <文件> --target <目录>
  *
  * 导入会写会话/附件/工作区文件，并更新 `workspace.json`（写前备份）；
  * 需要重启 DSH 才能看到新会话。
@@ -40,7 +40,7 @@ const USAGE = `dsh-mover <命令> [选项]
   --home <目录>      DSH_HOME（必填）
   --out <文件>       export 的目标文件（必填）
   --pack <文件>      import 的迁移包（必填）
-  --target <目录>    import 的目标目录（默认 <DSH_HOME>/dsh-mover-import）
+  --target <目录>    import 的目标目录（必填，不会回退默认目录）
   --sessions <ids>   export 只导出指定会话（逗号分隔）
   -h, --help         显示帮助
 `
@@ -228,6 +228,7 @@ async function updateWorkspaceRegistry(home, manifest, pathMap, writtenSessions)
 async function cmdImport(options) {
   if (!options.home) fail('缺少 --home')
   if (!options.pack) fail('缺少 --pack')
+  if (!options.target) fail('缺少 --target（导入必须指定目标目录）')
 
   const buffer = await readFile(options.pack)
   const { entries } = readZip(buffer)
@@ -235,7 +236,7 @@ async function cmdImport(options) {
   if (!manifestEntry) fail('迁移包缺少 manifest.json')
   const manifest = parseManifest(manifestEntry.data.toString('utf8'))
 
-  const root = options.target ?? join(options.home, 'dsh-mover-import')
+  const root = options.target
   const pathMap = { byKey: {} }
   for (const workspace of manifest.workspaces) {
     const dir = join(root, safeDirName(workspace.title, process.platform))

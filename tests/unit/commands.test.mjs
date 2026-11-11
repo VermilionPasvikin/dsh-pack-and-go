@@ -214,7 +214,7 @@ test('inspect 预览包信息与冲突', async () => {
   }
 })
 
-test('导入冲突策略：默认跳过，new-id 另存为新对话', async () => {
+test('导入冲突策略：默认跳过，overwrite 覆盖', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {
     const bytes = makeSessionBytes()
@@ -230,17 +230,42 @@ test('导入冲突策略：默认跳过，new-id 另存为新对话', async () =
     assert.match(skipped.text, /已导入 0 个对话/)
     assert.match(skipped.text, /跳过 1 个已存在/)
 
-    const copied = await importPack(deps, out, join(dir, 'target-new'), {
-      sessionPolicy: 'new-id',
+    const overwritten = await importPack(deps, out, join(dir, 'target-over'), {
+      sessionPolicy: 'overwrite',
     })
-    assert.equal(copied.kind, 'success')
-    assert.match(copied.text, /已导入 1 个对话/)
+    assert.equal(overwritten.kind, 'success')
+    assert.match(overwritten.text, /覆盖 1 个/)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
 
-test('measureWorkspaces 统计目录字节数', async () => {  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+test('导入必须指定目标目录且不接受已移除的 new-id', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const out = join(dir, 'out.dshpack')
+    await exportAllSessions(deps, out)
+
+    const missing = await importPack(deps, out, '')
+    assert.equal(missing.kind, 'error')
+    assert.match(missing.text, /目标目录/)
+
+    const rejected = await importPack(deps, out, join(dir, 'target'), {
+      sessionPolicy: 'new-id',
+    })
+    assert.equal(rejected.kind, 'error')
+    assert.match(rejected.text, /已移除/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('measureWorkspaces 统计目录字节数', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {
     const project = join(dir, 'proj')
     await mkdir(join(project, 'sub'), { recursive: true })
