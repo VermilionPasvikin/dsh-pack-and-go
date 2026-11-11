@@ -45,7 +45,7 @@ function expectPlanError(fn) {
   })
 }
 
-test('覆盖时目标 cwd 不同则降级为跳过（避免重复 id）', () => {
+test('覆盖时目标 cwd 对齐现有会话（原地恢复，不写第二份）', () => {
   const plan = planImport({
     manifest: makeManifest(),
     pathMap,
@@ -53,16 +53,17 @@ test('覆盖时目标 cwd 不同则降级为跳过（避免重复 id）', () => 
     existingCwdById: new Map([['s1', 'F:\\proj']]),
     policy: { session: 'overwrite' },
   })
-  assert.equal(plan.sessions[0].action, 'skip')
-  // 同 cwd 的覆盖保持 overwrite
+  assert.equal(plan.sessions[0].action, 'overwrite')
+  assert.equal(plan.sessions[0].targetCwd, 'F:\\proj')
+  // 无现有 cwd 信息时保持原目标 cwd
   const plan2 = planImport({
     manifest: makeManifest(),
     pathMap,
     existingSessionIds: ['s1'],
-    existingCwdById: new Map([['s1', '/dest/proj']]),
     policy: { session: 'overwrite' },
   })
   assert.equal(plan2.sessions[0].action, 'overwrite')
+  assert.equal(plan2.sessions[0].targetCwd, '/dest/proj')
 })
 
 test('无冲突：全部导入/创建，未归组会话无 cwd', () => {

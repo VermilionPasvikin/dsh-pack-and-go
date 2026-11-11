@@ -110,15 +110,11 @@ export function planImport(input) {
       }
     }
     let action = existingIds.has(session.id) ? policy.session : 'import'
-    // 覆盖时若目标 cwd 与现有会话不同，写第二份会产生重复 id（DSH 启动会失败）→ 降级为跳过。
+    // 覆盖 = 原地恢复：目标 cwd 对齐现有会话位置（避免写第二份造成重复 id）。
     if (action === 'overwrite') {
       const currentCwd = existingCwdById.get(session.id)
-      if (
-        typeof currentCwd === 'string' &&
-        typeof targetCwd === 'string' &&
-        normalizePath(currentCwd) !== normalizePath(targetCwd)
-      ) {
-        action = 'skip'
+      if (typeof currentCwd === 'string' && currentCwd.length > 0) {
+        targetCwd = currentCwd
       }
     }
     sessions.push({
