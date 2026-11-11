@@ -938,6 +938,21 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const emptyWorkspaceCount = manifest.workspaces.filter(
       (workspace) => (writtenByKey.get(workspace.key) ?? 0) === 0,
     ).length
+    const restartNotes = []
+    if (migrated.length > 0) {
+      restartNotes.push('迁移覆盖的新位置需重启 DSH 后才会出现在左侧（新目录不在启动索引中）。')
+    }
+    if (preOpenWritten.length > 0) {
+      restartNotes.push(
+        `${preOpenWritten.length} 个对话在导入前已打开，需重启 DSH 后才会显示回滚结果。`,
+      )
+    }
+    if (emptyWorkspaceCount > 0) {
+      restartNotes.push(
+        `${emptyWorkspaceCount} 个暂无对话的工作区需重启 DSH 后才会出现在左侧。`,
+      )
+    }
+    const restartNote = restartNotes.length > 0 ? `注意：${restartNotes.join(' ')}\n` : ''
     const migratedLines = migrated.map((written) => {
       const source = manifest.sessions.find((item) => item.id === written.id)
       const workspaceTitle = source?.workspaceKey
@@ -977,11 +992,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         migratedLines.length > 0
           ? `迁移覆盖：\n${migratedLines.join('\n')}\n`
           : ''
-      }${
-        preOpenWritten.length > 0
-          ? `注意：${preOpenWritten.length} 个对话在导入前已打开，DSH 进程需重启后才会显示回滚结果。\n`
-          : ''
-      }若左侧列表未出现，请刷新页面或重启 DSH。`,
+      }${restartNote}若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
     console.error('[dsh-mover] import failed', error)
