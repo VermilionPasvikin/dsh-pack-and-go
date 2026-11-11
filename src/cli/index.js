@@ -27,6 +27,7 @@ import {
   safeDirName,
   scanFrames,
 } from '../core/index.js'
+import { scanExistingSessionIds } from '../host/commands.js'
 
 const USAGE = `dsh-mover <命令> [选项]
 
@@ -242,7 +243,13 @@ async function cmdImport(options) {
   }
 
   const sessionRoot = join(options.home, 'sessions')
-  const sessions = await importSessionsToDisk({ buffer, sessionRoot, pathMap })
+  const existingSessionIds = await scanExistingSessionIds(sessionRoot)
+  const sessions = await importSessionsToDisk({
+    buffer,
+    sessionRoot,
+    pathMap,
+    existingSessionIds,
+  })
   const workspaceEntries = entries
     .filter((entry) => entry.name.startsWith('workspaces/'))
     .map((entry) => ({ packPath: entry.name, data: entry.data }))
@@ -254,7 +261,7 @@ async function cmdImport(options) {
   const updated = await updateWorkspaceRegistry(options.home, manifest, pathMap, sessions.written)
 
   console.log(
-    `已导入 ${sessions.written.length} 个对话、${files.written.length} 个工作区文件；workspace.json ${
+    `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在、${files.written.length} 个工作区文件；workspace.json ${
       updated ? '已更新' : '未更新（不存在或不兼容）'
     }。重启 DSH 后可见。`,
   )

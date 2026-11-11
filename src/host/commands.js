@@ -565,7 +565,7 @@ function readSessionHeaderFromBuffer(buffer) {
  * @param {string} sessionRoot
  * @returns {Promise<Set<string>>}
  */
-async function scanExistingSessionIds(sessionRoot) {
+export async function scanExistingSessionIds(sessionRoot) {
   const ids = new Set()
   let projects
   try {
