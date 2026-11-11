@@ -319,17 +319,9 @@ async function cmdImport(options) {
       writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
     }
   }
-  const activeKeys = new Set(
-    manifest.workspaces
-      .filter((workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0)
-      .map((workspace) => workspace.key),
-  )
+  // 决策 9（E 版）：全部工作区文件都还原（空工作区也保留）。
   const workspaceEntries = entries
     .filter((entry) => entry.name.startsWith('workspaces/'))
-    .filter((entry) => {
-      const match = /^workspaces\/([^/]+)\//.exec(entry.name)
-      return match ? activeKeys.has(match[1]) : true
-    })
     .map((entry) => ({ packPath: entry.name, data: entry.data }))
   const files = await restoreWorkspaceFiles({
     entries: workspaceEntries,

@@ -709,15 +709,24 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       if (!registeredPaths.has(normalizePathKey(target))) {
         try {
           await stat(target)
-          let suffix = 1
-          for (;;) {
-            const candidate = `${target} (${suffix})`
-            try {
-              await stat(candidate)
-              suffix += 1
-            } catch {
-              target = candidate
-              break
+          // D3 兜底：空目录视为本插件遗留目录，直接复用；非空未登记才加序号。
+          let isEmpty = false
+          try {
+            isEmpty = (await readdir(target)).length === 0
+          } catch {
+            // 读不了按非空处理
+          }
+          if (!isEmpty) {
+            let suffix = 1
+            for (;;) {
+              const candidate = `${target} (${suffix})`
+              try {
+                await stat(candidate)
+                suffix += 1
+              } catch {
+                target = candidate
+                break
+              }
             }
           }
         } catch {
@@ -800,7 +809,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
             attachmentsRoot: join(deps.dshHome, 'attachments', 'v1'),
           })
         : { restored: 0, warnings: [] }
-    // 只登记/还原真正有会话写入的工作区（会话全跳过 → 不还原文件、不产生空工作区）。
+    // 决策 9（E 版）：空工作区也登记并还原文件（用户可能先建工作区、后建对话）。
     const writtenByKey = new Map()
     for (const written of sessions.written) {
       const source = manifest.sessions.find((item) => item.id === written.id)
@@ -809,17 +818,8 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
       }
     }
-    const activeWorkspaceKeys = new Set(
-      manifest.workspaces
-        .filter((workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0)
-        .map((workspace) => workspace.key),
-    )
     const workspaceEntries = entries
       .filter((entry) => entry.name.startsWith('workspaces/'))
-      .filter((entry) => {
-        const match = /^workspaces\/([^/]+)\//.exec(entry.name)
-        return match ? activeWorkspaceKeys.has(match[1]) : true
-      })
       .map((entry) => ({ packPath: entry.name, data: entry.data }))
     const files = await restoreWorkspaceFiles({
       entries: workspaceEntries,
@@ -827,9 +827,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       targetPlatform: platform,
     })
 
-    const activeWorkspaces = manifest.workspaces.filter(
-      (workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0,
-    )
+    const activeWorkspaces = manifest.workspaces
     const registered = await registerWorkspaces({
       workspaceRegistry: deps.workspaceRegistry,
       workspaces: activeWorkspaces.map((workspace) => ({
@@ -926,6 +924,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const migrated = sessions.written.filter(
       (written) => typeof written.migrateFrom === 'string',
     )
+    const emptyWorkspaceCount = manifest.workspaces.filter(
+      (workspace) => (writtenByKey.get(workspace.key) ?? 0) === 0,
+    ).length
     const migratedLines = migrated.map((written) => {
       const source = manifest.sessions.find((item) => item.id === written.id)
       const workspaceTitle = source?.workspaceKey
@@ -955,7 +956,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         overwrittenFiles > 0 ? `（覆盖 ${overwrittenFiles} 个）` : ''
       }，附件 ${attachments.restored} 个${
         attachments.warnings.length > 0 ? `（警告 ${attachments.warnings.length}）` : ''
-      }，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话${
+      }，登记 ${registered.registered.length} 个工作区${
+        emptyWorkspaceCount > 0 ? `（其中 ${emptyWorkspaceCount} 个暂无对话）` : ''
+      }，归组 ${attached} 个对话${
         ungroupedCount > 0 ? `（其中 ${ungroupedCount} 个未归组）` : ''
       }。${
         mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
