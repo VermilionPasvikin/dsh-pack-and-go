@@ -746,4 +746,5 @@
 - 执行方式自动化优先（单测 / CDP / 集成）；仅主题语言保留「用户人工确认」（已确认）。
 - 平台分化：符号链接（Windows P-04a 需开发者模式 / POSIX P-04b）、exec 位（P-05a/b）、大小写敏感（P-06b/c）、Windows 非法名（E-13）。
 - 待补：I-20 旧格式包单测；P-04b/P-05a/P-06b/c 需 Linux/macOS CI。
+- 补充（同轮）：`import-pack` 新增「旧格式包（sessionFormat 3）直接写入 v3 会话文件」用例 → I-20 ✅。
 - README/TEST-PLAN 文档导航同步。

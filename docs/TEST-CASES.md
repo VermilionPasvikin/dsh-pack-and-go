@@ -47,7 +47,7 @@
 | I-17 | 归组 | 导入后会话 attach / 迁移时 detach 旧归属 | 左侧归入新工作区 | 单测 + 集成 | 全平台 | ✅ 启动修复日志（DEVLOG 123/125） |
 | I-18 | 双记账修复 | 同一会话被两个工作区记账 | 启动时只保留 cwd 匹配者，其余 detach | 集成 | 全平台 | ✅ 启动日志 `grouping detached`（DEVLOG 125） |
 | I-19 | 结果提示 | 迁移/覆盖文件/未归组/旧格式/重启 | 文本逐项提示（含「已打开需重启」） | 单测 + CDP | 全平台 | ✅ CDP 结果文本 |
-| I-20 | 旧格式包（<4） | 导入 sessionFormat<4 的包 | 直接写文件；结果提示「旧格式，打开时自动迁移」 | 单测 | 全平台 | ⏳ **待补测试**（代码已支持，无专门用例） |
+| I-20 | 旧格式包（<4） | 导入 sessionFormat<4 的包 | 直接写 v3 会话文件；结果提示「旧格式，打开时自动迁移」 | 单测 | 全平台 | ✅ `import-pack`「旧格式包（sessionFormat 3）」 |
 | I-21 | 包版本过新 | schemaVersion > 2 | 红字「请升级插件」 | 单测 | 全平台 | ✅ `manifest-io` 测试 |
 | I-22 | 导入后激活/广播 | 导入后左侧即时出现 | resolveAgent + attach + 广播 | 集成 | 全平台 | ✅（DEVLOG 90/109） |
 | I-23 | 预览冲突明细 | 预览含冲突包 | 按类型列出「对话「X」：覆盖将迁移 / 原地恢复」 | CDP | 全平台 | ✅ CDP（DEVLOG 119） |
@@ -91,7 +91,6 @@
 
 | 用例 | 缺口 | 建议 |
 |---|---|---|
-| I-20 旧格式包 | 无专门单测 | 补 `import-pack` 用例（sessionFormat 3 包导入） |
 | P-04a/b 符号链接 | Windows 无权限 skip；POSIX 待 CI | 启用 Windows 开发者模式跑一次；Linux CI 跑 P-04b/P-05a |
 | P-05a exec 位 | 待 POSIX 文件系统 | Linux CI 断言 chmod |
 | P-06b/c 大小写 | 待 macOS/Linux CI | CI 矩阵补充 |

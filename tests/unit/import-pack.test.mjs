@@ -64,6 +64,59 @@ function makeForkPack(parentBytes, childBytes) {
   ])
 }
 
+function makeLegacyPack() {
+  const bytes = makeSessionBytes({ version: 3 })
+  const manifest = {
+    schemaVersion: 2,
+    createdAt: '2026-11-10T15:30:00+08:00',
+    source: { platform: 'win32', dshVersion: 'test', sessionFormat: 3 },
+    mode: 'sessions',
+    sessions: [
+      {
+        id: 's1',
+        title: '旧格式',
+        cwd: 'F:\\proj',
+        messageCount: 1,
+        sizeBytes: bytes.length,
+        path: 'sessions/s1/session.v3.jsonl.zstd',
+      },
+    ],
+    attachments: [],
+    workspaces: [],
+  }
+  return createZip([
+    { name: 'manifest.json', data: Buffer.from(JSON.stringify(manifest), 'utf8') },
+    { name: 'sessions/s1/session.v3.jsonl.zstd', data: bytes },
+  ])
+}
+
+test('旧格式包（sessionFormat 3）直接写入 v3 会话文件', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const result = await importSessionsToDisk({
+      buffer: makeLegacyPack(),
+      sessionRoot,
+      pathMap: { byKey: {} },
+      existingSessionIds: [],
+    })
+    assert.equal(result.written.length, 1)
+    assert.ok(result.written[0].path.endsWith('session.v3.jsonl.zstd'))
+    const data = await readFile(result.written[0].path)
+    const frames = scanFrames(data)
+    const header = JSON.parse(
+      zlib
+        .zstdDecompressSync(data.subarray(frames[0].start, frames[0].end))
+        .toString('utf8')
+        .slice(0, -1),
+    )
+    assert.equal(header.version, 3)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('fork 链：new-id 导入时子会话 parentSession 映射到新父 id', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
   try {
