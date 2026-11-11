@@ -8,6 +8,7 @@
 
 import {
   exportAllSessions,
+  exportWorkspacesOnly,
   findPacks,
   importPack,
   inspectPack,
@@ -58,6 +59,9 @@ async function dispatch(action, args, deps) {
     case 'inspect':
       return inspectPack(deps, args.pack, args.target)
     case 'export':
+      if (Array.isArray(args.workspaces) && args.workspaces.length > 0) {
+        return exportWorkspacesOnly(deps, args.target, args.workspaces)
+      }
       return exportAllSessions(
         deps,
         args.target,

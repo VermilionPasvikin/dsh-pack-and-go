@@ -129,6 +129,17 @@ async function listSessions(home) {
 async function cmdExport(options) {
   if (!options.home) fail('缺少 --home')
   if (!options.out) fail('缺少 --out')
+  if (Array.isArray(options.workspace) && options.workspace.length > 0) {
+    const { exportWorkspacesOnly } = await import('../host/commands.js')
+    const result = await exportWorkspacesOnly(
+      { platform: process.platform, dshVersion: 'cli' },
+      options.out,
+      options.workspace,
+    )
+    if (result.kind !== 'success') fail(result.text)
+    console.log(result.text)
+    return
+  }
   const sessions = await listSessions(options.home)
   const wanted = new Set(
     typeof options.sessions === 'string'
@@ -358,6 +369,7 @@ async function main() {
         pack: { type: 'string' },
         target: { type: 'string' },
         sessions: { type: 'string' },
+        workspace: { type: 'string', multiple: true },
         overwrite: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },

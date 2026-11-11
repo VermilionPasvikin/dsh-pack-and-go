@@ -118,6 +118,82 @@ export async function resolveExportTarget(targetPath, name) {
 }
 
 /**
+ * 仅导出工作区（不导出对话，ADR-0015）：包内 sessions 为空、mode 为 'workspaces'；
+ * 空文件夹工作区也支持（只保留目录结构，fileCount = 0）。
+ * @param {object} deps
+ * @param {string} targetPath
+ * @param {string[]} workspacePaths
+ * @returns {Promise<{ kind: 'success'|'error', text: string }>}
+ */
+export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
+  if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
+    return errorResult('请填写保存位置。')
+  }
+  const paths = Array.isArray(workspacePaths)
+    ? workspacePaths.filter((item) => typeof item === 'string' && item.trim().length > 0)
+    : []
+  if (paths.length === 0) {
+    return errorResult('请至少选择一个工作区。')
+  }
+  try {
+    const platform = deps.platform ?? process.platform
+    const workspaces = []
+    for (const [index, rawPath] of paths.entries()) {
+      const sourcePath = rawPath.trim()
+      let info
+      try {
+        info = await stat(sourcePath)
+      } catch {
+        return errorResult(`工作区目录不存在：${sourcePath}`)
+      }
+      if (!info.isDirectory()) {
+        return errorResult(`不是目录：${sourcePath}`)
+      }
+      let canonical = sourcePath
+      try {
+        canonical = await realpath(sourcePath)
+      } catch {
+        // 无法 realpath 时保留原路径
+      }
+      const key = `ws-${index + 1}`
+      workspaces.push({
+        key,
+        title: basename(canonical) || canonical,
+        sourcePath: canonical,
+        sourcePlatform: platform,
+        fileCount: 0,
+        sizeBytes: 0,
+        root: `workspaces/${key}/files`,
+      })
+    }
+    const manifest = buildManifest({
+      platform,
+      dshVersion: deps.dshVersion ?? 'unknown',
+      mode: 'workspaces',
+      sessions: [],
+      workspaces,
+      attachments: [],
+    })
+    const resolvedTarget = await resolveExportTarget(targetPath, undefined)
+    const written = await buildPackToFile({
+      plan: { items: [] },
+      sourcePaths: {},
+      manifest,
+      outputPath: resolvedTarget,
+      readme: 'dsh-mover 工作区迁移包（仅目录结构）\n',
+    })
+    return {
+      kind: 'success',
+      text: `已导出 ${workspaces.length} 个工作区（仅目录结构）到 ${resolvedTarget}（${written.bytes} 字节）。`,
+    }
+  } catch (error) {
+    return errorResult(
+      `导出失败：${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
+/**
  * @param {string} text
  * @returns {{ kind: 'error', text: string }}
  */
@@ -1096,6 +1172,15 @@ export async function handleMover(deps, invocation) {
         : []
     const nameAt = args.indexOf('--name')
     const exportName = nameAt >= 0 ? String(args[nameAt + 1] ?? '') : ''
+    const workspacePaths = []
+    for (let index = 0; index < args.length; index += 1) {
+      if (args[index] === '--workspace' && typeof args[index + 1] === 'string') {
+        workspacePaths.push(args[index + 1])
+        index += 1
+      }
+    }
+    const isWorkspaceValue = (index) =>
+      index > 0 && args[index - 1] === '--workspace'
     const flags = new Set([
       '--files',
       '--no-fork',
@@ -1105,13 +1190,18 @@ export async function handleMover(deps, invocation) {
       '--exclude',
       '--attachments',
       '--name',
+      '--workspace',
     ])
     const rest = args.filter(
       (arg, index) =>
         !flags.has(arg) &&
         !(excludeAt >= 0 && index === excludeAt + 1) &&
-        !(nameAt >= 0 && index === nameAt + 1),
+        !(nameAt >= 0 && index === nameAt + 1) &&
+        !isWorkspaceValue(index),
     )
+    if (workspacePaths.length > 0) {
+      return exportWorkspacesOnly(deps, rest[0], workspacePaths)
+    }
     return exportAllSessions(deps, rest[0], rest.slice(1), includeFiles, {
       includeFork: !noFork,
       full,

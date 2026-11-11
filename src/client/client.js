@@ -81,6 +81,11 @@ window.__ModuleLoader__.load({
         savePlaceholder: '保存位置：输入完整路径，或点「选择目录」',
         pickDirectory: '选择目录',
         startExport: '开始打包',
+        exportModeSessions: '对话 + 工作区',
+        exportModeWorkspaces: '仅工作区',
+        exportNeedsWorkspace: '请至少选择一个工作区。',
+        workspacesOnlyHint: '只导出工作区的目录结构（含空文件夹），不导出任何对话。',
+        noWorkspaces: '没有可用的工作区。',
         packing: '打包中…',
         exportNeedsSelection: '请至少选择一个对话。',
         exportNeedsPath: '请填写保存位置。',
@@ -160,6 +165,11 @@ window.__ModuleLoader__.load({
         savePlaceholder: 'Save to: type a full path, or choose a folder',
         pickDirectory: 'Choose folder',
         startExport: 'Start export',
+        exportModeSessions: 'Conversations + workspaces',
+        exportModeWorkspaces: 'Workspaces only',
+        exportNeedsWorkspace: 'Select at least one workspace.',
+        workspacesOnlyHint: 'Export the workspace folder structure only (including empty folders); no conversations.',
+        noWorkspaces: 'No workspaces available.',
         packing: 'Packing…',
         exportNeedsSelection: 'Select at least one conversation.',
         exportNeedsPath: 'Choose where to save the package.',
@@ -421,6 +431,8 @@ window.__ModuleLoader__.load({
       const [groups, setGroups] = useState([])
       const [rawItems, setRawItems] = useState([])
       const [selected, setSelected] = useState(() => new Set())
+      const [exportMode, setExportMode] = useState('sessions')
+      const [workspaceOnlySelection, setWorkspaceOnlySelection] = useState(() => new Set())
       const [targetPath, setTargetPath] = useState('')
       const [importPackPath, setImportPackPath] = useState('')
       const [importTarget, setImportTarget] = useState('')
@@ -837,6 +849,36 @@ window.__ModuleLoader__.load({
       }
 
       async function startExport() {
+        if (exportMode === 'workspaces') {
+          if (workspaceOnlySelection.size === 0) {
+            setError(t.exportNeedsWorkspace)
+            return
+          }
+          if (targetPath.trim().length === 0) {
+            setError(t.exportNeedsPath)
+            return
+          }
+          const paths = [...workspaceOnlySelection]
+          setLastExport(null)
+          const started = Date.now()
+          const message = await runMoverAction(
+            'export',
+            { target: targetPath.trim(), workspaces: paths },
+            () =>
+              `/mover export "${targetPath.trim()}"${paths
+                .map((item) => ` --workspace "${item}"`)
+                .join('')}`,
+          )
+          if (message && message.ok) {
+            const match = String(message.text ?? '').match(/到 (.+?)（(\d+) 字节）/)
+            setLastExport({
+              path: match ? match[1] : targetPath.trim(),
+              bytes: match ? Number(match[2]) : 0,
+              durationMs: Date.now() - started,
+            })
+          }
+          return
+        }
         if (selected.size === 0) {
           setError(t.exportNeedsSelection)
           return
@@ -1196,11 +1238,109 @@ window.__ModuleLoader__.load({
         )
       }
 
+      function workspaceOnlyTree() {
+        const items = groups.filter(
+          (group) => typeof group.cwd === 'string' && group.cwd.length > 0,
+        )
+        if (items.length === 0) {
+          return h(
+            'div',
+            { style: { padding: 12, fontSize: 12, color: THEME.textMuted } },
+            t.noWorkspaces,
+          )
+        }
+        return h(
+          'div',
+          {
+            style: {
+              maxHeight: 200,
+              overflow: 'auto',
+              border: `1px solid ${THEME.border}`,
+              borderRadius: 8,
+              padding: 8,
+            },
+          },
+          ...items.map((group) =>
+            h(
+              'label',
+              {
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '4px 2px',
+                  fontSize: 12,
+                  color: THEME.text,
+                  cursor: busy ? 'default' : 'pointer',
+                },
+              },
+              h('input', {
+                type: 'checkbox',
+                checked: workspaceOnlySelection.has(group.cwd),
+                disabled: busy,
+                onChange: (event) => {
+                  setWorkspaceOnlySelection((prev) => {
+                    const next = new Set(prev)
+                    if (event.target.checked) next.add(group.cwd)
+                    else next.delete(group.cwd)
+                    return next
+                  })
+                },
+              }),
+              h(
+                'span',
+                { style: { flex: '1 1 auto', wordBreak: 'break-all' } },
+                `${group.title}  ${group.cwd}`,
+              ),
+            ),
+          ),
+        )
+      }
+
       function exportView() {
-        const noSelection = selected.size === 0
+        const isWorkspacesOnly = exportMode === 'workspaces'
+        const noSelection = isWorkspacesOnly
+          ? workspaceOnlySelection.size === 0
+          : selected.size === 0
         return h(
           'div',
           null,
+          h(
+            'div',
+            { style: { display: 'flex', gap: 6, marginBottom: 8 } },
+            ...[
+              ['sessions', t.exportModeSessions],
+              ['workspaces', t.exportModeWorkspaces],
+            ].map(([mode, label]) =>
+              h(
+                'button',
+                {
+                  type: 'button',
+                  disabled: busy,
+                  onClick: () => setExportMode(mode),
+                  style: {
+                    padding: '5px 12px',
+                    borderRadius: 6,
+                    border: `1px solid ${
+                      exportMode === mode ? THEME.text : THEME.border
+                    }`,
+                    background: exportMode === mode ? 'rgba(127,127,127,0.18)' : 'transparent',
+                    color: THEME.text,
+                    fontSize: 12,
+                    cursor: busy ? 'default' : 'pointer',
+                  },
+                },
+                label,
+              ),
+            ),
+          ),
+          isWorkspacesOnly
+            ? h(
+                'div',
+                { style: { fontSize: 11, color: THEME.textMuted, marginBottom: 8 } },
+                t.workspacesOnlyHint,
+              )
+            : null,
           status === 'loading'
             ? h(
                 'div',
@@ -1214,7 +1354,9 @@ window.__ModuleLoader__.load({
                   { style: { padding: 12, fontSize: 13, color: THEME.error } },
                   `${t.loadFailed}${error}`,
                 )
-              : treeBox(),
+              : isWorkspacesOnly
+                ? workspaceOnlyTree()
+                : treeBox(),
           h(
             'label',
             {
@@ -1379,7 +1521,7 @@ window.__ModuleLoader__.load({
             ? h(
                 'div',
                 { style: { marginTop: 6, fontSize: 11, color: THEME.textMuted } },
-                t.noSelectionHint,
+                isWorkspacesOnly ? t.exportNeedsWorkspace : t.noSelectionHint,
               )
             : null,
           lastExport

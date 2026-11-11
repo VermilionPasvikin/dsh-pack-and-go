@@ -2,12 +2,14 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
 import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
   parseMoverArgs,
   exportAllSessions,
+  exportWorkspacesOnly,
   importPack,
   handleMover,
   createMoverCommand,
@@ -237,6 +239,28 @@ test('导入冲突策略：默认跳过，overwrite 覆盖', async () => {
     })
     assert.equal(overwritten.kind, 'success')
     assert.match(overwritten.text, /覆盖 1 个/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('仅导出工作区（含空目录）并导入登记为空工作区', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const emptyWorkspace = join(dir, 'empty-workspace')
+    await mkdir(emptyWorkspace)
+    const deps = await makeDeps(dir, join(dir, 'unused.zst'), Buffer.alloc(0))
+    const out = join(dir, 'ws-only.dshpack')
+    const exported = await exportWorkspacesOnly(deps, out, [emptyWorkspace])
+    assert.equal(exported.kind, 'success')
+    assert.match(exported.text, /已导出 1 个工作区/)
+
+    const target = join(dir, 'import-target')
+    const imported = await importPack(deps, out, target, { sessionPolicy: 'skip' })
+    assert.equal(imported.kind, 'success')
+    assert.match(imported.text, /登记 1 个工作区/)
+    assert.match(imported.text, /暂无对话/)
+    assert.ok(existsSync(join(target, 'empty-workspace')))
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
