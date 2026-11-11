@@ -252,6 +252,7 @@ async function cmdImport(options) {
     pathMap,
     existingSessionIds: [...existingCwdById.keys()],
     existingCwdById,
+    policy: { session: options.overwrite === true ? 'overwrite' : 'skip' },
   })
   const workspaceEntries = entries
     .filter((entry) => entry.name.startsWith('workspaces/'))
@@ -273,10 +274,19 @@ async function cmdImport(options) {
       : { restored: 0, warnings: [] }
   const updated = await updateWorkspaceRegistry(options.home, manifest, pathMap, sessions.written)
 
+  const migrated = sessions.written.filter(
+    (written) => typeof written.migrateFrom === 'string',
+  )
   console.log(
-    `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在、${files.written.length} 个工作区文件、${attachments.restored} 个附件；workspace.json ${
+    `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在${
+      migrated.length > 0 ? `（其中 ${migrated.length} 个迁移覆盖）` : ''
+    }、${files.written.length} 个工作区文件、${attachments.restored} 个附件；workspace.json ${
       updated ? '已更新' : '未更新（不存在或不兼容）'
-    }。重启 DSH 后可见。`,
+    }。重启 DSH 后可见。${
+      migrated.length > 0
+        ? `\n迁移覆盖：\n${migrated.map((item) => `${item.migrateFrom} → ${item.cwd}`).join('\n')}`
+        : ''
+    }`,
   )
 }
 
@@ -292,6 +302,7 @@ async function main() {
         pack: { type: 'string' },
         target: { type: 'string' },
         sessions: { type: 'string' },
+        overwrite: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },
     })
