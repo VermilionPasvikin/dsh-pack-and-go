@@ -88,7 +88,7 @@ test('拒绝非法条目名', () => {
 })
 
 test('系统 tar 能列出 zip 内容（环境无 tar 时跳过）', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-zip-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-zip-'))
   try {
     const file = join(dir, 'pack.dshpack')
     await writeFile(file, createZip([{ name: 'manifest.json', data: Buffer.from('{}') }]))

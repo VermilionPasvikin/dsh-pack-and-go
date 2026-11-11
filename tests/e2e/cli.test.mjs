@@ -67,7 +67,7 @@ async function makeHome(dir, { sessions = [], workspaceRegistry = false } = {}) 
 }
 
 test('CLI export 从 DSH_HOME 生成可读包', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cli-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cli-'))
   try {
     const home = await makeHome(dir, { sessions: [{ id: 'session-cli-1', cwd: '/p' }] })
     const out = join(dir, 'pack.dshpack')
@@ -85,7 +85,7 @@ test('CLI export 从 DSH_HOME 生成可读包', async () => {
 })
 
 test('CLI import 写回会话并更新 workspace.json', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cli-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cli-'))
   try {
     const targetRoot = join(dir, 'imported')
     const sessionId = 'session-cli-2'
@@ -181,7 +181,7 @@ async function readdirRecursive(root) {
 }
 
 test('CLI 缺少参数时返回非零并给出提示', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cli-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cli-'))
   try {
     const result = runCli(['export', '--out', join(dir, 'x.dshpack')])
     assert.notEqual(result.status, 0)

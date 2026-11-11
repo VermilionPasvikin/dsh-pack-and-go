@@ -7,7 +7,7 @@
 
 ### D1（P0）流式 zip 报 `write after end`，同一次导出留下两个包
 
-**现象**：第二次导出报 `write after end`；桌面出现 `dsh-mover-…214319.dshpack`（66629 B，截断）和 `…214320.dshpack`（76497 B，正常）。
+**现象**：第二次导出报 `write after end`；桌面出现 `dsh-pack-and-go-…214319.dshpack`（66629 B，截断）和 `…214320.dshpack`（76497 B，正常）。
 
 **复现**：`%TEMP%\repro-zip2.mjs`（混合 `data` 条目 + 6 个 90 KB 不可压缩文件，连续 5 轮）→ 5/5 失败：
 ```

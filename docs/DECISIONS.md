@@ -155,13 +155,13 @@
 **背景**：ADR-0004 确认“提供 CLI 入口，阶段待定”；用户于 2026-11-10 确认启动 M6。无 GUI 的 DSH（服务器/终端）需要迁移能力。
 
 **选项**
-- A. 独立 bin `dsh-mover`（`package.json` `bin`），纯文件访问 `DSH_HOME`；
+- A. 独立 bin `dsh-pack-and-go`（`package.json` `bin`），纯文件访问 `DSH_HOME`；
 - B. 作为 `dsh` 子命令（需要侵入 dsh CLI 或 profile 注册）；
 - C. 复用 Host 命令（需要 DSH 运行中，无法离线使用）。
 
-**决定**：A。独立 `dsh-mover` bin：
-- `dsh-mover export --home <DSH_HOME> --out <文件> [--sessions id...]`
-- `dsh-mover import --home <DSH_HOME> --pack <文件> [--target <目录>]`
+**决定**：A。独立 `dsh-pack-and-go` bin：
+- `dsh-pack-and-go export --home <DSH_HOME> --out <文件> [--sessions id...]`
+- `dsh-pack-and-go import --home <DSH_HOME> --pack <文件> [--target <目录>]`
 - 与 UI 共用 core 与 `.dshpack` 格式；导入后写会话/附件/工作区文件，并更新 `workspace.json`（写前备份）。
 
 **后果**
@@ -291,7 +291,7 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 > 2. 会话冲突只暴露 **跳过 / 覆盖** 两个互斥选项（选 3c，不做重命名另存）；
 > 3. 附件冲突跟随会话策略（附件捆绑在会话里，同一策略处理）；
 > 4. 工作区冲突：用户在源目录时可能复用已有工作区（按路径判断，不重命名）；
-> 5. 默认目标目录 `~/dsh-mover-import`；
+> 5. 默认目标目录 `~/dsh-pack-and-go-import`；
 > 6. **导入失败时不得自动回退到默认目录**，必须红字报错诚实提示失败。
 
 **背景**：现有导入把「落点（原路径/指定目录）」与「冲突策略（跳过/另存为新对话）」并列。
@@ -350,7 +350,7 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 1. 是否批准「强制指定目录 + 跳过/覆盖」？
 2. 会话冲突的「重命名另存」选 3a / 3b / 3c？
 3. 用户把目标目录选成源路径时：复用已有工作区（更新）还是强制重命名新目录？
-4. 默认目标目录：`~/dsh-mover-import` / 记住上次目录？
+4. 默认目标目录：`~/dsh-pack-and-go-import` / 记住上次目录？
 
 **状态**：Accepted（2026-11-11，用户批准）。实施见 DEVLOG 111。
 

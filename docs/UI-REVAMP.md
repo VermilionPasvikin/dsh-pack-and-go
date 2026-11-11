@@ -31,7 +31,7 @@
 **方案**：
 - 用 Client Service `uiWorkspace.pickDirectory(): Promise<string | null>` 弹目录选择器（需 inject
   `uiWorkspace`）；
-- 选目录后，文件名用输入框（默认 `dsh-mover-<YYYYMMDD-HHmmss>.dshpack`）；
+- 选目录后，文件名用输入框（默认 `dsh-pack-and-go-<YYYYMMDD-HHmmss>.dshpack`）；
 - 导出目标 = `join(dir, filename)`；
 - 选择器取消/不可用（返回 null 或抛错）时回退现有「完整路径」输入框；
 - 需把路径拼接逻辑放 Host 侧（跨平台 `join`），Client 只传目录 + 文件名。
@@ -64,7 +64,7 @@
 **修复**
 - Client：`result == null` → 显示错误「命令未执行（未找到命令或会话上下文不可用）」；
 - Host：`mover export` 对目标路径做 `stat`：存在且是目录 → 自动拼接
-  `dsh-mover-<时间戳>.dshpack`；不存在 → 视为文件名；父目录不存在 → 明确报错；
+  `dsh-pack-and-go-<时间戳>.dshpack`；不存在 → 视为文件名；父目录不存在 → 明确报错；
 - 单测覆盖：目录目标、文件目标、父目录不存在、命令结果为空时 UI 分支（fake React 测试）。
 
 ## 实施顺序与验证
@@ -99,5 +99,5 @@
 
 ## 7. 诊断计划（标题缺失与打包无产物）
 
-- 在 Host `mover` 命令与 `listCatalog`/`exportAllSessions` 中加临时 `console.log`（[dsh-mover] 前缀），重启一次性 profile 后由用户重试一次，读取终端输出定位；
+- 在 Host `mover` 命令与 `listCatalog`/`exportAllSessions` 中加临时 `console.log`（[dsh-pack-and-go] 前缀），重启一次性 profile 后由用户重试一次，读取终端输出定位；
 - 定位后移除临时日志，再实施修复。

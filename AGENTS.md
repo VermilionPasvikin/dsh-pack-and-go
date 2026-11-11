@@ -1,4 +1,4 @@
-# 项目纪律（dsh-mover）
+# 项目纪律（dsh-pack-and-go）
 
 > 本文件是**入口**，不是全部内容。全局纪律见 `~/.dsh/AGENTS.md`（自动加载），本文件只补充项目特定规则；两者冲突时取更严格者。
 
@@ -16,7 +16,7 @@
 
 ## 1. 项目事实
 
-- 名称：dsh-mover（暂名）；形态：DSH Cordis 插件（Host + Client），跨平台。
+- 名称：dsh-pack-and-go（暂名）；形态：DSH Cordis 插件（Host + Client），跨平台。
 - 目标：任意平台 DSH 之间打包/导入「对话 + 工作区」。
 - 规格：v1.0 已冻结（`docs/SPEC.md`）。
 
@@ -94,13 +94,13 @@
 1. **纯逻辑/核心**：`node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"`；新增场景先补自动化测试。
 2. **CLI 路线**：用一次性 `DSH_HOME`（`%TEMP%` 下带 `.dsh-e2e-marker`）跑
    `node src/cli/index.js export/import`，校验导出包、导入结果、会话文件、workspace 登记。
-3. **Host 自检**：用插件内置的 `DSH_MOVER_SELFTEST*` 环境变量验证命令/exec 路由与真实 DSH 服务交互。
+3. **Host 自检**：用插件内置的 `DSH_PACK_AND_GO_SELFTEST*` 环境变量验证命令/exec 路由与真实 DSH 服务交互。
 4. **无头浏览器**：优先用 **Chrome/Edge 的 CDP**（`--headless=new --remote-debugging-port=9222` +
    Node 内置 `WebSocket`）驱动页面：导航、`Runtime.evaluate` 点击/取值、`Page.captureScreenshot` 截图；
    或 `npx playwright`（网络可用时）。截图与 DOM 文本作为证据。
 5. 以上都不可行时，才把**最小复现步骤 + 已排除的假设 + 期望现象**交给用户，明确说“哪一步需要人工”。
 
-**测试工作区**：在 `%TEMP%\dsh-mover-e2e-<随机>` 下创建（带 `.dsh-e2e-marker`），用于存放
+**测试工作区**：在 `%TEMP%\dsh-pack-and-go-e2e-<随机>` 下创建（带 `.dsh-e2e-marker`），用于存放
 导出包、日志、截图、临时 home；测试结束保留证据、不删除。**禁止**对真实 `~/.dsh` 做清空/导入验证。
 
 **证据要求**：每个用例的“通过”必须附可复查证据（命令输出、JSON 断言、日志片段、截图路径）；

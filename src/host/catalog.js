@@ -170,7 +170,7 @@ export async function loadCatalog(services) {
         }
       }
     } catch (error) {
-      logger?.warn?.('[dsh-mover] 读取会话标题失败，使用兜底标题', error)
+      logger?.warn?.('[dsh-pack-and-go] 读取会话标题失败，使用兜底标题', error)
     }
   }
 

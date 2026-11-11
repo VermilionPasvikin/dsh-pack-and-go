@@ -50,7 +50,7 @@
 ## 6. 包名输入框（问题 6）
 
 **方案**：导出页目标行旁增加「包名（可选）」输入框；命令 `mover export` 新增 `--name <名字>`：
-- 目标路径是目录时，使用 `dsh-mover-<时间戳>.dshpack` → 改为 `<包名>.dshpack`（自动补后缀）；
+- 目标路径是目录时，使用 `dsh-pack-and-go-<时间戳>.dshpack` → 改为 `<包名>.dshpack`（自动补后缀）；
 - 目标路径是文件时忽略 `--name`（以完整路径为准）。
 
 ## 7. 「不压缩」包没明显更大（问题 7）
@@ -90,7 +90,7 @@ body: { action: 'export'|'import'|'list'|'inspect'|..., args: {...} }
 ## 10. CLI 测试（你要求）
 
 **已执行并记录**：
-- `node src/cli/index.js export --home <e2e> --out %TEMP%\dsh-mover-cli-test.dshpack` → 8 个对话、276299 字节；
+- `node src/cli/index.js export --home <e2e> --out %TEMP%\dsh-pack-and-go-cli-test.dshpack` → 8 个对话、276299 字节；
 - `node src/cli/index.js import --home <空 home> --pack ...` → 8 个会话文件写入，退出码 0；
 - 结论：CLI 导出/导入往返正常（workspace.json 不存在时提示“未更新”，符合预期）。
 

@@ -2,7 +2,7 @@
 
 > 依据 `AGENTS.md` §8「测试优先」：先自动化/自测，只有人工视觉判断才留给用户。
 > 用例清单与决策树覆盖矩阵见 `docs/TEST-CASES.md`（v1.2）；本文件保留分层计划与两轮执行记录。
-> 测试工作区：`%TEMP%\dsh-mover-e2e-<随机>\`（含 `.dsh-e2e-marker`），存放 home、包、日志、截图。
+> 测试工作区：`%TEMP%\dsh-pack-and-go-e2e-<随机>\`（含 `.dsh-e2e-marker`），存放 home、包、日志、截图。
 > 证据列填写：命令输出 / JSON 断言 / 日志片段 / 截图路径；无法自动化的标「人工」并给精确步骤。
 
 ## 0. 项目现状摘要（2026-11-11）
@@ -103,7 +103,7 @@
 
 ### 第一轮（2026-11-11，自动化）
 
-测试工作区：`%TEMP%\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`（证据：`packs/`、`logs/`、`cdp/`）。
+测试工作区：`%TEMP%\dsh-pack-and-go-e2e-491526332be6484b83ad9c28d5b06175`（证据：`packs/`、`logs/`、`cdp/`）。
 自动化脚本：`tests/e2e/cdp/`（CDP 驱动）、`node --test`、CLI。
 
 | ID | 结果 | 证据 | 备注 |

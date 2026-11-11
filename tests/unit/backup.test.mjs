@@ -17,7 +17,7 @@ async function exists(path) {
 }
 
 test('覆盖已有文件后可回滚', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-backup-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-backup-'))
   try {
     const target = join(dir, 'target', 'session.v4.jsonl.zstd')
     await mkdir(dirname(target), { recursive: true })
@@ -43,7 +43,7 @@ test('覆盖已有文件后可回滚', async () => {
 })
 
 test('新写入的文件回滚后被删除', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-backup-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-backup-'))
   try {
     const target = join(dir, 'target', 'new.txt')
     await mkdir(dirname(target), { recursive: true })
@@ -61,7 +61,7 @@ test('新写入的文件回滚后被删除', async () => {
 })
 
 test('混合场景按逆序恢复', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-backup-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-backup-'))
   try {
     const existing = join(dir, 'a.txt')
     const fresh = join(dir, 'b.txt')
@@ -84,7 +84,7 @@ test('混合场景按逆序恢复', async () => {
 })
 
 test('备份目录使用时间戳', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-backup-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-backup-'))
   try {
     const tx = createBackupTransaction({
       backupRoot: join(dir, 'backups'),

@@ -1,5 +1,5 @@
 {
-  "name": "dsh-mover",
+  "name": "dsh-pack-and-go",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -15,7 +15,7 @@
     "./icon": "./icon.svg"
   },
   "bin": {
-    "dsh-mover": "./src/cli/index.js"
+    "dsh-pack-and-go": "./src/cli/index.js"
   },
   "files": [
     "src/host/**/*.js",

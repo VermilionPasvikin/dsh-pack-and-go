@@ -46,7 +46,7 @@ test('buildManifest 生成合法清单', () => {
 })
 
 test('buildPack 生成可读的包', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-pack-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-pack-'))
   try {
     const { sessionPath, filePath } = await makeSources(dir)
     const plan = planExport({
@@ -104,7 +104,7 @@ test('buildPack 生成可读的包', async () => {
 })
 
 test('缺少源文件时报错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-pack-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-pack-'))
   try {
     const plan = planExport({
       sessions: [{ packPath: 'sessions/s1/session.v4.jsonl.zstd', sizeBytes: 1 }],
@@ -128,7 +128,7 @@ test('缺少源文件时报错', async () => {
 })
 
 test('超过单文件上限时报错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-pack-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-pack-'))
   try {
     const big = join(dir, 'big.bin')
     await mkdir(join(dir, 'sub'), { recursive: true })

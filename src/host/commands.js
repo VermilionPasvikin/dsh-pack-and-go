@@ -89,7 +89,7 @@ function sanitizePackageName(name) {
     .replace(/[\\/:*?"<>|]/g, '_')
     .replace(/\.dshpack$/i, '')
     .trim()
-  return cleaned.length > 0 ? cleaned : `dsh-mover-${timestamp()}`
+  return cleaned.length > 0 ? cleaned : `dsh-pack-and-go-${timestamp()}`
 }
 
 /**
@@ -202,7 +202,7 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
       manifest,
       outputPath: resolvedTarget,
       extraEntries,
-      readme: 'dsh-mover 工作区迁移包（不含对话）\n',
+      readme: 'dsh-pack-and-go 工作区迁移包（不含对话）\n',
     })
     return {
       kind: 'success',
@@ -337,7 +337,7 @@ export async function exportAllSessions(
         }
       }
       if (added > 0) {
-        console.log('[dsh-mover] fork chain added', added, 'sessions')
+        console.log('[dsh-pack-and-go] fork chain added', added, 'sessions')
       }
     }
 
@@ -397,7 +397,7 @@ export async function exportAllSessions(
           }
         } catch (scanError) {
           console.log(
-            '[dsh-mover] workspace scan skipped',
+            '[dsh-pack-and-go] workspace scan skipped',
             cwd,
             scanError instanceof Error ? scanError.message : String(scanError),
           )
@@ -444,7 +444,7 @@ export async function exportAllSessions(
                 }
               }
             } catch {
-              console.log('[dsh-mover] attachment missing', ref.attachmentId)
+              console.log('[dsh-pack-and-go] attachment missing', ref.attachmentId)
             }
           }
         } catch {
@@ -493,7 +493,7 @@ export async function exportAllSessions(
 
     const resolvedTarget = await resolveExportTarget(targetPath, options.name)
     console.log(
-      '[dsh-mover] export target',
+      '[dsh-pack-and-go] export target',
       resolvedTarget,
       'sessions',
       sessions.length,
@@ -509,7 +509,7 @@ export async function exportAllSessions(
       outputPath: resolvedTarget,
       compress: options.compress !== false,
     })
-    console.log('[dsh-mover] export written', written.bytes, 'to', resolvedTarget)
+    console.log('[dsh-pack-and-go] export written', written.bytes, 'to', resolvedTarget)
     const fileNote = includeFiles
       ? `，含 ${workspaces.length} 个工作区（${plan.counts.files} 个文件）`
       : ''
@@ -601,7 +601,7 @@ export async function findPacks(directory) {
       .sort((left, right) => left.name.localeCompare(right.name))
     return { kind: 'success', text: JSON.stringify({ directory, packs }) }
   } catch (error) {
-    console.error('[dsh-mover] list failed', error)
+    console.error('[dsh-pack-and-go] list failed', error)
     return errorResult(
       `读取目录失败：${error instanceof Error ? error.message : String(error)}`,
     )
@@ -878,7 +878,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       existingCwdById,
       policy: { session: sessionPolicy },
       // 覆盖/迁移覆盖前备份旧文件（迁移时旧目录移到该备份根下）。
-      backupRoot: join(deps.dshHome, 'dsh-mover-backup'),
+      backupRoot: join(deps.dshHome, 'dsh-pack-and-go-backup'),
     })
     if (sessionPolicy === 'overwrite') {
       const unknown = sessions.written.filter(
@@ -968,7 +968,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       try {
         await oldWorkspace.detachSession(written.targetId)
       } catch (detachError) {
-        console.error('[dsh-mover] detach old workspace failed', written.targetId, detachError)
+        console.error('[dsh-pack-and-go] detach old workspace failed', written.targetId, detachError)
       }
     }
     let attached = 0
@@ -994,7 +994,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
           await entity.attachSession(written.targetId)
           attached += 1
         } catch (attachError) {
-          console.error('[dsh-mover] attach failed', written.targetId, attachError)
+          console.error('[dsh-pack-and-go] attach failed', written.targetId, attachError)
         }
       }
     }
@@ -1021,7 +1021,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         try {
           await sessionController.resolveAgent(written.targetId)
         } catch (error) {
-          console.error('[dsh-mover] activate failed', written.targetId, error)
+          console.error('[dsh-pack-and-go] activate failed', written.targetId, error)
         }
       }
     }
@@ -1047,7 +1047,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
             sessionId: importedIds[0],
           })
         } catch (reindexError) {
-          console.error('[dsh-mover] controller reindex failed', workspaceKey, reindexError)
+          console.error('[dsh-pack-and-go] controller reindex failed', workspaceKey, reindexError)
         }
       }
     }
@@ -1115,7 +1115,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }${restartNote}若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
-    console.error('[dsh-mover] import failed', error)
+    console.error('[dsh-pack-and-go] import failed', error)
     return errorResult(
       `导入失败：${error instanceof Error ? error.message : String(error)}`,
     )
@@ -1141,7 +1141,7 @@ export async function listCatalog(deps) {
         platform: deps.platform ?? process.platform,
         dshHome: deps.dshHome,
         dshVersion: deps.dshVersion,
-        defaultImportDir: join(homedir(), 'dsh-mover-import'),
+        defaultImportDir: join(homedir(), 'dsh-pack-and-go-import'),
       },
       workspaces: catalog.workspaces.map((workspace) => ({
         path: workspace.path,
@@ -1161,7 +1161,7 @@ export async function listCatalog(deps) {
       })),
     }
     const count = payload.workspaces.reduce((sum, workspace) => sum + workspace.sessions.length, 0) + payload.ungrouped.length
-    console.log('[dsh-mover] list', 'workspaces', payload.workspaces.length, 'sessions', count)
+    console.log('[dsh-pack-and-go] list', 'workspaces', payload.workspaces.length, 'sessions', count)
     return { kind: 'success', text: JSON.stringify(payload) }
   } catch (error) {
     return errorResult(
@@ -1178,7 +1178,7 @@ export async function listCatalog(deps) {
  */
 export async function handleMover(deps, invocation) {
   const args = parseMoverArgs(invocation?.rawInput)
-  console.log('[dsh-mover] command', JSON.stringify(args))
+  console.log('[dsh-pack-and-go] command', JSON.stringify(args))
   try {
     appendFileSync(
       join(process.env.DSH_HOME ?? '.', 'mover-debug.log'),
@@ -1255,7 +1255,7 @@ export async function handleMover(deps, invocation) {
   if (sub === 'find') return findPacks(args[0])
   if (sub === 'size') return measureWorkspaces(args)
   if (sub === 'inspect') return inspectPack(deps, args[0])
-  console.error('[dsh-mover] unknown subcommand', sub)
+  console.error('[dsh-pack-and-go] unknown subcommand', sub)
   return errorResult(USAGE)
 }
 

@@ -12,7 +12,7 @@ function entry(packPath, data = '') {
 }
 
 test('恢复工作区文件到目标路径', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-ws-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
   try {
     const pathMap = { byKey: { w1: join(dir, 'p1'), w2: join(dir, 'p2') } }
     const result = await restoreWorkspaceFiles({
@@ -37,7 +37,7 @@ test('恢复工作区文件到目标路径', async () => {
 })
 
 test('Windows 目标对非法文件名做安全重命名并记录', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-ws-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
   try {
     const pathMap = { byKey: { w1: join(dir, 'p1') } }
     const result = await restoreWorkspaceFiles({
@@ -67,7 +67,7 @@ test('缺少工作区映射时报错', async () => {
 })
 
 test('忽略非工作区条目', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-ws-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
   try {
     const result = await restoreWorkspaceFiles({
       entries: [entry('manifest.json', '{}'), entry('sessions/s1/x', '')],

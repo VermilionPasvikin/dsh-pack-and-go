@@ -17,7 +17,7 @@ test('增量 CRC 与整块 CRC 一致', () => {
 })
 
 test('流式包（data descriptor）可被 readZip 读取', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-zipstream-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-zipstream-'))
   try {
     const small = join(dir, 'a.txt')
     await writeFile(small, 'hello')
@@ -49,7 +49,7 @@ test('流式包（data descriptor）可被 readZip 读取', async () => {
 })
 
 test('拒绝非法条目名', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-zipstream-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-zipstream-'))
   try {
     const out = join(dir, 'bad.dshpack')
     await assert.rejects(
@@ -66,7 +66,7 @@ test('拒绝非法条目名', async () => {
 })
 
 test('混合条目 + 不可压缩数据，连续多轮不报 write after end', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-zipstream-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-zipstream-'))
   try {
     const sources = []
     for (let index = 0; index < 4; index += 1) {
@@ -96,7 +96,7 @@ test('混合条目 + 不可压缩数据，连续多轮不报 write after end', a
 })
 
 test('失败时清理半成品输出文件', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-zipstream-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-zipstream-'))
   try {
     const out = join(dir, 'broken.dshpack')
     await assert.rejects(

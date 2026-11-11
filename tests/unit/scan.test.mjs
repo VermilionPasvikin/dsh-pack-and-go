@@ -12,7 +12,7 @@ import {
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
 
 async function makeTree() {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-scan-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-scan-'))
   await mkdir(join(dir, 'src'))
   await writeFile(join(dir, 'src', 'a.txt'), 'hello')
   await mkdir(join(dir, 'node_modules'))
@@ -86,7 +86,7 @@ test('空目录被记录', async () => {
 })
 
 test('符号链接：文件链接解引用、目录链接跳过', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-link-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-link-'))
   try {
     await writeFile(join(dir, 'target.txt'), 'x')
     await mkdir(join(dir, 'real'))
@@ -136,13 +136,13 @@ test('resolveExclusions 规则', () => {
 
 test('不存在的工作区报 E_SCAN_INVALID', async () => {
   await assert.rejects(
-    () => scanWorkspace('Z:\\no-such-dsh-mover-scan', {}),
+    () => scanWorkspace('Z:\\no-such-dsh-pack-and-go-scan', {}),
     (error) => error instanceof MoverError && error.code === ERROR_CODES.SCAN_INVALID,
   )
 })
 
 test('1 万文件扫描 < 2s', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-scan-big-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-scan-big-'))
   try {
     const many = join(dir, 'many')
     await mkdir(many)

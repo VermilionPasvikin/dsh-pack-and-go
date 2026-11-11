@@ -126,7 +126,7 @@ test('带 checksum 的首帧改写后仍保留 checksum', () => {
 })
 
 test('文件版：读取、改写、写入并可再扫描', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-session-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-session-'))
   try {
     const src = join(dir, 'session.v4.jsonl.zstd')
     const dst = join(dir, 'session.out.v4.jsonl.zstd')

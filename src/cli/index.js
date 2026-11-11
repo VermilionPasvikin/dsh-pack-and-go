@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * `dsh-mover` CLI（ADR-0009）。
+ * `dsh-pack-and-go` CLI（ADR-0009）。
  *
  * 不依赖 DSH 进程，直接访问 `DSH_HOME`：
- *   dsh-mover export --home <DSH_HOME> --out <文件> [--sessions id1,id2]
- *   dsh-mover import --home <DSH_HOME> --pack <文件> --target <目录>
+ *   dsh-pack-and-go export --home <DSH_HOME> --out <文件> [--sessions id1,id2]
+ *   dsh-pack-and-go import --home <DSH_HOME> --pack <文件> --target <目录>
  *
  * 导入会写会话/附件/工作区文件，并更新 `workspace.json`（写前备份）；
  * 需要重启 DSH 才能看到新会话。
@@ -31,7 +31,7 @@ import {
 } from '../core/index.js'
 import { scanExistingSessionIds } from '../host/commands.js'
 
-const USAGE = `dsh-mover <命令> [选项]
+const USAGE = `dsh-pack-and-go <命令> [选项]
 
 命令:
   export   导出对话
@@ -282,7 +282,7 @@ async function cmdImport(options) {
     existingSessionIds: [...existingCwdById.keys()],
     existingCwdById,
     policy: { session: options.overwrite === true ? 'overwrite' : 'skip' },
-    backupRoot: join(options.home, 'dsh-mover-backup'),
+    backupRoot: join(options.home, 'dsh-pack-and-go-backup'),
   })
   if (options.overwrite === true) {
     const unknown = sessions.written.filter(

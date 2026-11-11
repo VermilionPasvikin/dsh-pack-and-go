@@ -79,7 +79,7 @@ export async function buildPack(input) {
     plan,
     sourcePaths,
     manifest,
-    readme = 'dsh-mover 迁移包\n',
+    readme = 'dsh-pack-and-go 迁移包\n',
     extraEntries = [],
     maxFileBytes = DEFAULT_MAX_FILE_BYTES,
   } = input
@@ -148,7 +148,7 @@ export async function buildPackToFile(input) {
     sourcePaths,
     manifest,
     outputPath,
-    readme = 'dsh-mover 迁移包\n',
+    readme = 'dsh-pack-and-go 迁移包\n',
     extraEntries = [],
     compress = true,
   } = input

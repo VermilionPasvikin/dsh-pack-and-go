@@ -2,7 +2,7 @@
  * Host 侧插件入口（Cordis bundle）。
  *
  * T2.1 建立可加载骨架；T2.4 目录读取；T2.5 导出；T2.9 导入（会话+工作区+登记）。
- * 自检逻辑仅在 `DSH_MOVER_SELFTEST=1` 时运行，用于一次性 DSH_HOME 集成验证。
+ * 自检逻辑仅在 `DSH_PACK_AND_GO_SELFTEST=1` 时运行，用于一次性 DSH_HOME 集成验证。
  */
 
 import { appendFileSync } from 'node:fs'
@@ -14,7 +14,7 @@ import { createExecHandler } from './exec-route.js'
 import { rebuildSessionViaService } from './rebuild.js'
 
 /** @type {string} */
-export const name = 'dsh-mover'
+export const name = 'dsh-pack-and-go'
 
 /** 这些服务缺失时不激活插件（保持 DSH 可正常启动）。 */
 export const inject = ['workspaceRegistry', 'sessionPersistence', 'commands']
@@ -27,7 +27,7 @@ export const inject = ['workspaceRegistry', 'sessionPersistence', 'commands']
 export function apply(ctx, config) {
   void config
   const logger = ctx.logger
-  logger?.info?.('[dsh-mover] host plugin loaded')
+  logger?.info?.('[dsh-pack-and-go] host plugin loaded')
 
   const command = createMoverCommand({
     workspaceRegistry: ctx.workspaceRegistry,
@@ -40,7 +40,7 @@ export function apply(ctx, config) {
     logger,
   })
   ctx.effect(() => ctx.commands.register(command))
-  console.log('[dsh-mover] command registered: mover')
+  console.log('[dsh-pack-and-go] command registered: mover')
 
   // ADR-0011：exact Fetch 操作入口（不依赖会话上下文、不写会话日志）。
   // connection 服务可能在 apply 时尚未就绪，因此延迟重试注册。
@@ -78,22 +78,22 @@ export function apply(ctx, config) {
           fetch: handleExec,
         }),
       )
-      console.log('[dsh-mover] exec route registered: /api/mover/exec')
+      console.log('[dsh-pack-and-go] exec route registered: /api/mover/exec')
       return true
     } catch (error) {
-      console.error('[dsh-mover] exec route registration failed', error)
+      console.error('[dsh-pack-and-go] exec route registration failed', error)
       return false
     }
   }
   if (!registerExecRoute()) {
-    console.warn('[dsh-mover] connection.fetch not ready; retrying exec route registration')
+    console.warn('[dsh-pack-and-go] connection.fetch not ready; retrying exec route registration')
     let attempts = 0
     const timer = setInterval(() => {
       attempts += 1
       if (registerExecRoute() || attempts >= 120) {
         clearInterval(timer)
         if (attempts >= 120) {
-          console.warn('[dsh-mover] exec route unavailable; UI falls back to command channel')
+          console.warn('[dsh-pack-and-go] exec route unavailable; UI falls back to command channel')
         }
       }
     }, 500)
@@ -147,11 +147,11 @@ export function apply(ctx, config) {
           await workspace.detachSession(sessionId)
           detached += 1
         } catch (detachError) {
-          console.error('[dsh-mover] grouping detach failed', sessionId, detachError)
+          console.error('[dsh-pack-and-go] grouping detach failed', sessionId, detachError)
         }
       }
     }
-    if (detached > 0) console.log('[dsh-mover] grouping detached', detached, 'stale ownerships')
+    if (detached > 0) console.log('[dsh-pack-and-go] grouping detached', detached, 'stale ownerships')
 
     let repaired = 0
     for (const snapshot of snapshots) {
@@ -162,10 +162,10 @@ export function apply(ctx, config) {
         await workspace.attachSession(snapshot.header.id)
         repaired += 1
       } catch (attachError) {
-        console.error('[dsh-mover] grouping repair failed', snapshot.header.id, attachError)
+        console.error('[dsh-pack-and-go] grouping repair failed', snapshot.header.id, attachError)
       }
     }
-    if (repaired > 0) console.log('[dsh-mover] grouping repaired', repaired, 'sessions')
+    if (repaired > 0) console.log('[dsh-pack-and-go] grouping repaired', repaired, 'sessions')
     return true
   }
   {
@@ -181,8 +181,8 @@ export function apply(ctx, config) {
     ctx.effect(() => () => clearInterval(timer))
   }
 
-  if (process.env.DSH_MOVER_SELFTEST === '1') {
-    console.log('[dsh-mover] apply() reached')
+  if (process.env.DSH_PACK_AND_GO_SELFTEST === '1') {
+    console.log('[dsh-pack-and-go] apply() reached')
     void (async () => {
       try {
         const catalog = await loadCatalog({
@@ -192,7 +192,7 @@ export function apply(ctx, config) {
           logger,
         })
         console.log(
-          `DSH-MOVER-SELFTEST ${JSON.stringify({
+          `DSH-PACK-AND-GO-SELFTEST ${JSON.stringify({
             workspaces: catalog.workspaces.length,
             ungrouped: catalog.ungrouped.length,
             totals: catalog.totals,
@@ -201,22 +201,22 @@ export function apply(ctx, config) {
           })}`,
         )
 
-        if (process.env.DSH_MOVER_SELFTEST_LIST === '1') {
+        if (process.env.DSH_PACK_AND_GO_SELFTEST_LIST === '1') {
           await runSessionListSelfTest(ctx)
-        } else if (process.env.DSH_MOVER_SELFTEST_FOLLOW === '1') {
+        } else if (process.env.DSH_PACK_AND_GO_SELFTEST_FOLLOW === '1') {
           await runFollowSelfTest(ctx)
-        } else if (process.env.DSH_MOVER_SELFTEST_CMD === '1') {
+        } else if (process.env.DSH_PACK_AND_GO_SELFTEST_CMD === '1') {
           await runCommandSelfTest(ctx, catalog)
-        } else if (process.env.DSH_MOVER_SELFTEST_REBUILD === '1') {
+        } else if (process.env.DSH_PACK_AND_GO_SELFTEST_REBUILD === '1') {
           await runRebuildSelfTest(ctx, catalog)
-        } else if (process.env.DSH_MOVER_SELFTEST_IMPORT === '1') {
+        } else if (process.env.DSH_PACK_AND_GO_SELFTEST_IMPORT === '1') {
           await runImportSelfTest(ctx, catalog)
-        } else if (process.env.DSH_MOVER_SELFTEST_EXPORT === '1') {
+        } else if (process.env.DSH_PACK_AND_GO_SELFTEST_EXPORT === '1') {
           await runExportSelfTest(ctx, catalog)
         }
       } catch (error) {
         console.log(
-          `DSH-MOVER-SELFTEST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+          `DSH-PACK-AND-GO-SELFTEST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
         )
       }
     })()
@@ -234,7 +234,7 @@ async function runRebuildSelfTest(ctx, catalog) {
     ...catalog.ungrouped,
   ][0]
   if (!source) {
-    console.log('DSH-MOVER-REBUILD none')
+    console.log('DSH-PACK-AND-GO-REBUILD none')
     return
   }
   const rebuilt = await rebuildSessionViaService({
@@ -243,7 +243,7 @@ async function runRebuildSelfTest(ctx, catalog) {
     newCwd: source.cwd,
     createdAt: Date.now(),
   })
-  console.log(`DSH-MOVER-REBUILD ${JSON.stringify(rebuilt)}`)
+  console.log(`DSH-PACK-AND-GO-REBUILD ${JSON.stringify(rebuilt)}`)
 
   const after = await loadCatalog({
     workspaceRegistry: ctx.workspaceRegistry,
@@ -251,7 +251,7 @@ async function runRebuildSelfTest(ctx, catalog) {
     sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
     logger: ctx.logger,
   })
-  console.log(`DSH-MOVER-REBUILD-AFTER ${JSON.stringify(after.totals)}`)
+  console.log(`DSH-PACK-AND-GO-REBUILD-AFTER ${JSON.stringify(after.totals)}`)
 }
 
 /** 自检日志：同时写终端与临时文件（终端缓冲不可靠）。 */function logLine(message) {
@@ -275,15 +275,15 @@ async function runSessionListSelfTest(ctx) {
   try {
     const controller = ctx.get('sessionController')
     if (!controller || typeof controller.list !== 'function') {
-      logLine('DSH-MOVER-LIST no-session-controller')
+      logLine('DSH-PACK-AND-GO-LIST no-session-controller')
       return
     }
     const result = await controller.list({}, new AbortController().signal)
     const items = result?.items ?? []
-    logLine(`DSH-MOVER-LIST count=${items.length}`)
+    logLine(`DSH-PACK-AND-GO-LIST count=${items.length}`)
     for (const item of items.slice(0, 30)) {
       logLine(
-        `DSH-MOVER-SESSION-ROW ${JSON.stringify({
+        `DSH-PACK-AND-GO-SESSION-ROW ${JSON.stringify({
           id: item.sessionId,
           cwd: item.cwd,
           blank: item.blank,
@@ -298,7 +298,7 @@ async function runSessionListSelfTest(ctx) {
     if (registry && typeof registry.list === 'function') {
       for (const workspace of registry.list()) {
         logLine(
-          `DSH-MOVER-WS ${JSON.stringify({
+          `DSH-PACK-AND-GO-WS ${JSON.stringify({
             id: workspace.id,
             path: workspace.path,
             title: workspace.title,
@@ -309,7 +309,7 @@ async function runSessionListSelfTest(ctx) {
     }
   } catch (error) {
     logLine(
-      `DSH-MOVER-LIST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+      `DSH-PACK-AND-GO-LIST-FAILED ${error instanceof Error ? error.stack : String(error)}`,
     )
   }
 }
@@ -321,22 +321,22 @@ async function runSessionListSelfTest(ctx) {
 async function runFollowSelfTest(ctx) {
   try {
     const controller = ctx.get('workspaceController')
-    logLine(`DSH-MOVER-FOLLOW-CTRL ${typeof controller} follow=${typeof controller?.follow}`)
+    logLine(`DSH-PACK-AND-GO-FOLLOW-CTRL ${typeof controller} follow=${typeof controller?.follow}`)
     if (!controller || typeof controller.follow !== 'function') return
     const stream = await controller.follow(new AbortController().signal)
     let frames = 0
     for await (const frame of stream) {
       frames += 1
       logLine(
-        `DSH-MOVER-FOLLOW-FRAME ${frame.type} ${JSON.stringify(frame.value).slice(0, 400)}`,
+        `DSH-PACK-AND-GO-FOLLOW-FRAME ${frame.type} ${JSON.stringify(frame.value).slice(0, 400)}`,
       )
       break
     }
-    logLine(`DSH-MOVER-FOLLOW-OK frames=${frames}`)
+    logLine(`DSH-PACK-AND-GO-FOLLOW-OK frames=${frames}`)
     if (typeof stream.dispose === 'function') stream.dispose()
   } catch (error) {
     logLine(
-      `DSH-MOVER-FOLLOW-FAILED ${error instanceof Error ? error.stack : String(error)}`,
+      `DSH-PACK-AND-GO-FOLLOW-FAILED ${error instanceof Error ? error.stack : String(error)}`,
     )
   }
 }
@@ -349,20 +349,20 @@ async function runFollowSelfTest(ctx) {
 async function runCommandSelfTest(ctx, catalog) {
   try {
     const sessionController = ctx.get('sessionController')
-    logLine(`DSH-MOVER-CMD-CTRL ${typeof sessionController}`)
+    logLine(`DSH-PACK-AND-GO-CMD-CTRL ${typeof sessionController}`)
     const first = [
       ...catalog.workspaces.flatMap((workspace) => workspace.sessions),
       ...catalog.ungrouped,
     ][0]
     if (!first) {
-      logLine('DSH-MOVER-CMD none')
+      logLine('DSH-PACK-AND-GO-CMD none')
       return
     }
     const resolved = await sessionController.resolveAgent(first.id)
-    logLine(`DSH-MOVER-CMD-RESOLVE ${JSON.stringify(resolved && Object.keys(resolved))}`)
+    logLine(`DSH-PACK-AND-GO-CMD-RESOLVE ${JSON.stringify(resolved && Object.keys(resolved))}`)
     const agent = resolved && (resolved.agent ?? resolved)
     const definition = ctx.commands.find(agent, 'mover')
-    logLine(`DSH-MOVER-CMD-FIND ${Boolean(definition)}`)
+    logLine(`DSH-PACK-AND-GO-CMD-FIND ${Boolean(definition)}`)
     const execution = await ctx.commands.execute(
       agent,
       '/mover list',
@@ -370,10 +370,10 @@ async function runCommandSelfTest(ctx, catalog) {
       new AbortController().signal,
     )
     logLine(
-      `DSH-MOVER-CMD-EXEC ${JSON.stringify(execution?.result ?? execution).slice(0, 300)}`,
+      `DSH-PACK-AND-GO-CMD-EXEC ${JSON.stringify(execution?.result ?? execution).slice(0, 300)}`,
     )
   } catch (error) {
-    logLine(`DSH-MOVER-CMD-FAILED ${error instanceof Error ? error.stack : String(error)}`)
+    logLine(`DSH-PACK-AND-GO-CMD-FAILED ${error instanceof Error ? error.stack : String(error)}`)
   }
 }
 
@@ -392,7 +392,7 @@ async function runExportSelfTest(ctx, catalog) {
     .filter((session) => typeof session.locationPath === 'string')
   const first = sessions[0]
   if (!first) {
-    console.log('DSH-MOVER-EXPORT none')
+    console.log('DSH-PACK-AND-GO-EXPORT none')
     return
   }
   const packPath = `sessions/${first.id}/session.v4.jsonl.zstd`
@@ -420,13 +420,13 @@ async function runExportSelfTest(ctx, catalog) {
     sourcePaths: { [packPath]: first.locationPath },
     manifest,
   })
-  const output = join(tmpdir(), 'dsh-mover-selftest.dshpack')
+  const output = join(tmpdir(), 'dsh-pack-and-go-selftest.dshpack')
   await writeFile(output, pack)
-  console.log(`DSH-MOVER-EXPORT ${output} ${pack.length}`)
+  console.log(`DSH-PACK-AND-GO-EXPORT ${output} ${pack.length}`)
 }
 
 /**
- * 导入自检：读取 `DSH_MOVER_SELFTEST_PACK` 并导入到 `DSH_MOVER_SELFTEST_TARGET`。
+ * 导入自检：读取 `DSH_PACK_AND_GO_SELFTEST_PACK` 并导入到 `DSH_PACK_AND_GO_SELFTEST_TARGET`。
  * @param {import('@deepseek-ai/cordis').Context} ctx
  * @param {object} beforeCatalog
  */
@@ -434,10 +434,10 @@ async function runImportSelfTest(ctx, beforeCatalog) {
   const { readFile } = await import('node:fs/promises')
   const { join } = await import('node:path')
 
-  const packPath = process.env.DSH_MOVER_SELFTEST_PACK
-  const targetRoot = process.env.DSH_MOVER_SELFTEST_TARGET
+  const packPath = process.env.DSH_PACK_AND_GO_SELFTEST_PACK
+  const targetRoot = process.env.DSH_PACK_AND_GO_SELFTEST_TARGET
   if (!packPath || !targetRoot) {
-    console.log('DSH-MOVER-IMPORT skipped (missing pack/target env)')
+    console.log('DSH-PACK-AND-GO-IMPORT skipped (missing pack/target env)')
     return
   }
 
@@ -478,7 +478,7 @@ async function runImportSelfTest(ctx, beforeCatalog) {
   })
 
   console.log(
-    `DSH-MOVER-IMPORT ${JSON.stringify({
+    `DSH-PACK-AND-GO-IMPORT ${JSON.stringify({
       sessions: sessions.written.length,
       skipped: sessions.skipped.length,
       files: files.written.length,
@@ -510,7 +510,7 @@ async function runImportSelfTest(ctx, beforeCatalog) {
   }
   if (attached > 0 || attachWarnings.length > 0) {
     console.log(
-      `DSH-MOVER-ATTACH ${JSON.stringify({ attached, warnings: attachWarnings })}`,
+      `DSH-PACK-AND-GO-ATTACH ${JSON.stringify({ attached, warnings: attachWarnings })}`,
     )
   }
 
@@ -521,7 +521,7 @@ async function runImportSelfTest(ctx, beforeCatalog) {
     logger: ctx.logger,
   })
   console.log(
-    `DSH-MOVER-AFTER ${JSON.stringify({
+    `DSH-PACK-AND-GO-AFTER ${JSON.stringify({
       workspaces: after.workspaces.map((workspace) => ({
         title: workspace.title,
         path: workspace.path,

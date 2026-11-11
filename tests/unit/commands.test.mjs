@@ -84,7 +84,7 @@ test('parseMoverArgs 兼容 /mover 前缀与引号路径', () => {
 })
 
 test('export 生成可读包', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -105,7 +105,7 @@ test('export 生成可读包', async () => {
 })
 
 test('import 写回会话并保留可解析 header', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -139,7 +139,7 @@ test('import 写回会话并保留可解析 header', async () => {
 })
 
 test('用法错误返回 error 文本', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -161,11 +161,11 @@ test('createMoverCommand 暴露 name/description/handler', () => {
 })
 
 test('resolveExportTarget：目录自动生成文件名，文件原样，父目录不存在报错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const resolvedDir = await resolveExportTarget(dir)
     assert.ok(resolvedDir.startsWith(dir))
-    assert.match(resolvedDir, /dsh-mover-\d{8}-\d{6}\.dshpack$/)
+    assert.match(resolvedDir, /dsh-pack-and-go-\d{8}-\d{6}\.dshpack$/)
 
     const file = join(dir, 'a.dshpack')
     assert.equal(await resolveExportTarget(file), file)
@@ -180,7 +180,7 @@ test('resolveExportTarget：目录自动生成文件名，文件原样，父目�
 })
 
 test('export 到目录时自动生成包文件', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -189,14 +189,14 @@ test('export 到目录时自动生成包文件', async () => {
     const result = await exportAllSessions(deps, dir)
     assert.equal(result.kind, 'success')
     const names = await readdir(dir)
-    assert.ok(names.some((name) => /^dsh-mover-\d{8}-\d{6}\.dshpack$/.test(name)))
+    assert.ok(names.some((name) => /^dsh-pack-and-go-\d{8}-\d{6}\.dshpack$/.test(name)))
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
 })
 
 test('inspect 预览包信息与冲突', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -219,7 +219,7 @@ test('inspect 预览包信息与冲突', async () => {
 })
 
 test('导入冲突策略：默认跳过，overwrite 覆盖', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -245,7 +245,7 @@ test('导入冲突策略：默认跳过，overwrite 覆盖', async () => {
 })
 
 test('仅导出工作区（含文件）并导入还原文件结构', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const workspace = join(dir, 'ws-with-files')
     await mkdir(join(workspace, 'sub'), { recursive: true })
@@ -269,7 +269,7 @@ test('仅导出工作区（含文件）并导入还原文件结构', async () =>
 })
 
 test('仅导出工作区（含空目录）并导入登记为空工作区', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const emptyWorkspace = join(dir, 'empty-workspace')
     await mkdir(emptyWorkspace)
@@ -291,7 +291,7 @@ test('仅导出工作区（含空目录）并导入登记为空工作区', async
 })
 
 test('仅导出工作区：文件符号链接解引用并计入统计', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const workspace = join(dir, 'ws-link')
     await mkdir(workspace, { recursive: true })
@@ -319,7 +319,7 @@ test('仅导出工作区：文件符号链接解引用并计入统计', async ()
 })
 
 test('导入必须指定目标目录且不接受已移除的 new-id', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -343,7 +343,7 @@ test('导入必须指定目标目录且不接受已移除的 new-id', async () =
 })
 
 test('measureWorkspaces 统计目录字节数', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const project = join(dir, 'proj')
     await mkdir(join(project, 'sub'), { recursive: true })
@@ -362,7 +362,7 @@ test('measureWorkspaces 统计目录字节数', async () => {
 })
 
 test('listCatalog 返回可解析的 JSON', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const bytes = makeSessionBytes()
     const sessionFile = join(dir, 's1.v4.jsonl.zstd')
@@ -379,7 +379,7 @@ test('listCatalog 返回可解析的 JSON', async () => {
 })
 
 test('导出默认连带 fork 子代理会话，--no-fork 只导出选中', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {
     const parentBytes = makeSessionBytes('s1', '/p')
     const childBytes = makeSessionBytes('s2', '/p')

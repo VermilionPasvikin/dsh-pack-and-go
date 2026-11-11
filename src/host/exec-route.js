@@ -36,7 +36,7 @@ export function createExecHandler(deps, logger) {
       return json({ ok: true, result }, 200)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      logger?.warn?.('[dsh-mover] exec failed', message)
+      logger?.warn?.('[dsh-pack-and-go] exec failed', message)
       return json({ ok: false, error: message }, 500)
     }
   }

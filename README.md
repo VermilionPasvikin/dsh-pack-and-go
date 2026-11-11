@@ -1,4 +1,4 @@
-# dsh-mover（暂名）
+# dsh-pack-and-go（暂名）
 
 DSH 跨平台迁移助手：在任意平台的 DSH 之间，把「对话 + 工作区」打包成可离线传输的 `.dshpack`，并在另一台机器或另一个 profile 中导入。
 
@@ -8,7 +8,7 @@ DSH 跨平台迁移助手：在任意平台的 DSH 之间，把「对话 + 工�
 2. **导出**：
    - 「对话 + 工作区」：勾选工作区/对话 → 填写保存位置 → 开始打包；
    - 「仅工作区」：只选工作区，导出其文件与目录结构（空文件夹保留骨架），不含任何对话。
-3. **导入**：填写迁移包路径 + **目标目录（必填，默认预填 `~/dsh-mover-import`）** → 选择冲突策略（跳过 / 覆盖）→ 开始导入。
+3. **导入**：填写迁移包路径 + **目标目录（必填，默认预填 `~/dsh-pack-and-go-import`）** → 选择冲突策略（跳过 / 覆盖）→ 开始导入。
    - 覆盖 = 用包内版本恢复该对话；目标目录与现有位置不同时执行“迁移覆盖”，结果提示原/新工作区与会话名；
    - 导入失败会直接报错，**不会自动回退**到默认目录。
 4. 也可以在聊天框使用命令：
@@ -19,7 +19,7 @@ DSH 跨平台迁移助手：在任意平台的 DSH 之间，把「对话 + 工�
 
 - 目标路径与原路径不同时会改写会话 `cwd`（只改 header，历史消息中的路径文本不变）。
 - Windows 非法文件名会自动安全重命名，并在转换报告中记录。
-- 冲突策略仅「跳过 / 覆盖」；覆盖前备份到 `<DSH_HOME>/dsh-mover-backup/<时间戳>/`。
+- 冲突策略仅「跳过 / 覆盖」；覆盖前备份到 `<DSH_HOME>/dsh-pack-and-go-backup/<时间戳>/`。
 - 大工作区默认排除 `node_modules`、`.venv`、`dist` 等可再生目录，`.git` 默认保留。
 
 ## 生效与重启
@@ -33,10 +33,10 @@ DSH 跨平台迁移助手：在任意平台的 DSH 之间，把「对话 + 工�
 dsh plugin --profile <profile> add <本目录绝对路径>
 
 # 卸载
-dsh plugin --profile <profile> remove dsh-mover
+dsh plugin --profile <profile> remove dsh-pack-and-go
 ```
 
-插件行由 `cordis.patch.yml` 声明，安装后以 `dsh-mover` 出现在 profile 配置中。
+插件行由 `cordis.patch.yml` 声明，安装后以 `dsh-pack-and-go` 出现在 profile 配置中。
 
 ## 文档
 

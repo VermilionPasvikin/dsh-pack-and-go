@@ -34,7 +34,7 @@ function assertNoForbiddenPaths(names) {
 }
 
 test('导出包不包含凭据/缓存/依赖路径', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-sec-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-sec-'))
   try {
     const sessionFile = join(dir, 'session.v4.jsonl.zstd')
     const header = {

@@ -87,7 +87,7 @@ test('大小写冲突检测', () => {
 })
 
 test('preflightWorkspace 返回可序列化报告', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-preflight-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-preflight-'))
   try {
     await writeFile(join(dir, 'a.txt'), 'hello')
     await mkdir(join(dir, 'sub'))
@@ -110,7 +110,7 @@ test('preflightWorkspace 拒绝非法平台与不存在的目录', async () => {
     (error) => error instanceof MoverError && error.code === ERROR_CODES.PREFLIGHT_INVALID,
   )
   await assert.rejects(
-    () => preflightWorkspace('Z:\\no-such-dsh-mover-dir', 'linux'),
+    () => preflightWorkspace('Z:\\no-such-dsh-pack-and-go-dir', 'linux'),
     (error) => error instanceof MoverError && error.code === ERROR_CODES.PREFLIGHT_INVALID,
   )
 })

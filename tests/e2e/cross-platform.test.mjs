@@ -82,7 +82,7 @@ function readHeader(buffer) {
 }
 
 test('Windows 源 → POSIX 目标：cwd 改写为合法绝对路径且目录一致', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-xplat-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-xplat-'))
   try {
     const targetRoot = join(dir, 'target')
     const sessionRoot = join(dir, 'sessions')
@@ -114,7 +114,7 @@ test('Windows 源 → POSIX 目标：cwd 改写为合法绝对路径且目录一
 })
 
 test('POSIX 源 → Windows 目标：非法文件名被重命名并记录', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-xplat-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-xplat-'))
   try {
     const targetRoot = join(dir, 'target')
     const pathMap = { byKey: { 'ws-1': targetRoot } }
@@ -143,7 +143,7 @@ test('POSIX 源 → Windows 目标：非法文件名被重命名并记录', asyn
 })
 
 test('预检报告可序列化并包含汇总', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-xplat-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-xplat-'))
   try {
     await mkdir(join(dir, 'src'))
     await writeFile(join(dir, 'src', 'ok.txt'), 'y')

@@ -91,7 +91,7 @@ function makeLegacyPack() {
 }
 
 test('旧格式包（sessionFormat 3）直接写入 v3 会话文件', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     await mkdir(sessionRoot, { recursive: true })
@@ -118,7 +118,7 @@ test('旧格式包（sessionFormat 3）直接写入 v3 会话文件', async () =
 })
 
 test('fork 链：new-id 导入时子会话 parentSession 映射到新父 id', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     await mkdir(sessionRoot, { recursive: true })
@@ -187,7 +187,7 @@ function makePack(sessionBytes) {
 }
 
 test('导入会话到目标磁盘并改写 cwd', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     await mkdir(sessionRoot, { recursive: true })
@@ -241,7 +241,7 @@ function makePackNoWorkspace(sessionBytes) {
 }
 
 test('未指定目标 cwd 时按源 cwd 计算目录（避免 _no-cwd 身份不一致）', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     const result = await importSessionsToDisk({
@@ -259,7 +259,7 @@ test('未指定目标 cwd 时按源 cwd 计算目录（避免 _no-cwd 身份不�
 })
 
 test('已存在会话按默认策略跳过', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     const result = await importSessionsToDisk({
@@ -276,7 +276,7 @@ test('已存在会话按默认策略跳过', async () => {
 })
 
 test('overwrite 策略先备份旧文件', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     const backupRoot = join(dir, 'backups')
@@ -305,7 +305,7 @@ test('overwrite 策略先备份旧文件', async () => {
 })
 
 test('overwrite 覆盖写入并保持原 id（cwd 对齐目标）', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     const result = await importSessionsToDisk({
@@ -337,7 +337,7 @@ test('overwrite 覆盖写入并保持原 id（cwd 对齐目标）', async () => 
 })
 
 test('缺少 manifest 或会话文件时报错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
     const emptyZip = createZip([{ name: 'README.txt', data: Buffer.from('x') }])

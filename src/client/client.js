@@ -10,7 +10,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-mover',
+  id: 'dsh-pack-and-go',
   factory(require) {
     const React = require('react')
     const h = React.createElement
@@ -542,7 +542,7 @@ window.__ModuleLoader__.load({
             if (titleInfo) {
               if (titleInfo.meta) {
                 setMeta(titleInfo.meta)
-                // 默认目标目录：用户目录/dsh-mover-import（可改）；留空提交会报错，不会静默回退。
+                // 默认目标目录：用户目录/dsh-pack-and-go-import（可改）；留空提交会报错，不会静默回退。
                 if (typeof titleInfo.meta.defaultImportDir === 'string') {
                   const defaultDir = titleInfo.meta.defaultImportDir
                   setImportTarget((current) => (current.trim().length === 0 ? defaultDir : current))
@@ -563,7 +563,7 @@ window.__ModuleLoader__.load({
             setStatus('ready')
           } catch (loadError) {
             if (cancelled) return
-            console.error('[dsh-mover] load failed', loadError)
+            console.error('[dsh-pack-and-go] load failed', loadError)
             setStatus('error')
             setError(loadError instanceof Error ? loadError.message : String(loadError))
           }
@@ -2031,7 +2031,7 @@ window.__ModuleLoader__.load({
           style: {
             display: 'inline-block',
             marginRight: 8,
-            animation: 'dsh-mover-spin 1s linear infinite',
+            animation: 'dsh-pack-and-go-spin 1s linear infinite',
           },
           'aria-hidden': true,
         },

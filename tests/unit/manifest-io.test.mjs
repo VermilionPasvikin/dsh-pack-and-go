@@ -70,7 +70,7 @@ test('非法 JSON 报 E_MANIFEST_INVALID', () => {
 })
 
 test('文件读写往返一致', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-manifest-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-manifest-'))
   try {
     const file = join(dir, 'manifest.json')
     const manifest = validManifest()

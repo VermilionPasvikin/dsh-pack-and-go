@@ -748,4 +748,11 @@
 - 待补：I-20 旧格式包单测；P-04b/P-05a/P-06b/c 需 Linux/macOS CI。
 - 补充（同轮）：`import-pack` 新增「旧格式包（sessionFormat 3）直接写入 v3 会话文件」用例 → I-20 ✅。
 - 补充（同轮）：Windows 开发者模式已开启，`fs.symlink` 文件/目录链接均可创建；`scan`/`commands` 符号链接用例实测通过 → P-04a ✅。
+
+## 130 · 2026-11-11 · chore: 插件正式命名 dsh-pack-and-go（「打包就走」）
+- 用户拍板名称：**dsh-pack-and-go**（中文「打包就走」），替代占位名 `dsh-mover`。
+- 全仓库重命名（35 个文件）：package.json name/bin、`cordis.patch.yml` 插件行、client bundle id、日志前缀、默认包名前缀、README/SPEC/DESIGN/INDEX/TASKS/TEST-CASES/ACCEPTANCE/CODE-REVIEW/FINAL-REPORT/AGENTS 等文档；历史文档（DEVLOG 旧条目、IMPORT-REDESIGN）保留原名。
+- 内部 selftest 标记同步：`DSH-MOVER-*` → `DSH-PACK-AND-GO-*`，环境变量 `DSH_MOVER_SELFTEST` → `DSH_PACK_AND_GO_SELFTEST`（AGENTS §8 同步）。
+- 不改：命令名 `/mover`、exec 路由 `/api/mover/exec`、`DSH_HOME` 存储路径（内部契约保持稳定，改名不迁移用户数据）。
+- 验证：196 项测试通过；`node --check` 通过。
 - README/TEST-PLAN 文档导航同步。

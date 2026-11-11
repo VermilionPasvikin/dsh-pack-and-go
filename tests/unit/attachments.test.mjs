@@ -113,7 +113,7 @@ test('从会话事件提取附件引用并去重', () => {
 })
 
 test('stage 与 restore 附件往返', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-attach-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-attach-'))
   try {
     const sourceRoot = join(dir, 'src-attachments')
     const outputRoot = join(dir, 'pack')
@@ -161,7 +161,7 @@ test('stage 与 restore 附件往返', async () => {
 })
 
 test('附件缺失时记录 warning 而不抛错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-attach-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-attach-'))
   try {
     const staged = await stageAttachments({
       refs: [{ attachmentId: IMAGE_ID, kind: 'image' }],

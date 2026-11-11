@@ -12,7 +12,7 @@ import { buildManifest, buildPackToFile } from '../../src/core/export-pack.js'
 const MB = 1024 * 1024
 
 test('500MB 工作区流式打包：耗时与内存记录（NFR-2）', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-perf-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-perf-'))
   try {
     const project = join(dir, 'proj')
     await mkdir(project)
@@ -68,7 +68,7 @@ test('500MB 工作区流式打包：耗时与内存记录（NFR-2）', async () 
       packBytes: result.bytes,
       peakRssMB: Math.round((rssBefore / MB) * 10) / 10,
     }
-    console.log(`DSH-MOVER-PERF-500 ${JSON.stringify(metrics)}`)
+    console.log(`DSH-PACK-AND-GO-PERF-500 ${JSON.stringify(metrics)}`)
 
     assert.equal(result.entries, 3) // manifest + README + big.bin
     assert.ok(packMs < 60000, `packaging took ${packMs.toFixed(0)}ms`)
