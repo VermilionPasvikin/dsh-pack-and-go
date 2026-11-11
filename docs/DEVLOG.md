@@ -561,3 +561,9 @@
 - 修复：CLI `import` 未传 `existingSessionIds`，重复导入会覆盖且提示「已导入 N」；现在扫描已有 id，输出「跳过 N 个已存在」。
 - 首轮证据：测试工作区 `%TEMP%\dsh-mover-e2e-4915...`——B1 导出 3 对话（46842 B）、B2 导入 3 会话、B3 重导「跳过 3 个」且文件数不变、B5 损坏包退出码 1。
 - 验证：全量 190 项测试通过。
+
+## 103 · 2026-11-11 · test: 测试基础设施与首轮自动化
+- 新增 `tests/e2e/cdp/`：CDP 驱动无头 Chrome（`cdp-dsh-test.mjs` 入口/浮层/树/勾选/高级选项，`cdp-flow-test.mjs` 导出+导入全流程，`cdp-nav-check.mjs` 导航+侧边栏读取，`cdp-eval.mjs` 调试，`check-sessions.mjs` 会话头校验）。
+- 首轮执行（测试工作区 `%TEMP%\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`）：A1 190 项通过；B1/B2/B3/B5 CLI 通过；D1–D8、D10 通过；D7 导出包 26495 B；D11 导入数据成功（已导入 2 个）。
+- 遗留：**D12 导入会话未出现在 DSH 侧边栏**（重启后仍不显示；会话文件 header 合法 version=4/cwd 正确，疑似 DSH `session.list` 对 blank/formatStatus 过滤，待 Host selftest 定位）。
+- 证据：`%TEMP%` 下 `cdp/*.png`、`cdp-result.json`、`logs/*.log`、`export-out/cdp-test.dshpack`。

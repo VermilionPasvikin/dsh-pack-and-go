@@ -100,4 +100,33 @@
 
 > 执行后填写：日期、结果（✅/❌）、证据路径、备注。
 
-（待第一轮执行后回填）
+### 第一轮（2026-11-11，自动化）
+
+测试工作区：`%TEMP%\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`（证据：`packs/`、`logs/`、`cdp/`）。
+自动化脚本：`tests/e2e/cdp/`（CDP 驱动）、`node --test`、CLI。
+
+| ID | 结果 | 证据 | 备注 |
+|---|---|---|---|
+| A1 | ✅ | 全量 `node --test` 190 项通过 | 包含新增 CLI/归组用例 |
+| B1 | ✅ | `logs/b1-export.log`：3 对话 46842 B | CLI 导出 |
+| B2 | ✅ | `logs/b2-import.log`：3 会话文件 | 空 home 导入 |
+| B3 | ✅ | `logs/b3-reimport.log`：跳过 3 个已存在，文件数不变 | 修复 CLI 冲突检测后 |
+| B5 | ✅ | `logs/b5-bad.log`：非法 zip 退出码 1 | 损坏包 |
+| C1 | ✅ | web 日志：`exec route registered` | ADR-0011 |
+| D1 | ✅ | `cdp/01-home.png`、`cdp-result.json` | 侧边栏入口 |
+| D2 | ✅ | `cdp/02-overlay.png` | 浮层打开 |
+| D3 | ✅ | `cdp-result.json`：树标题「默认工作区 / default-workspace / 在工作区创建 Markdown 文件」 | 非 UUID |
+| D4 | ✅ | 诊断 `workspaces=1 sessions=2 · locale=zh` | |
+| D5 | ✅ | `cdp/03-selected.png`：已选 1 工作区 2 对话 | |
+| D7 | ✅ | `cdp/05-export-done.png` + `export-out/cdp-test.dshpack`（26495 B） | 导出完成卡片 |
+| D8 | ✅ | `cdp-result.json`：高级选项存在 | |
+| D10 | ✅ | `cdp/06-preview.png`：对话 2 · 工作区 0 · 冲突 2 项 | 预览 |
+| D11 | ⚠️ | `cdp/07-import-done.png`：结果「已导入 2 个对话」；sessions 目录 +2 | 数据成功 |
+| D12 | ❌ | `cdp/08-after-restart.png`：重启后侧边栏仍只见原有 2 个会话 | **导入会话未出现在 DSH 侧边栏**（待查：session.list/blank/formatStatus 过滤） |
+| E1 | ✅ | B3 | |
+| E5 | ⏳ | 未执行（本轮无附件包） | |
+| F1 | ✅ | 测试工作区路径带 marker | |
+
+**本轮结论**：导出/预览/导入数据链路全部通过；唯一未通过的是「导入会话在 DSH 侧边栏可见」，
+需要下一步用 Host selftest 调 `sessionController.list` / `workspaceRegistry.list` 定位过滤原因。
+
