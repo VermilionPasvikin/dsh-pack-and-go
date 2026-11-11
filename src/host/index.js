@@ -125,6 +125,34 @@ export function apply(ctx, config) {
     } catch {
       return false
     }
+    // 先修双记账：同一会话只保留一个归属（cwd 匹配者优先），避免 DSH 启动校验失败。
+    const ownersBySession = new Map()
+    for (const workspace of workspaces) {
+      for (const sessionId of workspace.sessionIds ?? []) {
+        if (!ownersBySession.has(sessionId)) ownersBySession.set(sessionId, [])
+        ownersBySession.get(sessionId).push(workspace)
+      }
+    }
+    let detached = 0
+    for (const snapshot of snapshots) {
+      const sessionId = snapshot.header.id
+      const owners = ownersBySession.get(sessionId) ?? []
+      if (owners.length <= 1) continue
+      const currentWorkspace = byPath.get(normalize(snapshot.header.cwd))
+      const keep =
+        currentWorkspace && owners.includes(currentWorkspace) ? currentWorkspace : owners[0]
+      for (const workspace of owners) {
+        if (workspace === keep) continue
+        try {
+          await workspace.detachSession(sessionId)
+          detached += 1
+        } catch (detachError) {
+          console.error('[dsh-mover] grouping detach failed', sessionId, detachError)
+        }
+      }
+    }
+    if (detached > 0) console.log('[dsh-mover] grouping detached', detached, 'stale ownerships')
+
     let repaired = 0
     for (const snapshot of snapshots) {
       const workspace = byPath.get(normalize(snapshot.header.cwd))

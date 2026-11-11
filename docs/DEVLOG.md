@@ -704,3 +704,13 @@
 - Client：导出页模式切换「对话 + 工作区 / 仅工作区」；仅工作区模式列出工作区（含空），至少选一个。
 - 文档：ADR-0015、SPEC 升 v1.2（ADR-0013/0014/0015 行为）、DESIGN 导出决策树补模式分支、TASKS M8。
 - 验证：193 项测试通过（新增「仅导出工作区（含空目录）→ 导入登记空工作区」用例）。
+
+## 125 · 2026-11-11 · fix: 工作区双记账导致 DSH 启动失败 + 仅工作区导出回归
+- 现象：启动报 `session ... is accounted by both workspace 2384be95 and 5e77ea89` → workspaceRegistry pending → 全部服务不可用（exec 404）。
+- 根因：启动补 attach 只加不减 + 旧工作区持久化残留 → 同一会话被两个工作区记账。
+- 修复：`repairGrouping` 先修双记账（同一会话只保留 cwd 匹配的工作区，其余 detach），再补 attach；测试 Home 的残留数据已手动修复（备份 `workspace.json.bak`）。
+- 仅工作区导出（ADR-0015）回归：
+  - exec `export { workspaces: [空目录] }` → 「已导出 1 个工作区（仅目录结构）…（584 字节）」；
+  - 导入 → 「登记 1 个工作区（其中 1 个暂无对话）」+ 重启提示；
+  - UI：导出页模式切换、仅工作区提示、工作区列表（含空）均出现（CDP `hasModeButtons/hasHint/hasWorkspaceList = true`）。
+- 验证：193 项测试通过；重启日志 `exec route registered`、无 inconsistent/pending。
