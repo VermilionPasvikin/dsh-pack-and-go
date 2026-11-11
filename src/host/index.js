@@ -55,6 +55,9 @@ export function apply(ctx, config) {
     get sessionController() {
       return typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined
     },
+    get sessions() {
+      return typeof ctx.get === 'function' ? ctx.get('sessions') : undefined
+    },
     dshHome: process.env.DSH_HOME,
     platform: process.platform,
     dshVersion: process.env.DSH_VERSION ?? 'unknown',

@@ -883,6 +883,17 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       (item) => item.action === 'overwrite',
     ).length
 
+    // 导入前已打开的会话：DSH 内存缓存不会因覆盖而刷新，需要重启 DSH 才能看到回滚结果。
+    const sessionsService = deps.sessions
+    const preOpenIds = new Set(
+      sessionsService && typeof sessionsService.list === 'function'
+        ? sessionsService.list().map((session) => session.id)
+        : [],
+    )
+    const preOpenWritten = sessions.written.filter((written) =>
+      preOpenIds.has(written.targetId),
+    )
+
     // 激活会话：让 DSH 的 live 索引感知新会话，左侧列表即可热更新（失败不阻断）。
     const sessionController = deps.sessionController
     if (sessionController && typeof sessionController.resolveAgent === 'function') {
@@ -965,6 +976,10 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }${
         migratedLines.length > 0
           ? `迁移覆盖：\n${migratedLines.join('\n')}\n`
+          : ''
+      }${
+        preOpenWritten.length > 0
+          ? `注意：${preOpenWritten.length} 个对话在导入前已打开，DSH 进程需重启后才会显示回滚结果。\n`
           : ''
       }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }

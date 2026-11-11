@@ -675,3 +675,9 @@
 - CLI 对齐：工作区文件全部还原。
 - 文档：ADR-0014、IMPORT-BEHAVIOR-TREE §7、DESIGN §3.1 同步修订。
 - 验证：192 项测试通过；CDP/exec 回归待执行。
+
+## 121 · 2026-11-11 · feat: 已打开会话的精确重启提示
+- 调研：DSH `sessions` 是内存会话存储（无 close/reload API，日志 append-only）；覆盖写盘后内存中仍是旧状态，刷新浏览器无效，必须重启 DSH。
+- 实现：`importPack` 在激活前用 `ctx.sessions.list()` 记录「导入前已打开」的会话；结果文本追加「注意：N 个对话在导入前已打开，DSH 进程需重启后才会显示回滚结果」。
+- `host/index.js` execDeps 增加延迟解析的 `sessions` 服务。
+- 验证：全量 192 项测试通过。
