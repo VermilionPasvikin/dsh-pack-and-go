@@ -578,3 +578,9 @@
 ## 105 · 2026-11-11 · fix: 空会话无法复制的明确提示
 - 变更：`importSessionsViaService` 统计 `unforkable`；导入结果文本追加「（其中 N 个空会话无对话轮次，无法复制）」。
 - 验证：`commands` 12 项通过；exec 导入含空会话的包时文本含该提示（CDP 待复跑）。
+
+## 106 · 2026-11-11 · fix: CLI 附件恢复 + 附件包全链路测试
+- 修复：CLI `import` 未调用 `restoreAttachments`（Host 有、CLI 没有）→ 现在恢复附件并输出「N 个附件」。
+- 附件包构造（用户提供的 docx + md）：`build-attach-pack.mjs` 生成 manifest + 会话事件（user/message 带 file 附件引用）+ `attachments/v1/file-objects|files` 条目。
+- 验证：CLI 导入 → 4 个附件文件（2 file-objects + 2 file-references）+ 会话文件；exec 导入当前 Home → 「已导入 1 个对话、附件 4 个」，附件对象写入 `attachments/v1`。
+- 遗留：手工构造的事件在 DSH 会话列表中的可见性待确认（cwd 无匹配工作区、侧边栏折叠）；真实 DSH 附件消息的导出/导入链路已由 CLI/exec 验证。

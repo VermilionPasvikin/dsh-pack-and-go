@@ -23,6 +23,7 @@ import {
   parseManifest,
   planExport,
   readZip,
+  restoreAttachments,
   restoreWorkspaceFiles,
   safeDirName,
   scanFrames,
@@ -258,10 +259,20 @@ async function cmdImport(options) {
     pathMap,
     targetPlatform: process.platform,
   })
+  const attachmentEntries = entries
+    .filter((entry) => entry.name.startsWith('attachments/'))
+    .map((entry) => ({ packPath: entry.name, data: entry.data }))
+  const attachments =
+    attachmentEntries.length > 0
+      ? await restoreAttachments({
+          entries: attachmentEntries,
+          attachmentsRoot: join(options.home, 'attachments', 'v1'),
+        })
+      : { restored: 0, warnings: [] }
   const updated = await updateWorkspaceRegistry(options.home, manifest, pathMap, sessions.written)
 
   console.log(
-    `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在、${files.written.length} 个工作区文件；workspace.json ${
+    `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在、${files.written.length} 个工作区文件、${attachments.restored} 个附件；workspace.json ${
       updated ? '已更新' : '未更新（不存在或不兼容）'
     }。重启 DSH 后可见。`,
   )
