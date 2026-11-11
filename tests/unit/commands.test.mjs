@@ -244,6 +244,30 @@ test('导入冲突策略：默认跳过，overwrite 覆盖', async () => {
   }
 })
 
+test('仅导出工作区（含文件）并导入还原文件结构', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const workspace = join(dir, 'ws-with-files')
+    await mkdir(join(workspace, 'sub'), { recursive: true })
+    await writeFile(join(workspace, 'a.txt'), 'hello')
+    await writeFile(join(workspace, 'sub', 'b.txt'), 'world')
+    const deps = await makeDeps(dir, join(dir, 'unused.zst'), Buffer.alloc(0))
+    const out = join(dir, 'ws-files.dshpack')
+    const exported = await exportWorkspacesOnly(deps, out, [workspace])
+    assert.equal(exported.kind, 'success')
+    assert.match(exported.text, /2 个文件/)
+
+    const target = join(dir, 'import-target')
+    const imported = await importPack(deps, out, target, { sessionPolicy: 'skip' })
+    assert.equal(imported.kind, 'success')
+    assert.match(imported.text, /登记 1 个工作区/)
+    assert.equal(await readFile(join(target, 'ws-with-files', 'a.txt'), 'utf8'), 'hello')
+    assert.equal(await readFile(join(target, 'ws-with-files', 'sub', 'b.txt'), 'utf8'), 'world')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('仅导出工作区（含空目录）并导入登记为空工作区', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {

@@ -714,3 +714,11 @@
   - 导入 → 「登记 1 个工作区（其中 1 个暂无对话）」+ 重启提示；
   - UI：导出页模式切换、仅工作区提示、工作区列表（含空）均出现（CDP `hasModeButtons/hasHint/hasWorkspaceList = true`）。
 - 验证：193 项测试通过；重启日志 `exec route registered`、无 inconsistent/pending。
+
+## 126 · 2026-11-11 · fix: 仅工作区导出补文件内容 + UI 隐藏无关选项
+- 问题：`exportWorkspacesOnly` 只写 manifest（`fileCount: 0`），文件/目录结构未进包；仅工作区模式仍显示「将工作区一并导出」与高级选项（无作用）。
+- 修复：
+  - `exportWorkspacesOnly` 用 `scanWorkspace` 扫描：文件写入 `workspaces/<key>/files/...`（含内容），空目录写目录条目；manifest 的 `fileCount/sizeBytes` 取真实值。
+  - 导出页仅工作区模式隐藏「将工作区一并导出」及高级选项。
+- 文档：ADR-0015 决策 3、SPEC v1.2、DESIGN 决策树同步为「文件内容 + 目录结构」。
+- 验证：新增「仅导出工作区（含文件）→ 导入还原文件结构」用例；全量测试通过。

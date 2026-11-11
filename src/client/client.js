@@ -1357,34 +1357,42 @@ window.__ModuleLoader__.load({
               : isWorkspacesOnly
                 ? workspaceOnlyTree()
                 : treeBox(),
-          h(
-            'label',
-            {
-              style: {
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                marginTop: 10,
-                fontSize: 13,
-                color: THEME.text,
-                cursor: busy ? 'default' : 'pointer',
-              },
-            },
-            h('input', {
-              type: 'checkbox',
-              checked: includeFiles,
-              disabled: busy,
-              onChange: (event) => setIncludeFiles(event.target.checked),
-            }),
-            h('span', null, t.includeFiles),
-          ),
-          h(
-            'div',
-            { style: { fontSize: 11, color: THEME.textMuted, marginTop: 2, marginBottom: 8 } },
-            t.includeFilesHint,
-          ),
-          h(
-            'details',
+          isWorkspacesOnly
+            ? null
+            : h(
+                'label',
+                {
+                  style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginTop: 10,
+                    fontSize: 13,
+                    color: THEME.text,
+                    cursor: busy ? 'default' : 'pointer',
+                  },
+                },
+                h('input', {
+                  type: 'checkbox',
+                  checked: includeFiles,
+                  disabled: busy,
+                  onChange: (event) => setIncludeFiles(event.target.checked),
+                }),
+                h('span', null, t.includeFiles),
+              ),
+          isWorkspacesOnly
+            ? null
+            : h(
+                'div',
+                {
+                  style: { fontSize: 11, color: THEME.textMuted, marginTop: 2, marginBottom: 8 },
+                },
+                t.includeFilesHint,
+              ),
+          isWorkspacesOnly
+            ? null
+            : h(
+                'details',
             { style: { marginBottom: 8 } },
             h(
               'summary',

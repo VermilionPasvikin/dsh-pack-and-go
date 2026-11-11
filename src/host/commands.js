@@ -138,6 +138,9 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
   try {
     const platform = deps.platform ?? process.platform
     const workspaces = []
+    const planItems = []
+    const sourcePaths = {}
+    const extraEntries = []
     for (const [index, rawPath] of paths.entries()) {
       const sourcePath = rawPath.trim()
       let info
@@ -156,13 +159,25 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
         // 无法 realpath 时保留原路径
       }
       const key = `ws-${index + 1}`
+      const scan = await scanWorkspace(canonical, {})
+      const files = scan.entries.filter((entry) => entry.isDir !== true)
+      const dirs = scan.entries.filter((entry) => entry.isDir === true)
+      for (const entry of files) {
+        const packPath = `workspaces/${key}/files/${entry.relPath}`
+        planItems.push({ path: packPath, sizeBytes: entry.size })
+        sourcePaths[packPath] = join(canonical, entry.relPath)
+      }
+      // 目录条目保留空目录结构（导入端 restoreWorkspaceFiles 已支持）。
+      for (const entry of dirs) {
+        extraEntries.push({ name: `workspaces/${key}/files/${entry.relPath}/`, isDir: true })
+      }
       workspaces.push({
         key,
         title: basename(canonical) || canonical,
         sourcePath: canonical,
         sourcePlatform: platform,
-        fileCount: 0,
-        sizeBytes: 0,
+        fileCount: files.length,
+        sizeBytes: files.reduce((sum, entry) => sum + entry.size, 0),
         root: `workspaces/${key}/files`,
       })
     }
@@ -176,15 +191,16 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
     })
     const resolvedTarget = await resolveExportTarget(targetPath, undefined)
     const written = await buildPackToFile({
-      plan: { items: [] },
-      sourcePaths: {},
+      plan: { items: planItems },
+      sourcePaths,
       manifest,
       outputPath: resolvedTarget,
-      readme: 'dsh-mover 工作区迁移包（仅目录结构）\n',
+      extraEntries,
+      readme: 'dsh-mover 工作区迁移包（不含对话）\n',
     })
     return {
       kind: 'success',
-      text: `已导出 ${workspaces.length} 个工作区（仅目录结构）到 ${resolvedTarget}（${written.bytes} 字节）。`,
+      text: `已导出 ${workspaces.length} 个工作区（${planItems.length} 个文件）到 ${resolvedTarget}（${written.bytes} 字节）。`,
     }
   } catch (error) {
     return errorResult(

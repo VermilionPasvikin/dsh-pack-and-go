@@ -387,7 +387,7 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 
 1. 先做 Host/CLI 管线，再做导出页「仅工作区」模式入口；
 2. 包格式：`mode: 'workspaces'`、`sessions: []`、`workspaces` 非空；**不要求向后兼容**（插件尚未发布）；
-3. 空文件夹工作区只导出目录结构（`fileCount: 0`），导入时 `mkdir` + 登记；
+3. 工作区导出**包含文件内容与目录结构**；空文件夹工作区保留目录骨架（`fileCount: 0`），导入时 `mkdir` + 登记；
 4. CLI：`export --workspace <path>`（可多次，至少一个）；exec：`export.workspaces`；
 5. 导入端复用「空工作区也登记」（ADR-0014 决策 9 的 E 版），无需新逻辑。
 
