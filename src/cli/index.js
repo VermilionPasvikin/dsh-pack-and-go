@@ -245,12 +245,13 @@ async function cmdImport(options) {
   }
 
   const sessionRoot = join(options.home, 'sessions')
-  const existingSessionIds = await scanExistingSessionIds(sessionRoot)
+  const existingCwdById = await scanExistingSessionIds(sessionRoot)
   const sessions = await importSessionsToDisk({
     buffer,
     sessionRoot,
     pathMap,
-    existingSessionIds,
+    existingSessionIds: [...existingCwdById.keys()],
+    existingCwdById,
   })
   const workspaceEntries = entries
     .filter((entry) => entry.name.startsWith('workspaces/'))

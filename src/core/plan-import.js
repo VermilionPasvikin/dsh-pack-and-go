@@ -44,8 +44,21 @@ function planImportError(message, details = {}) {
  *   summary: { sessions: Record<string, number>, workspaces: Record<string, number>, conversions: number }
  * }}
  */
+/**
+ * 归一化路径用于比较（斜杠统一、小写）。
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizePath(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '/')
+    .toLowerCase()
+    .replace(/\/+$/, '')
+}
+
 export function planImport(input) {
   const { manifest, pathMap } = input
+  const existingCwdById = input.existingCwdById ?? new Map()
   if (manifest === null || typeof manifest !== 'object') {
     throw planImportError('缺少 manifest')
   }
@@ -96,12 +109,24 @@ export function planImport(input) {
         )
       }
     }
+    let action = existingIds.has(session.id) ? policy.session : 'import'
+    // 覆盖时若目标 cwd 与现有会话不同，写第二份会产生重复 id（DSH 启动会失败）→ 降级为跳过。
+    if (action === 'overwrite') {
+      const currentCwd = existingCwdById.get(session.id)
+      if (
+        typeof currentCwd === 'string' &&
+        typeof targetCwd === 'string' &&
+        normalizePath(currentCwd) !== normalizePath(targetCwd)
+      ) {
+        action = 'skip'
+      }
+    }
     sessions.push({
       id: session.id,
       title: session.title,
       workspaceKey: session.workspaceKey,
       targetCwd,
-      action: existingIds.has(session.id) ? policy.session : 'import',
+      action,
     })
   }
 

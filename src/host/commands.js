@@ -578,7 +578,7 @@ function readSessionHeaderFromBuffer(buffer) {
  * @returns {Promise<Set<string>>}
  */
 export async function scanExistingSessionIds(sessionRoot) {
-  const ids = new Set()
+  const ids = new Map()
   let projects
   try {
     projects = await readdir(sessionRoot, { withFileTypes: true })
@@ -606,7 +606,9 @@ export async function scanExistingSessionIds(sessionRoot) {
       try {
         const data = await readFile(join(sessionDir, log))
         const header = readSessionHeaderFromBuffer(data)
-        if (header && typeof header.id === 'string') ids.add(header.id)
+        if (header && typeof header.id === 'string') {
+          ids.set(header.id, typeof header.cwd === 'string' ? header.cwd : undefined)
+        }
       } catch {
         // 损坏会话跳过
       }
@@ -659,18 +661,27 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
 
     const sessionRoot = join(deps.dshHome, 'sessions')
     let existingSessionIds = []
+    const existingCwdById = new Map()
     try {
       const snapshots = await deps.sessionPersistence.list()
-      existingSessionIds = snapshots.map((snapshot) => snapshot.header.id)
+      for (const snapshot of snapshots) {
+        existingSessionIds.push(snapshot.header.id)
+        if (typeof snapshot.header.cwd === 'string') {
+          existingCwdById.set(snapshot.header.id, snapshot.header.cwd)
+        }
+      }
     } catch {
       // 重复 id 等异常时退回文件扫描，避免把冲突写进磁盘
-      existingSessionIds = [...(await scanExistingSessionIds(sessionRoot))]
+      const scanned = await scanExistingSessionIds(sessionRoot)
+      existingSessionIds = [...scanned.keys()]
+      for (const [id, cwd] of scanned) existingCwdById.set(id, cwd)
     }
     const sessions = await importSessionsToDisk({
       buffer,
       sessionRoot,
       pathMap,
       existingSessionIds,
+      existingCwdById,
       policy: { session: sessionPolicy },
     })
     const attachmentEntries = entries

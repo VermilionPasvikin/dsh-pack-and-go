@@ -620,3 +620,10 @@
 - 自动化脚本侧经验：React 受控输入需先重置 `_valueTracker` 再 set + input 事件，否则 onChange 不触发（用户手动输入不受影响）。
 - 用户侧可能原因：浮层重开后策略默认「跳过」且未切换 / 页面旧 bundle；已在预览卡片显示「冲突处理：跳过 / 覆盖」。
 - 验证：`client-render` 4 项通过。
+
+## 113 · 2026-11-11 · fix: 覆盖不同目标目录导致重复 id（DSH 启动失败）
+- 现象：用户侧边栏空、创建按钮报 `directoryPickerController unavailable`；日志为 `duplicate JSONL session id ... multiple project directories` → workspaceRegistry 初始化失败 → 依赖服务全部 pending。
+- 根因：覆盖导入时目标 cwd 与现有会话 cwd 不同，写入了第二份会话文件（同一 id 两个目录）。这是产品缺陷，被我的覆盖测试触发。
+- 修复：`planImport` 接收 `existingCwdById`；`overwrite` 且目标 cwd ≠ 现有 cwd 时降级为 `skip`（避免重复 id）。Host/CLI 均收集 id→cwd 并传入。
+- 清理：重复会话目录已移到 `dup-cleanup-*`；重启后启动日志干净、左侧默认工作区正常。
+- 测试：单元 178 项通过（新增 plan-import 降级用例）。

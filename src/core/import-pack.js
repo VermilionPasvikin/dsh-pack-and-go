@@ -96,6 +96,7 @@ export async function importSessionsToDisk(input) {
     pathMap,
     existingSessionIds: input.existingSessionIds ?? [],
     existingWorkspacePaths: input.existingWorkspacePaths ?? [],
+    existingCwdById: input.existingCwdById,
     policy: input.policy,
     preflight: input.preflight,
   })
