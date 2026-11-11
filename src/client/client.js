@@ -60,7 +60,10 @@ window.__ModuleLoader__.load({
         previewTitle: '迁移包预览',
         previewCounts: (sessions, workspaces, attachments) =>
           `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
-        previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按默认策略处理）`,
+        previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按所选策略处理）`,
+        conflictModeLabel: '冲突处理',
+        conflictSkipShort: '跳过',
+        conflictOverwriteShort: '覆盖',
         placeOriginal: '放回原路径',
         placeFolder: '指定目录',        conflictSkip: '已存在对话：跳过',
         conflictOverwrite: '已存在对话：覆盖',
@@ -127,7 +130,10 @@ window.__ModuleLoader__.load({
         previewTitle: 'Package preview',
         previewCounts: (sessions, workspaces, attachments) =>
           `${sessions} conversations · ${workspaces} workspaces · ${attachments} attachments`,
-        previewConflicts: (n) => `${n} conflicts with current data (handled by default policy)`,
+        previewConflicts: (n) => `${n} conflicts with current data (handled by the selected policy)`,
+        conflictModeLabel: 'Conflict policy',
+        conflictSkipShort: 'skip',
+        conflictOverwriteShort: 'overwrite',
         placeOriginal: 'Restore original path',
         placeFolder: 'Choose folder',
         conflictSkip: 'Existing conversations: skip',
@@ -1528,6 +1534,15 @@ window.__ModuleLoader__.load({
                       ),
                     )
                   : null,
+                h(
+                  'div',
+                  { style: { color: THEME.textMuted, marginTop: 2 } },
+                  `${t.conflictModeLabel}: ${
+                    importConflictMode === 'overwrite'
+                      ? t.conflictOverwriteShort
+                      : t.conflictSkipShort
+                  }`,
+                ),
               )
             : null,
           packOptions.length > 0
