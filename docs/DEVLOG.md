@@ -760,4 +760,13 @@
 - README 重写为对外介绍：项目定位「打包就走」、能力表、平台支持矩阵、Web/CLI 安装与用法、工作原理（Host/Client/Core + Mermaid 图 + 关键设计）、`.dshpack` 包结构协议（目录树 + manifest 字段表 + 导入语义）、安全边界、文档导航、测试与状态。
 - 与实现一致：schemaVersion 2、sessions/workspaces/attachments 路径、默认导入目录 `~/dsh-pack-and-go-import`、备份 `dsh-pack-and-go-backup`、196 项测试。
 - 纯文档变更，无代码影响。
+
+## 132 · 2026-11-11 · fix: 导出附件在未设置 DSH_HOME 的桌面环境崩溃
+- 现象：desktop profile 导出（勾选「打包附件」）报 `The "path" argument must be of type string. Received undefined`。
+- 根因：桌面进程未设置 `DSH_HOME`，插件 `deps.dshHome = process.env.DSH_HOME` 为 undefined → `join(undefined, 'attachments','v1')` 抛错（仅「打包附件」分支触发；不开附件不碰该路径）。
+- 修复：
+  - `commands.js` 增加 `resolveDshHome(deps)`：缺省回退 `join(homedir(), '.dsh')`；导出附件 / 导入 sessionRoot / 备份根 / 附件恢复 4 处使用；
+  - `host/index.js` 的 execDeps 与命令 deps 同样回退默认 home。
+- 测试：新增「导出附件缺少 dshHome 回退默认 home（不抛 path 错误）」用例；**197 项通过**。
+- 生效方式：desktop 是 link 安装，**重启 DSH 桌面应用**后生效。
 - README/TEST-PLAN 文档导航同步。

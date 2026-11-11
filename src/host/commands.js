@@ -218,6 +218,16 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
 }
 
 /**
+ * 解析 DSH_HOME：桌面进程可能未设置该环境变量，回退到 ~/.dsh。
+ * @param {object} deps
+ * @returns {string}
+ */
+function resolveDshHome(deps) {
+  if (typeof deps.dshHome === 'string' && deps.dshHome.length > 0) return deps.dshHome
+  return join(homedir(), '.dsh')
+}
+
+/**
  * @param {string} text
  * @returns {{ kind: 'error', text: string }}
  */
@@ -407,7 +417,7 @@ export async function exportAllSessions(
 
     const attachments = []
     if (options.attachments === true) {
-      const attachmentsRoot = join(deps.dshHome, 'attachments', 'v1')
+      const attachmentsRoot = join(resolveDshHome(deps), 'attachments', 'v1')
       const seenAttachments = new Set()
       for (const session of sessions) {
         try {
@@ -853,7 +863,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       mappings.push(`${workspace.sourcePath} → ${canonical}`)
     }
 
-    const sessionRoot = join(deps.dshHome, 'sessions')
+    const sessionRoot = join(resolveDshHome(deps), 'sessions')
     let existingSessionIds = []
     const existingCwdById = new Map()
     try {
@@ -878,7 +888,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       existingCwdById,
       policy: { session: sessionPolicy },
       // 覆盖/迁移覆盖前备份旧文件（迁移时旧目录移到该备份根下）。
-      backupRoot: join(deps.dshHome, 'dsh-pack-and-go-backup'),
+      backupRoot: join(resolveDshHome(deps), 'dsh-pack-and-go-backup'),
     })
     if (sessionPolicy === 'overwrite') {
       const unknown = sessions.written.filter(
@@ -915,7 +925,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       attachmentEntries.length > 0
         ? await restoreAttachments({
             entries: attachmentEntries,
-            attachmentsRoot: join(deps.dshHome, 'attachments', 'v1'),
+            attachmentsRoot: join(resolveDshHome(deps), 'attachments', 'v1'),
           })
         : { restored: 0, warnings: [] }
     // 决策 9（E 版）：空工作区也登记并还原文件（用户可能先建工作区、后建对话）。

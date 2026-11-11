@@ -318,6 +318,22 @@ test('仅导出工作区：文件符号链接解引用并计入统计', async ()
   }
 })
 
+test('导出附件时缺少 dshHome 回退到默认 home（不抛 path 错误）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    delete deps.dshHome
+    const out = join(dir, 'out.dshpack')
+    const result = await exportAllSessions(deps, out, [], true, { attachments: true })
+    assert.equal(result.kind, 'success')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('导入必须指定目标目录且不接受已移除的 new-id', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
   try {

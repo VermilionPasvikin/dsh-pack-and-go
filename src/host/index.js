@@ -6,6 +6,7 @@
  */
 
 import { appendFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
 
 import { loadCatalog } from './catalog.js'
@@ -34,7 +35,7 @@ export function apply(ctx, config) {
     sessionPersistence: ctx.sessionPersistence,
     sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
     workspaceController: typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined,
-    dshHome: process.env.DSH_HOME,
+    dshHome: process.env.DSH_HOME ?? join(homedir(), '.dsh'),
     platform: process.platform,
     dshVersion: process.env.DSH_VERSION ?? 'unknown',
     logger,
@@ -58,7 +59,7 @@ export function apply(ctx, config) {
     get sessions() {
       return typeof ctx.get === 'function' ? ctx.get('sessions') : undefined
     },
-    dshHome: process.env.DSH_HOME,
+    dshHome: process.env.DSH_HOME ?? join(homedir(), '.dsh'),
     platform: process.platform,
     dshVersion: process.env.DSH_VERSION ?? 'unknown',
     logger,
