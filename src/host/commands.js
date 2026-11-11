@@ -708,6 +708,8 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       existingSessionIds,
       existingCwdById,
       policy: { session: sessionPolicy },
+      // 覆盖/迁移覆盖前备份旧文件（迁移时旧目录移到该备份根下）。
+      backupRoot: join(deps.dshHome, 'dsh-mover-backup'),
     })
     if (sessionPolicy === 'overwrite') {
       const unknown = sessions.written.filter(
@@ -873,6 +875,16 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const migrated = sessions.written.filter(
       (written) => typeof written.migrateFrom === 'string',
     )
+    const migratedLines = migrated.map((written) => {
+      const source = manifest.sessions.find((item) => item.id === written.id)
+      const workspaceTitle = source?.workspaceKey
+        ? (registered.registered.find((item) => item.key === source.workspaceKey)?.title ??
+          manifest.workspaces.find((item) => item.key === source.workspaceKey)?.title ??
+          '未分组')
+        : '未分组'
+      const sessionTitle = typeof source?.title === 'string' ? source.title : written.id
+      return `${workspaceTitle}/${sessionTitle}（原 ${written.migrateFrom} → 新 ${written.cwd}）`
+    })
     const ungroupedCount = sessions.written.filter((written) => {
       const source = manifest.sessions.find((item) => item.id === written.id)
       return source?.workspaceKey === undefined
@@ -897,10 +909,8 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }。${
         mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
       }${
-        migrated.length > 0
-          ? `迁移覆盖：\n${migrated
-              .map((item) => `${item.migrateFrom} → ${item.cwd}`)
-              .join('\n')}\n`
+        migratedLines.length > 0
+          ? `迁移覆盖：\n${migratedLines.join('\n')}\n`
           : ''
       }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }

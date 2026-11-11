@@ -650,3 +650,15 @@
 - `importPack`：覆盖但 cwd 未知 → 拒绝；附件只恢复实际写入会话引用的部分；只还原有会话写入的工作区文件；同名未登记目录 → `标题 (1)`；结果文本增加迁移覆盖/覆盖文件/未归组/旧格式提示；移除 unforkable 残留。
 - `workspaces.restoreWorkspaceFiles`：返回 `overwritten` 列表（覆盖文件统计）。
 - 验证：全量 192 项测试通过（plan-import 迁移/父跳子用例、import-pack 覆盖用例）。
+
+## 118 · 2026-11-11 · fix: 全量 code review 修复与 CDP 回归
+- code review 发现并修复 4 处偏差：
+  1. 迁移覆盖未传 `backupRoot`（直接 rm 旧目录，违反「备份后移除」）→ Host/CLI 传 `<DSH_HOME>/dsh-mover-backup`；
+  2. 迁移提示只有路径 → 改为「`<工作区名>/<会话名>（原 <路径> → 新 <路径>）`」；
+  3. exec 路由在 apply 时 `connection` 未就绪就放弃注册（部署后出现 `connection.fetch unavailable`）→ 改为延迟重试（120×500ms）；
+  4. CLI 未对齐决策 2/5/7/9 → 补齐同名目录 `(1)`、cwd 未知拒绝、附件按写入会话过滤、空工作区文件过滤、备份根。
+- CDP/exec 回归（干净 Home）：
+  - 导入 A（跳过）：「已导入 1 个对话、登记 1 个工作区、归组 1 个对话」；
+  - 覆盖到 B（迁移覆盖）：「覆盖 1 个（其中 1 个迁移覆盖）」+ 提示「`default-workspace（导入 2）/创建测试Markdown文档（原 cdp-A3 → 新 cdp-B3）`」；
+  - sessions 目录仅 cdp-B3 存在（A3 旧目录已移除），无重复 id。
+- 验证：192 项测试通过。

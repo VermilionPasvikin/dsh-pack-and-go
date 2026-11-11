@@ -11,7 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import zlib from 'node:zlib'
@@ -19,6 +19,7 @@ import zlib from 'node:zlib'
 import {
   buildManifest,
   buildPackToFile,
+  extractAttachmentRefs,
   importSessionsToDisk,
   parseManifest,
   planExport,
@@ -239,7 +240,24 @@ async function cmdImport(options) {
   const root = options.target
   const pathMap = { byKey: {} }
   for (const workspace of manifest.workspaces) {
-    const dir = join(root, safeDirName(workspace.title, process.platform))
+    let dir = join(root, safeDirName(workspace.title, process.platform))
+    try {
+      // 目标已存在但无法确认是否本插件创建：加序号，避免覆盖用户已有目录（决策 2）。
+      await access(dir)
+      let suffix = 1
+      for (;;) {
+        const candidate = `${dir} (${suffix})`
+        try {
+          await access(candidate)
+          suffix += 1
+        } catch {
+          dir = candidate
+          break
+        }
+      }
+    } catch {
+      // 目录不存在，直接使用
+    }
     await mkdir(dir, { recursive: true })
     pathMap.byKey[workspace.key] = await realpath(dir)
   }
@@ -253,17 +271,37 @@ async function cmdImport(options) {
     existingSessionIds: [...existingCwdById.keys()],
     existingCwdById,
     policy: { session: options.overwrite === true ? 'overwrite' : 'skip' },
+    backupRoot: join(options.home, 'dsh-mover-backup'),
   })
-  const workspaceEntries = entries
-    .filter((entry) => entry.name.startsWith('workspaces/'))
-    .map((entry) => ({ packPath: entry.name, data: entry.data }))
-  const files = await restoreWorkspaceFiles({
-    entries: workspaceEntries,
-    pathMap,
-    targetPlatform: process.platform,
-  })
+  if (options.overwrite === true) {
+    const unknown = sessions.written.filter(
+      (written) => written.action === 'overwrite' && !existingCwdById.has(written.id),
+    )
+    if (unknown.length > 0) {
+      fail(
+        `无法覆盖：${unknown.length} 个对话找不到现有位置（请改用跳过，或重启 DSH 后重试）。`,
+      )
+    }
+  }
+  // 附件只恢复「实际写入会话」引用的部分（决策 7）。
+  const byName = new Map(entries.map((entry) => [entry.name, entry.data]))
+  const referencedAttachments = new Set()
+  for (const written of sessions.written) {
+    const source = manifest.sessions.find((item) => item.id === written.id)
+    const packed = source ? byName.get(source.path) : undefined
+    if (!packed) continue
+    for (const ref of extractAttachmentRefs(packed)) referencedAttachments.add(ref.attachmentId)
+  }
   const attachmentEntries = entries
     .filter((entry) => entry.name.startsWith('attachments/'))
+    .filter((entry) => {
+      const match = /attachments\/v1\/(?:file-objects|objects)\/[0-9a-f]{2}\/([0-9a-f]{64})/.exec(
+        entry.name,
+      )
+      if (match) return referencedAttachments.has(`sha256:${match[1]}`)
+      const fileMatch = /attachments\/v1\/files\/[0-9a-f]{2}\/([0-9a-f]{64})\//.exec(entry.name)
+      return fileMatch ? referencedAttachments.has(`sha256:${fileMatch[1]}`) : true
+    })
     .map((entry) => ({ packPath: entry.name, data: entry.data }))
   const attachments =
     attachmentEntries.length > 0
@@ -272,6 +310,32 @@ async function cmdImport(options) {
           attachmentsRoot: join(options.home, 'attachments', 'v1'),
         })
       : { restored: 0, warnings: [] }
+  // 只还原有会话写入的工作区文件（决策 9）。
+  const writtenByKey = new Map()
+  for (const written of sessions.written) {
+    const source = manifest.sessions.find((item) => item.id === written.id)
+    const key = source?.workspaceKey
+    if (typeof key === 'string') {
+      writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
+    }
+  }
+  const activeKeys = new Set(
+    manifest.workspaces
+      .filter((workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0)
+      .map((workspace) => workspace.key),
+  )
+  const workspaceEntries = entries
+    .filter((entry) => entry.name.startsWith('workspaces/'))
+    .filter((entry) => {
+      const match = /^workspaces\/([^/]+)\//.exec(entry.name)
+      return match ? activeKeys.has(match[1]) : true
+    })
+    .map((entry) => ({ packPath: entry.name, data: entry.data }))
+  const files = await restoreWorkspaceFiles({
+    entries: workspaceEntries,
+    pathMap,
+    targetPlatform: process.platform,
+  })
   const updated = await updateWorkspaceRegistry(options.home, manifest, pathMap, sessions.written)
 
   const migrated = sessions.written.filter(

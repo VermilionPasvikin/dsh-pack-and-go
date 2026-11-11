@@ -43,26 +43,30 @@ export function apply(ctx, config) {
   console.log('[dsh-mover] command registered: mover')
 
   // ADR-0011：exact Fetch 操作入口（不依赖会话上下文、不写会话日志）。
-  const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
-  if (connection && connection.fetch && typeof connection.fetch.register === 'function') {
-    const execDeps = {
-      workspaceRegistry: ctx.workspaceRegistry,
-      sessionPersistence: ctx.sessionPersistence,
-      sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
-      // 服务延迟解析：apply 时可能尚未就绪，请求时再取。
-      get workspaceController() {
-        return typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined
-      },
-      get sessionController() {
-        return typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined
-      },
-      dshHome: process.env.DSH_HOME,
-      platform: process.platform,
-      dshVersion: process.env.DSH_VERSION ?? 'unknown',
-      logger,
+  // connection 服务可能在 apply 时尚未就绪，因此延迟重试注册。
+  const execDeps = {
+    workspaceRegistry: ctx.workspaceRegistry,
+    sessionPersistence: ctx.sessionPersistence,
+    sessionQuery: typeof ctx.get === 'function' ? ctx.get('sessionQuery') : undefined,
+    // 服务延迟解析：apply 时可能尚未就绪，请求时再取。
+    get workspaceController() {
+      return typeof ctx.get === 'function' ? ctx.get('workspaceController') : undefined
+    },
+    get sessionController() {
+      return typeof ctx.get === 'function' ? ctx.get('sessionController') : undefined
+    },
+    dshHome: process.env.DSH_HOME,
+    platform: process.platform,
+    dshVersion: process.env.DSH_VERSION ?? 'unknown',
+    logger,
+  }
+  const registerExecRoute = () => {
+    const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
+    if (!connection || !connection.fetch || typeof connection.fetch.register !== 'function') {
+      return false
     }
-    const handleExec = createExecHandler(execDeps, logger)
     try {
+      const handleExec = createExecHandler(execDeps, logger)
       ctx.effect(() =>
         connection.fetch.register({
           path: '/api/mover/exec',
@@ -72,11 +76,25 @@ export function apply(ctx, config) {
         }),
       )
       console.log('[dsh-mover] exec route registered: /api/mover/exec')
+      return true
     } catch (error) {
       console.error('[dsh-mover] exec route registration failed', error)
+      return false
     }
-  } else {
-    console.warn('[dsh-mover] connection.fetch unavailable; UI falls back to command channel')
+  }
+  if (!registerExecRoute()) {
+    console.warn('[dsh-mover] connection.fetch not ready; retrying exec route registration')
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts += 1
+      if (registerExecRoute() || attempts >= 120) {
+        clearInterval(timer)
+        if (attempts >= 120) {
+          console.warn('[dsh-mover] exec route unavailable; UI falls back to command channel')
+        }
+      }
+    }, 500)
+    ctx.effect(() => () => clearInterval(timer))
   }
 
   if (process.env.DSH_MOVER_SELFTEST === '1') {
