@@ -770,6 +770,12 @@
 - 测试：新增「导出附件缺少 dshHome 回退默认 home（不抛 path 错误）」用例；**197 项通过**。
 - 生效方式：desktop 是 link 安装，**重启 DSH 桌面应用**后生效。
 
+## 135 · 2026-11-12 · docs: 新增 ADR-0016（全权限位保真，Proposed）
+- 背景：devlog 134 后导入端仍只恢复 exec 位；本机实测 `0644`→`0664`、目录 `0775` 跟随 umask（umask=`002`），`0600` 私钥会变成 group 可读写。包内 mode 在 zip external attributes 中本就无损，丢失发生在恢复端策略。
+- 变更：`DECISIONS.md` 追加 ADR-0016（**Proposed**）：4 个选项（A 维持现状 / **B 全量保真** / C 不区分源平台 / D 仅报告）+ 8 条硬约束（仅 POSIX 目标、剥离 setuid/setgid/sticky、win32 源包跳过、目录两阶段 chmod、失败仅 warning、结果统计 `modes`、覆盖语义、包格式不变）。
+- 状态：等用户批准或否决；**未改任何代码**，P-05a 修复（devlog 134）保持现状。
+- 下一步：批准 → 按 B 实现 `workspaces.js` + 单测 + 结果文本；否决 → 本 ADR 标 `Rejected` 并保留原文。
+
 ## 134 · 2026-11-12 · fix: 导入工作区文件丢失 POSIX 可执行位（P-05a）
 - 现象：含 `0755` 文件的工作区导出正常（包内 mode 记录为 `0o100755`），导入后落盘 `0o664`，可执行位丢失（Linux 专项 P-05a 失败）。
 - 根因：`core/workspaces.js` 的 `restoreWorkspaceFiles` 归并条目时只保留 `{ relative, isDir, data }`，丢掉 `entry.mode`；后续 exec 位分支 `typeof file.mode === 'number'` 恒为 false，`chmod` 永不执行（异常还被 `catch {}` 静默吞掉）。CLI `import` 与 Host `importPack` 共用该函数，故 UI 导入同样受影响。
