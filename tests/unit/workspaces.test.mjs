@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises'
+import { mkdtemp, rm, readFile, stat, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -31,6 +31,32 @@ test('恢复工作区文件到目标路径', async () => {
     assert.equal(await readFile(join(dir, 'p1', 'a.txt'), 'utf8'), 'hello')
     assert.equal(await readFile(join(dir, 'p1', 'sub', 'b.bin'), 'utf8'), 'xyz')
     assert.equal(await readFile(join(dir, 'p2', 'c.txt'), 'utf8'), 'c')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('POSIX 目标恢复可执行位（P-05a）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    await restoreWorkspaceFiles({
+      entries: [
+        {
+          packPath: 'workspaces/w1/files/run.sh',
+          data: Buffer.from('#!/bin/sh\necho hi\n'),
+          mode: 0o100755,
+        },
+        { packPath: 'workspaces/w1/files/plain.txt', data: Buffer.from('x'), mode: 0o100644 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+    })
+    const exec = await stat(join(dir, 'p1', 'run.sh'))
+    assert.equal(exec.mode & 0o777, 0o755, '包内 0755 的文件导入后应恢复可执行位')
+    const plain = await stat(join(dir, 'p1', 'plain.txt'))
+    assert.equal(plain.mode & 0o111, 0, '普通文件不应被加上可执行位')
+    assert.equal(await readFile(join(dir, 'p1', 'run.sh'), 'utf8'), '#!/bin/sh\necho hi\n')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

@@ -53,6 +53,8 @@ export async function restoreWorkspaceFiles(input) {
       relative,
       isDir: entry.packPath.endsWith('/') || relative.length === 0,
       data: entry.data,
+      // 权限位随条目带入，否则下面的 exec 位 chmod 分支永远不执行（P-05a）。
+      mode: entry.mode,
     })
   }
 

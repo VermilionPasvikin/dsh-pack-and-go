@@ -770,6 +770,15 @@
 - 测试：新增「导出附件缺少 dshHome 回退默认 home（不抛 path 错误）」用例；**197 项通过**。
 - 生效方式：desktop 是 link 安装，**重启 DSH 桌面应用**后生效。
 
+## 134 · 2026-11-12 · fix: 导入工作区文件丢失 POSIX 可执行位（P-05a）
+- 现象：含 `0755` 文件的工作区导出正常（包内 mode 记录为 `0o100755`），导入后落盘 `0o664`，可执行位丢失（Linux 专项 P-05a 失败）。
+- 根因：`core/workspaces.js` 的 `restoreWorkspaceFiles` 归并条目时只保留 `{ relative, isDir, data }`，丢掉 `entry.mode`；后续 exec 位分支 `typeof file.mode === 'number'` 恒为 false，`chmod` 永不执行（异常还被 `catch {}` 静默吞掉）。CLI `import` 与 Host `importPack` 共用该函数，故 UI 导入同样受影响。
+- 修复：归并时带上 `mode: entry.mode`；chmod 仍按包内真实 mode 恢复（不硬编码 755），Windows 目标继续忽略。
+- 测试：新增「POSIX 目标恢复可执行位（P-05a）」（0755→0755、普通文件不得出现 x 位）；临时回退该行可复现 `actual 436 / expected 493`；全量 **198 项通过**。
+- 实测（Linux）：导出 `0o100755` → 导入 `0o755`、可执行 yes；Linux 专项脚本与最小复现脚本同时通过。
+- 说明：仅恢复「带 exec 位」的文件；普通文件仍按 umask 落盘（`0644`→`0664`），属 SPEC FR-9 / ADR-0003 现有策略，本次未改；若需全权限位保真（如 `0600` 私钥）应另立 ADR。
+- 下一步：macOS CI 复核 P-05a/P-04b；P-06b 待 macOS CI。
+
 ## 133 · 2026-11-11 · feat: 移除导出页「搜索对话」框
 - 用户决定：导出页搜索框用处不大且有 bug，移除。
 - Client：删除 `query` 状态、`visibleGroups` 过滤逻辑与搜索输入框渲染；树直接展示 `groups`。

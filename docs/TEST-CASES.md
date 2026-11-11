@@ -1,4 +1,4 @@
-# 黑盒验收用例（v1.2，2026-11-11）
+# 黑盒验收用例（v1.3，2026-11-12）
 
 > 目的：按 **导入/导出行为决策树**（`DESIGN.md` §3.1/§3.2、`IMPORT-BEHAVIOR-TREE.md`）逐路径覆盖，供任意平台复用。
 > 执行方式定义：**单测** = `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"`；**CDP** = `tests/e2e/cdp/` 脚本（无头 Chrome）；**集成** = 一次性 `DSH_HOME` 真实导入/导出；**用户人工确认** = 仅纯视觉判断（主题/语言观感）。
@@ -60,12 +60,12 @@
 | P-02 | 合法名转换 | POSIX→Windows 含 `?*:` 文件名 | 自动安全重命名并写转换报告 | E2E | 全平台（模拟） | ✅ `cross-platform.test` |
 | P-03 | 预检报告可序列化 | 预检含风险工作区 | JSON 可读、逐项列出 | E2E | 全平台 | ✅ `cross-platform.test` |
 | P-04a | 符号链接（Windows） | 创建文件/目录链接后导出 | 文件链接解引用；目录链接跳过并记录 | 单测 | Windows（需开发者模式/管理员） | ✅ 2026-11-11 本机（开发者模式已开，scan/commands 用例通过） |
-| P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ⏳ 待 Linux/macOS CI |
-| P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ⏳ 待 CI（代码已实现） |
+| P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（真实 POSIX 链接 + CLI 导出/导入：解引用 1、跳过 2） |
+| P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（devlog 134 修复 mode 传递；0755→0755，含单测） |
 | P-05b | exec 位（Windows） | 同上 | 忽略权限位并记录 | 单测 | Windows | ✅ 代码条件分支 |
 | P-06a | Windows 保留名/长路径 | 预检 `CON`、超长路径 | 列出风险，导入时跳过/重命名 | 单测 | Windows | ✅ `preflight` 测试（部分） |
 | P-06b | macOS 大小写不敏感 | 同名不同大小写文件 | 预检列出大小写冲突 | 单测 | macOS | ⏳ 待 macOS CI |
-| P-06c | Linux 大小写敏感 | 同名不同大小写文件 | 无冲突 | 单测 | Linux | ⏳ 待 Linux CI |
+| P-06c | Linux 大小写敏感 | 同名不同大小写文件 | 无冲突 | 单测 | Linux | ✅ 2026-11-12 Linux（冲突 0；darwin 阳性对照 2） |
 | P-07 | 中文/空格/长路径 | 导出导入中文目录、空格路径 | 正常读写 | 单测 + CDP | 全平台 | ✅ 现有测试（中文路径） |
 | P-08 | 主题/语言 | 切换深/浅主题、中/英 | 文案与配色跟随 | 用户人工确认 | 全平台 | ✅ 用户已确认（2026-11-11） |
 
@@ -91,11 +91,14 @@
 
 | 用例 | 缺口 | 建议 |
 |---|---|---|
-| P-04b 符号链接（POSIX） | 待 CI | Linux/macOS CI 跑 |
-| P-05a exec 位 | 待 POSIX 文件系统 | Linux CI 断言 chmod |
-| P-06b/c 大小写 | 待 macOS/Linux CI | CI 矩阵补充 |
+| P-04b 符号链接（POSIX） | ✅ Linux 2026-11-12；macOS 未测 | macOS CI 补 P-04b |
+| P-05a exec 位 | ✅ Linux 2026-11-12（修复后）；macOS 未测 | macOS CI 复核 |
+| P-06b/c 大小写 | ✅ P-06c Linux 2026-11-12；P-06b macOS 未测 | macOS CI 补 P-06b |
+
+> 2026-11-12 Linux 专项执行明细与证据见仓库外的验证报告（本地 Linux 环境，一次性 `DSH_HOME`）。
 
 ## 6. 执行记录
 
 - 每轮执行：日期、平台、执行方式、结果（通过/失败+证据）；失败汇总后修复。
-- 最近：2026-11-11（Windows），单测 195 项通过；CDP 覆盖 E-06/E-09/E-11/I-10/I-11/I-19/I-23/P-08（用户确认）。
+- 2026-11-11（Windows），单测 195 项通过；CDP 覆盖 E-06/E-09/E-11/I-10/I-11/I-19/I-23/P-08（用户确认）。
+- 2026-11-12（Linux，Ubuntu 24.04 / Node 24）：单测 + E2E **198 项通过**；Linux 专项 P-04b ✅、P-05a ✅（先失败→devlog 134 修复）、P-06c ✅；侧边栏「迁移对话或工作区」中英文与浮层经 Firefox WebDriver 实测（无 Chrome，未跑 CDP 脚本）。
