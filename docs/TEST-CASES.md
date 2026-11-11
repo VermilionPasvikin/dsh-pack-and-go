@@ -59,7 +59,7 @@
 | P-01 | cwd 跨平台改写 | Windows 导出包在 POSIX 规则下导入 | header.cwd 改写为目标路径，目录一致 | E2E | 全平台（模拟） | ✅ `cross-platform.test` |
 | P-02 | 合法名转换 | POSIX→Windows 含 `?*:` 文件名 | 自动安全重命名并写转换报告 | E2E | 全平台（模拟） | ✅ `cross-platform.test` |
 | P-03 | 预检报告可序列化 | 预检含风险工作区 | JSON 可读、逐项列出 | E2E | 全平台 | ✅ `cross-platform.test` |
-| P-04a | 符号链接（Windows） | 创建文件/目录链接后导出 | 文件链接解引用；目录链接跳过并记录 | 单测 | Windows（需开发者模式/管理员） | ⏳ 本机无权限 → skip；需启用开发者模式后跑 |
+| P-04a | 符号链接（Windows） | 创建文件/目录链接后导出 | 文件链接解引用；目录链接跳过并记录 | 单测 | Windows（需开发者模式/管理员） | ✅ 2026-11-11 本机（开发者模式已开，scan/commands 用例通过） |
 | P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ⏳ 待 Linux/macOS CI |
 | P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ⏳ 待 CI（代码已实现） |
 | P-05b | exec 位（Windows） | 同上 | 忽略权限位并记录 | 单测 | Windows | ✅ 代码条件分支 |
@@ -91,7 +91,7 @@
 
 | 用例 | 缺口 | 建议 |
 |---|---|---|
-| P-04a/b 符号链接 | Windows 无权限 skip；POSIX 待 CI | 启用 Windows 开发者模式跑一次；Linux CI 跑 P-04b/P-05a |
+| P-04b 符号链接（POSIX） | 待 CI | Linux/macOS CI 跑 |
 | P-05a exec 位 | 待 POSIX 文件系统 | Linux CI 断言 chmod |
 | P-06b/c 大小写 | 待 macOS/Linux CI | CI 矩阵补充 |
 

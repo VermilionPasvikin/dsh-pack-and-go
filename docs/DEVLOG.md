@@ -747,4 +747,5 @@
 - 平台分化：符号链接（Windows P-04a 需开发者模式 / POSIX P-04b）、exec 位（P-05a/b）、大小写敏感（P-06b/c）、Windows 非法名（E-13）。
 - 待补：I-20 旧格式包单测；P-04b/P-05a/P-06b/c 需 Linux/macOS CI。
 - 补充（同轮）：`import-pack` 新增「旧格式包（sessionFormat 3）直接写入 v3 会话文件」用例 → I-20 ✅。
+- 补充（同轮）：Windows 开发者模式已开启，`fs.symlink` 文件/目录链接均可创建；`scan`/`commands` 符号链接用例实测通过 → P-04a ✅。
 - README/TEST-PLAN 文档导航同步。
