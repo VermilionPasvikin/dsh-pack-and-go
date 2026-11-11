@@ -770,6 +770,16 @@
 - 测试：新增「导出附件缺少 dshHome 回退默认 home（不抛 path 错误）」用例；**197 项通过**。
 - 生效方式：desktop 是 link 安装，**重启 DSH 桌面应用**后生效。
 
+## 136 · 2026-11-12 · feat: 导入按包内 mode 恢复 POSIX 文件权限（ADR-0016 B1）
+- 决定：用户批准 ADR-0016 的 **B1（仅文件权限）**；目录权限（B2）另立 ADR，暂不做。
+- 事实更正（写入 ADR）：Windows 源包 mode 不是 0644，而是 libuv 由 `FILE_ATTRIBUTE_READONLY` 合成——普通文件 `0o100666`、只读 `0o100444`、目录 `0o40766`（无 x 位）。故 win32 源包必须跳过 mode 恢复。
+- 变更：`core/workspaces.js` `restoreWorkspaceFiles` 新增 `sourcePlatform`；POSIX 源 + POSIX 目标按 `mode & 0o777` 恢复（自动剥离 setuid/setgid/sticky）；win32 源或未知来源回落「仅 exec 位」；Windows 目标不变；chmod 失败记 warning；返回值新增 `modes: { applied, failed }`。
+- 调用方：CLI `import` 与 Host `importPack` 传入 `manifest.source.platform`，结果文本统计「恢复权限 N 个」（失败数单独提示）。
+- 测试：`workspaces` 新增 4 项（0600/0644/0755 保持、setuid/setgid 剥离、win32 源包跳过 + exec 位仍生效、Windows 目标忽略）；`cli.test` 新增工作区导出/导入端到端权限断言；全量 **203 项通过**。
+- 文档：ADR-0016 → Accepted（B1）、SPEC → v1.3（FR-9 更新）、TEST-CASES 新增 P-05c。
+- 未做（B2 前置）：导出端记录真实目录 mode、目录两阶段 chmod、Windows 目录 mode 映射。
+- 下一步：B2 ADR；macOS CI 复核 P-05a/P-05c。
+
 ## 135 · 2026-11-12 · docs: 新增 ADR-0016（全权限位保真，Proposed）
 - 背景：devlog 134 后导入端仍只恢复 exec 位；本机实测 `0644`→`0664`、目录 `0775` 跟随 umask（umask=`002`），`0600` 私钥会变成 group 可读写。包内 mode 在 zip external attributes 中本就无损，丢失发生在恢复端策略。
 - 变更：`DECISIONS.md` 追加 ADR-0016（**Proposed**）：4 个选项（A 维持现状 / **B 全量保真** / C 不区分源平台 / D 仅报告）+ 8 条硬约束（仅 POSIX 目标、剥离 setuid/setgid/sticky、win32 源包跳过、目录两阶段 chmod、失败仅 warning、结果统计 `modes`、覆盖语义、包格式不变）。

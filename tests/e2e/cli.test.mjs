@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile, stat, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -186,6 +186,37 @@ test('CLI 缺少参数时返回非零并给出提示', async () => {
     const result = runCli(['export', '--out', join(dir, 'x.dshpack')])
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /--home/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('CLI 工作区导出/导入按包内 mode 恢复文件权限（ADR-0016 B1）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cli-'))
+  try {
+    const ws = join(dir, 'ws-modes')
+    await mkdir(ws, { recursive: true })
+    await writeFile(join(ws, 'private.txt'), 's')
+    await chmod(join(ws, 'private.txt'), 0o600)
+    await writeFile(join(ws, 'plain.txt'), 'p')
+    await chmod(join(ws, 'plain.txt'), 0o644)
+    await writeFile(join(ws, 'run.sh'), '#!/bin/sh\n')
+    await chmod(join(ws, 'run.sh'), 0o755)
+
+    const home = await makeHome(dir)
+    const pack = join(dir, 'ws.dshpack')
+    const exported = runCli(['export', '--home', home, '--out', pack, '--workspace', ws])
+    assert.equal(exported.status, 0, exported.stderr)
+
+    const target = join(dir, 'target')
+    const imported = runCli(['import', '--home', home, '--pack', pack, '--target', target])
+    assert.equal(imported.status, 0, imported.stderr)
+    assert.match(imported.stdout, /恢复权限 3 个/)
+
+    const perms = async (name) => (await stat(join(target, 'ws-modes', name))).mode & 0o777
+    assert.equal(await perms('private.txt'), 0o600)
+    assert.equal(await perms('plain.txt'), 0o644)
+    assert.equal(await perms('run.sh'), 0o755)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

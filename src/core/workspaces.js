@@ -24,19 +24,21 @@ function workspaceError(message, details = {}) {
 /**
  * 从包内条目恢复工作区文件。
  * @param {{
- *   entries: Array<{ packPath: string, data: Buffer }>,
+ *   entries: Array<{ packPath: string, data: Buffer, mode?: number }>,
  *   pathMap: { byKey: Record<string, string> },
- *   targetPlatform: 'win32'|'darwin'|'linux'
+ *   targetPlatform: 'win32'|'darwin'|'linux',
+ *   sourcePlatform?: 'win32'|'darwin'|'linux'
  * }} input
  * @returns {Promise<{
  *   written: Array<{ key: string, path: string }>,
  *   dirs: Array<{ key: string, path: string }>,
  *   conversions: Array<{ key: string, from: string, to: string, kind: string }>,
+ *   modes: { applied: number, failed: number },
  *   warnings: string[]
  * }>}
  */
 export async function restoreWorkspaceFiles(input) {
-  const { entries, pathMap, targetPlatform } = input
+  const { entries, pathMap, targetPlatform, sourcePlatform } = input
   if (!Array.isArray(entries)) throw workspaceError('entries 必须是数组')
   if (pathMap === null || typeof pathMap !== 'object' || typeof pathMap.byKey !== 'object') {
     throw workspaceError('缺少路径映射 pathMap')
@@ -62,6 +64,7 @@ export async function restoreWorkspaceFiles(input) {
   const overwritten = []
   const dirs = []
   const conversions = []
+  const modes = { applied: 0, failed: 0 }
   const warnings = []
 
   for (const [key, files] of byWorkspace) {
@@ -101,16 +104,25 @@ export async function restoreWorkspaceFiles(input) {
         // 目标不存在
       }
       await writeFile(target, file.data)
-      // POSIX exec 位恢复（SPEC FR-9）；Windows 目标忽略。
-      if (
+      // 权限恢复（SPEC FR-9 / ADR-0016 B1）：
+      // POSIX 源 + POSIX 目标 → 按包内 mode 恢复，自动剥离 setuid/setgid/sticky（只取低 9 位）；
+      // win32 源包（mode 是 libuv 由 READONLY 合成的 `0666`/`0444`，不是权限事实）与未知来源
+      // → 只恢复 exec 位；
+      // Windows 目标 → 一律忽略（ADR-0003）。
+      const fileMode = typeof file.mode === 'number' ? file.mode : undefined
+      const fullRestore = targetPlatform !== 'win32' && sourcePlatform !== 'win32'
+      const shouldRestore =
         targetPlatform !== 'win32' &&
-        typeof file.mode === 'number' &&
-        (file.mode & 0o111) !== 0
-      ) {
+        fileMode !== undefined &&
+        (fullRestore ? (fileMode & 0o777) !== 0 : (fileMode & 0o111) !== 0)
+      if (shouldRestore) {
         try {
-          await chmod(target, file.mode & 0o777)
+          await chmod(target, fileMode & 0o777)
+          modes.applied += 1
         } catch {
-          // 权限恢复失败不阻断导入
+          // 权限恢复失败不阻断导入，但要让调用方看到（ADR-0016 B1 约束 6）。
+          modes.failed += 1
+          warnings.push(`权限位恢复失败：${relative}`)
         }
       }
       written.push({ key, path: target })
@@ -118,5 +130,5 @@ export async function restoreWorkspaceFiles(input) {
     }
   }
 
-  return { written, overwritten, dirs, conversions, warnings }
+  return { written, overwritten, dirs, conversions, modes, warnings }
 }

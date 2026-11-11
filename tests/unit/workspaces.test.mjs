@@ -105,3 +105,91 @@ test('忽略非工作区条目', async () => {
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('POSIX 源包按包内 mode 恢复文件权限（ADR-0016 B1）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        { packPath: 'workspaces/w1/files/private.txt', data: Buffer.from('s'), mode: 0o100600 },
+        { packPath: 'workspaces/w1/files/plain.txt', data: Buffer.from('p'), mode: 0o100644 },
+        { packPath: 'workspaces/w1/files/run.sh', data: Buffer.from('r'), mode: 0o100755 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'linux',
+    })
+    assert.equal(result.modes.applied, 3)
+    assert.equal(result.modes.failed, 0)
+    const perms = async (name) => (await stat(join(dir, 'p1', name))).mode & 0o777
+    assert.equal(await perms('private.txt'), 0o600, '0600 必须保持')
+    assert.equal(await perms('plain.txt'), 0o644, '0644 必须保持')
+    assert.equal(await perms('run.sh'), 0o755, '0755 必须保持')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('setuid/setgid 位不会被恢复到目标', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    await restoreWorkspaceFiles({
+      entries: [
+        { packPath: 'workspaces/w1/files/suid', data: Buffer.from('a'), mode: 0o104755 },
+        { packPath: 'workspaces/w1/files/sgid', data: Buffer.from('b'), mode: 0o102755 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'linux',
+    })
+    for (const name of ['suid', 'sgid']) {
+      const mode = (await stat(join(dir, 'p1', name))).mode
+      assert.equal(mode & 0o777, 0o755, name + ' 只保留低 9 位')
+      assert.equal(mode & 0o4000, 0, name + ' 不得带 setuid')
+      assert.equal(mode & 0o2000, 0, name + ' 不得带 setgid')
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('win32 源包不按合成 mode 恢复，仅恢复 exec 位', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        { packPath: 'workspaces/w1/files/a.txt', data: Buffer.from('a'), mode: 0o100666 },
+        { packPath: 'workspaces/w1/files/b.sh', data: Buffer.from('b'), mode: 0o100755 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'win32',
+    })
+    const defaultFileMode = 0o666 & ~process.umask()
+    assert.equal((await stat(join(dir, 'p1', 'a.txt'))).mode & 0o777, defaultFileMode, '合成 0666 不得落到目标')
+    assert.equal((await stat(join(dir, 'p1', 'b.sh'))).mode & 0o777, 0o755, 'exec 位规则仍然生效')
+    assert.equal(result.modes.applied, 1)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('Windows 目标忽略权限位（ADR-0003）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [{ packPath: 'workspaces/w1/files/a.txt', data: Buffer.from('a'), mode: 0o100600 }],
+      pathMap,
+      targetPlatform: 'win32',
+      sourcePlatform: 'linux',
+    })
+    assert.equal(result.modes.applied, 0)
+    assert.equal((await stat(join(dir, 'p1', 'a.txt'))).mode & 0o777, 0o666 & ~process.umask())
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

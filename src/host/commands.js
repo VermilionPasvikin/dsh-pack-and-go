@@ -944,6 +944,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       entries: workspaceEntries,
       pathMap,
       targetPlatform: platform,
+      sourcePlatform: manifest.source?.platform,
     })
 
     const activeWorkspaces = manifest.workspaces
@@ -1102,6 +1103,13 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         ? '（旧格式包，打开时由 DSH 自动迁移）'
         : ''
     const overwrittenFiles = Array.isArray(files.overwritten) ? files.overwritten.length : 0
+    const modeNotes = [
+      overwrittenFiles > 0 ? `覆盖 ${overwrittenFiles} 个` : '',
+      files.modes.applied > 0 ? `恢复权限 ${files.modes.applied} 个` : '',
+      files.modes.failed > 0 ? `权限恢复失败 ${files.modes.failed} 个` : '',
+    ]
+      .filter(Boolean)
+      .join('，')
     return {
       kind: 'success',
       text: `已导入 ${
@@ -1109,7 +1117,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       } 个对话（覆盖 ${overwrittenCount} 个${
         migrated.length > 0 ? `，其中 ${migrated.length} 个迁移覆盖` : ''
       }）、跳过 ${sessions.skipped.length} 个已存在${legacyNote}；工作区文件 ${files.written.length} 个${
-        overwrittenFiles > 0 ? `（覆盖 ${overwrittenFiles} 个）` : ''
+        modeNotes.length > 0 ? `（${modeNotes}）` : ''
       }，附件 ${attachments.restored} 个${
         attachments.warnings.length > 0 ? `（警告 ${attachments.warnings.length}）` : ''
       }，登记 ${registered.registered.length} 个工作区${

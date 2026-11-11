@@ -62,6 +62,7 @@
 | P-04a | 符号链接（Windows） | 创建文件/目录链接后导出 | 文件链接解引用；目录链接跳过并记录 | 单测 | Windows（需开发者模式/管理员） | ✅ 2026-11-11 本机（开发者模式已开，scan/commands 用例通过） |
 | P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（真实 POSIX 链接 + CLI 导出/导入：解引用 1、跳过 2） |
 | P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（devlog 134 修复 mode 传递；0755→0755，含单测） |
+| P-05c | 文件权限保真（POSIX，ADR-0016 B1） | 导入含 `0600`/`0644`/`0755` 文件；含 setuid 位；win32 源包 | 按包内 mode 恢复（剥离 setuid/setgid/sticky）；win32 源包仅恢复 exec 位；Windows 目标忽略 | 单测 + E2E | Linux/macOS | ✅ 2026-11-12 Linux（devlog 136） |
 | P-05b | exec 位（Windows） | 同上 | 忽略权限位并记录 | 单测 | Windows | ✅ 代码条件分支 |
 | P-06a | Windows 保留名/长路径 | 预检 `CON`、超长路径 | 列出风险，导入时跳过/重命名 | 单测 | Windows | ✅ `preflight` 测试（部分） |
 | P-06b | macOS 大小写不敏感 | 同名不同大小写文件 | 预检列出大小写冲突 | 单测 | macOS | ⏳ 待 macOS CI |
@@ -94,6 +95,7 @@
 | P-04b 符号链接（POSIX） | ✅ Linux 2026-11-12；macOS 未测 | macOS CI 补 P-04b |
 | P-05a exec 位 | ✅ Linux 2026-11-12（修复后）；macOS 未测 | macOS CI 复核 |
 | P-06b/c 大小写 | ✅ P-06c Linux 2026-11-12；P-06b macOS 未测 | macOS CI 补 P-06b |
+| P-05c 文件权限保真（B1） | ✅ Linux 2026-11-12；目录权限（B2）另立 ADR | macOS CI 复核；B2 待 ADR 批准 |
 
 > 2026-11-12 Linux 专项执行明细与证据见仓库外的验证报告（本地 Linux 环境，一次性 `DSH_HOME`）。
 
@@ -102,3 +104,4 @@
 - 每轮执行：日期、平台、执行方式、结果（通过/失败+证据）；失败汇总后修复。
 - 2026-11-11（Windows），单测 195 项通过；CDP 覆盖 E-06/E-09/E-11/I-10/I-11/I-19/I-23/P-08（用户确认）。
 - 2026-11-12（Linux，Ubuntu 24.04 / Node 24）：单测 + E2E **198 项通过**；Linux 专项 P-04b ✅、P-05a ✅（先失败→devlog 134 修复）、P-06c ✅；侧边栏「迁移对话或工作区」中英文与浮层经 Firefox WebDriver 实测（无 Chrome，未跑 CDP 脚本）。
+- 2026-11-12（Linux，devlog 136，ADR-0016 B1）：文件权限保真上线，**203 项通过**（198 + 5 新增）；P-05c ✅（0600/0644/0755 往返、setuid 剥离、win32 源包跳过、Windows 目标忽略）；CLI 端到端同样验证。

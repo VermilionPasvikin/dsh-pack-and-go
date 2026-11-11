@@ -338,6 +338,7 @@ async function cmdImport(options) {
     entries: workspaceEntries,
     pathMap,
     targetPlatform: process.platform,
+    sourcePlatform: manifest.source?.platform,
   })
   const updated = await updateWorkspaceRegistry(options.home, manifest, pathMap, sessions.written)
 
@@ -347,7 +348,9 @@ async function cmdImport(options) {
   console.log(
     `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在${
       migrated.length > 0 ? `（其中 ${migrated.length} 个迁移覆盖）` : ''
-    }、${files.written.length} 个工作区文件、${attachments.restored} 个附件；workspace.json ${
+    }、${files.written.length} 个工作区文件${
+      files.modes.applied > 0 ? `（恢复权限 ${files.modes.applied} 个）` : ''
+    }、${attachments.restored} 个附件；workspace.json ${
       updated ? '已更新' : '未更新（不存在或不兼容）'
     }。重启 DSH 后可见。${
       migrated.length > 0

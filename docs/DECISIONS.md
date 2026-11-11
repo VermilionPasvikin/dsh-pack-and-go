@@ -397,7 +397,7 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 
 **关联**：TASKS T3.5；ADR-0008。
 
-## ADR-0016 · 全权限位保真（POSIX mode 恢复）（2026-11-12，Proposed）
+## ADR-0016 · 全权限位保真（POSIX mode 恢复）（2026-11-12，Accepted，范围 B1）
 
 **背景**
 
@@ -448,5 +448,23 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 
 **关联**：SPEC §FR-9、ADR-0003、DEVLOG 134、TEST-CASES P-05a、`src/core/workspaces.js`。
 
-**状态**：Proposed（2026-11-12，待用户批准；批准后改为 Accepted 并实现）。
+**状态**：Accepted（2026-11-12，用户批准；批准范围 **仅 B1（文件权限）**；B2（目录权限）另立 ADR）。
+
+**批准与修订（2026-11-12，用户批准 B1）**
+
+- **批准范围**：仅 **B1（文件权限）**。上文选项 B 中「目录」部分拆出为 **B2**，需另立 ADR 审批后再做。
+- **事实更正（win32 合成值）**：Windows 源包的 mode 不是 `0o100644`；libuv `src/win/fs.c`（L1961–1965）按 `FILE_ATTRIBUTE_READONLY` 合成：普通文件 `0o100666`、只读文件 `0o100444`、目录 `0o40766`（无 x 位）。因此 win32 源包必须跳过按 mode 恢复，否则会把 `0666`（world-writable）写到目标。
+- **范围收窄**：B1 只恢复**文件**的 `mode & 0o777`；目录仍由 `mkdir` + umask 决定（与 devlog 134 之后一致）。
+- **B2 前置条件（记录备查）**：`exportWorkspacesOnly` 的目录条目只带 `isDir: true`（writer 兜底 `0o40755`），`exportAllSessions` 不写目录条目 → 目录保真需同时改导出端记录真实目录 mode；且需「先建后收紧」两阶段（包内 `0500` 目录会导致写入失败）；Windows 目录 mode 无 x 位也需映射策略。
+
+**B1 实施要求（2026-11-12，devlog 136）**
+
+1. 仅 POSIX 目标；Windows 目标行为不变（ADR-0003）。
+2. 文件 mode 取 `mode & 0o777`，自动剥离 setuid/setgid/sticky。
+3. `manifest.source.platform === 'win32'` → 不按 mode 恢复，回落既有「仅 exec 位」规则。
+4. mode 缺失或为 `0`：跳过。
+5. `chmod` 失败：记 warning、不阻断导入。
+6. 返回值新增 `modes: { applied, failed }`；导入结果文本统计「恢复权限 N 个」。
+7. 不新增包格式字段，`schemaVersion` 不变。
+8. 测试：`0600`/`0644`/`0755` 保持、setuid/setgid 剥离、win32 源包跳过、Windows 目标忽略、CLI 端到端 0600 往返。
 
