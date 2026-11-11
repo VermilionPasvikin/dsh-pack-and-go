@@ -210,7 +210,7 @@ ctx.connection.fetch.register({
 
 **状态**：Rejected（2026-11-10，用户取消）。维持「目录选择 + 扫描」，不新增路由与临时目录。
 
-## ADR-0011 · 操作入口改为 Exact Fetch 路由（2026-11-10，Proposed，待批准）
+## ADR-0011 · 操作入口改为 Exact Fetch 路由（2026-11-10，Accepted）
 
 **背景（已确认的缺陷）**
 - 当前 UI 通过 `ctx.commands.execute` 调用 `mover` 命令。DSH 的命令实现会在会话日志中追加
@@ -255,9 +255,9 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 2. 操作前后对比会话文件大小：不再增长；
 3. 命令通道仍可手动使用。
 
-**状态**：Proposed，等待用户批准后实施。
+**状态**：Accepted（用户批准），已实施：`POST /api/mover/exec`（DEVLOG 90/109/118）。
 
-## ADR-0012 · 预检改为“默认执行、不可关闭”（2026-11-10，Proposed，待决定）
+## ADR-0012 · 预检改为“默认执行、不可关闭”（2026-11-10，Accepted）
 
 **背景**
 - 当前「导出前预检」是可选勾选项；`preflightWorkspace` 检查的是**跨平台**风险（Windows 非法文件名、
@@ -282,7 +282,7 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 - 采纳用户提议：**默认预检、无开关**；预检结果并入完成页（`预检 N 项` / `预检通过`），失败仅警告不阻断；
 - 若实测大工作区预检耗时不可接受，回退为“后台异步预检 + 完成页提示”（不阻塞导出）。
 
-**状态**：Proposed，等待用户决定（采纳 / 保留选项 / 移除预检）。
+**状态**：Accepted（2026-11-11 用户采纳）；实施：导出默认执行预检，导出页移除「导出前预检」开关。
 
 ## ADR-0013 · 导入模式：强制指定目录 + 冲突三选（2026-11-11，Accepted）
 

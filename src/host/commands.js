@@ -500,7 +500,8 @@ export async function exportAllSessions(
       ? `，含 ${workspaces.length} 个工作区（${plan.counts.files} 个文件）`
       : ''
     let preflightNote = ''
-    if (options.preflight === true) {
+    // ADR-0012：预检默认执行、不可关闭（调用方传 preflight:false 时才跳过）。
+    if (options.preflight !== false) {
       let riskCount = 0
       for (const cwd of scannedCwds) {
         try {

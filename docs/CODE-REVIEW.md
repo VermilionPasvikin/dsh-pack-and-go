@@ -14,9 +14,12 @@
 | 5 | `reading 'size'` | `loadTitlesFromCommand` 提前返回缺 `sizes` | 补字段 + 可选链 |
 | 6 | 命令调用失败（选路径后） | 所有操作依赖 `agentId` 命令通道 | ADR-0011：`POST /api/mover/exec` |
 | 7 | 重复 id 导致 DSH 启动失败 | 导入未做已有会话检测 | `scanExistingSessionIds` + policy |
-| 8 | new-id 会话 corrupt | 只改 header，事件投递标记未改 | 服务重建（create+append+补 seq） |
+| 8 | new-id 会话 corrupt（该能力已移除） | 只改 header，事件投递标记未改 | ADR-0013 移除 new-id，导入仅「跳过/覆盖」；该风险不再适用 |
 | 9 | 导入后侧边栏不显示 | 新会话未激活、索引未更新 | 导入后 `resolveAgent` 激活 + attach + 广播 |
 | 10 | 附件 EPERM 整单失败 | 单条附件写失败抛错 | 逐条 try/catch |
+| 11 | 工作区双记账（DSH 启动失败） | 启动补 attach 只加不减 + 旧归属残留 | `repairGrouping` 先 detach 双记账再补 attach（DEVLOG 125） |
+| 12 | 迁移覆盖后会话进「未分组」 | 旧工作区 sessionIds 残留 + 运行时 attach 失败 | 迁移时 detach 旧归属 + 启动补 attach（DEVLOG 123） |
+| 13 | 仅工作区导出内容为空 | 只写 manifest、未打包文件/目录 | `exportWorkspacesOnly` 扫描文件 + 目录条目（DEVLOG 126） |
 
 ## 二、审查发现的其他潜在问题（按风险排序）
 
@@ -34,11 +37,10 @@
 
 ## 三、测试覆盖
 
-- `tests/unit/**`：176+ 项（zip、会话头、导入导出、冲突策略、附件恢复、catalog、命令）。
-- `tests/e2e/client-render.test.mjs`：4 项（注册、中英文标题、cwd 归组 + 回退）。
-- 未覆盖：真实浏览器（headless 不可用，需人工验证）；DSH 真机 exec 路由（本轮部署后人工验证）。
+- `tests/unit/**` + `tests/e2e/**`：**194 项**（zip、会话头、导入导出、冲突策略、附件恢复、catalog、命令、仅工作区导出、归组修复）。
+- 真实浏览器：已用 **CDP 无头 Chrome** 验证关键路径（面板打开、冲突明细、迁移覆盖结果、仅工作区模式），截图保存在测试工作区。
 
 ## 四、结论
 
 - 三个用户可见问题（标题、树不一致、命令失败）均指向「依赖命令通道/会话上下文」这一架构问题，已通过 ADR-0011 的 exec 路由 + 导入激活 + 事件标题兜底统一解决。
-- 剩余风险均为性能/体验优化，不影响功能正确性；列入后续 TASKS（T5.x）。
+- 剩余风险均为性能/体验优化，不影响功能正确性；列入后续 TASKS（T9.x）。

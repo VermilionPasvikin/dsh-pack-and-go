@@ -449,7 +449,6 @@ window.__ModuleLoader__.load({
       const [showArchived, setShowArchived] = useState(false)
       const [lastExport, setLastExport] = useState(null)
       const [fullMode, setFullMode] = useState(false)
-      const [preflightEnabled, setPreflightEnabled] = useState(false)
       const [extraExclude, setExtraExclude] = useState('')
       const [includeAttachments, setIncludeAttachments] = useState(false)
       const [exportName, setExportName] = useState('')
@@ -903,7 +902,6 @@ window.__ModuleLoader__.load({
             options: {
               includeFork: true,
               full: fullMode,
-              preflight: preflightEnabled,
               attachments: includeAttachments,
               excludedDirs: excluded,
               name: exportName.trim(),
@@ -913,7 +911,6 @@ window.__ModuleLoader__.load({
             const flags = []
             if (includeFiles) flags.push('--files')
             if (fullMode) flags.push('--full')
-            if (preflightEnabled) flags.push('--preflight')
             if (includeAttachments) flags.push('--attachments')
             const excludeArg = excluded.length > 0 ? ` --exclude "${excluded.join(',')}"` : ''
             const nameArg = exportName.trim().length > 0 ? ` --name "${exportName.trim()}"` : ''
@@ -1427,25 +1424,6 @@ window.__ModuleLoader__.load({
                   onChange: (event) => setFullMode(event.target.checked),
                 }),
                 h('span', null, t.fullMode),
-              ),
-              h(
-                'label',
-                {
-                  style: {
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: 12,
-                    color: THEME.text,
-                  },
-                },
-                h('input', {
-                  type: 'checkbox',
-                  checked: preflightEnabled,
-                  disabled: busy,
-                  onChange: (event) => setPreflightEnabled(event.target.checked),
-                }),
-                h('span', null, t.preflight),
               ),
               h('input', {
                 type: 'text',
