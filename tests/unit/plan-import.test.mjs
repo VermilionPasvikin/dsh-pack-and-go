@@ -45,25 +45,28 @@ function expectPlanError(fn) {
   })
 }
 
-test('覆盖时目标 cwd 对齐现有会话（原地恢复，不写第二份）', () => {
-  const plan = planImport({
+test('覆盖：cwd 不同走迁移覆盖，cwd 相同原地恢复', () => {
+  const migrated = planImport({
     manifest: makeManifest(),
     pathMap,
     existingSessionIds: ['s1'],
     existingCwdById: new Map([['s1', 'F:\\proj']]),
     policy: { session: 'overwrite' },
   })
-  assert.equal(plan.sessions[0].action, 'overwrite')
-  assert.equal(plan.sessions[0].targetCwd, 'F:\\proj')
-  // 无现有 cwd 信息时保持原目标 cwd
-  const plan2 = planImport({
+  assert.equal(migrated.sessions[0].action, 'overwrite')
+  assert.equal(migrated.sessions[0].targetCwd, '/dest/proj')
+  assert.equal(migrated.sessions[0].migrateFrom, 'F:\\proj')
+
+  const inPlace = planImport({
     manifest: makeManifest(),
     pathMap,
     existingSessionIds: ['s1'],
+    existingCwdById: new Map([['s1', '/dest/proj']]),
     policy: { session: 'overwrite' },
   })
-  assert.equal(plan2.sessions[0].action, 'overwrite')
-  assert.equal(plan2.sessions[0].targetCwd, '/dest/proj')
+  assert.equal(inPlace.sessions[0].action, 'overwrite')
+  assert.equal(inPlace.sessions[0].targetCwd, '/dest/proj')
+  assert.equal(inPlace.sessions[0].migrateFrom, undefined)
 })
 
 test('无冲突：全部导入/创建，未归组会话无 cwd', () => {

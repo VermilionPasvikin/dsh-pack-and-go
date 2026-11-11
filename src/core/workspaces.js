@@ -6,7 +6,7 @@
  * Windows 目标会对非法文件名做安全重命名并记录转换。
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
@@ -57,6 +57,7 @@ export async function restoreWorkspaceFiles(input) {
   }
 
   const written = []
+  const overwritten = []
   const dirs = []
   const conversions = []
   const warnings = []
@@ -90,10 +91,18 @@ export async function restoreWorkspaceFiles(input) {
 
       const target = join(targetRoot, relative)
       await mkdir(dirname(target), { recursive: true })
+      let existed = false
+      try {
+        await stat(target)
+        existed = true
+      } catch {
+        // 目标不存在
+      }
       await writeFile(target, file.data)
       written.push({ key, path: target })
+      if (existed) overwritten.push({ key, path: target })
     }
   }
 
-  return { written, dirs, conversions, warnings }
+  return { written, overwritten, dirs, conversions, warnings }
 }

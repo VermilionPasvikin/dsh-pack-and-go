@@ -251,7 +251,7 @@ test('overwrite 策略先备份旧文件', async () => {
   }
 })
 
-test('new-id 策略生成新会话 id 并改写 header', async () => {
+test('overwrite 覆盖写入并保持原 id（cwd 对齐目标）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-import-'))
   try {
     const sessionRoot = join(dir, 'sessions')
@@ -260,12 +260,13 @@ test('new-id 策略生成新会话 id 并改写 header', async () => {
       sessionRoot,
       pathMap: { byKey: { w1: '/target/proj' } },
       existingSessionIds: ['s1'],
-      policy: { session: 'new-id' },
+      existingCwdById: new Map([['s1', '/target/proj']]),
+      policy: { session: 'overwrite' },
     })
     assert.equal(result.written.length, 1)
     const written = result.written[0]
-    assert.notEqual(written.targetId, 's1')
-    assert.match(written.targetId, /^session-/)
+    assert.equal(written.targetId, 's1')
+    assert.equal(written.action, 'overwrite')
 
     const data = await readFile(written.path)
     const frames = scanFrames(data)
@@ -275,7 +276,7 @@ test('new-id 策略生成新会话 id 并改写 header', async () => {
         .toString('utf8')
         .slice(0, -1),
     )
-    assert.equal(header.id, written.targetId)
+    assert.equal(header.id, 's1')
     assert.equal(header.cwd, '/target/proj')
   } finally {
     await rm(dir, { recursive: true, force: true })

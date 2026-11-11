@@ -11,7 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
-import { access, copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { access, copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
@@ -143,7 +143,6 @@ export async function importSessionsToDisk(input) {
 
     const patch = {}
     if (session.targetCwd !== undefined) patch.cwd = session.targetCwd
-    if (session.action === 'new-id') patch.id = targetId
     // fork 链：父会话若也在包内且目标 id 变化，则改写 parentSession 指向目标父 id。
     if (typeof source.parentSessionId === 'string') {
       const mappedParent = targetIdById.get(source.parentSessionId)
@@ -157,6 +156,22 @@ export async function importSessionsToDisk(input) {
       backupPath = await backupExisting(file, backupDir)
     }
 
+    // 迁移覆盖：先备份/移除旧位置同 id 目录，避免同一 id 出现两份（DSH 启动会失败）。
+    if (typeof session.migrateFrom === 'string' && session.migrateFrom.length > 0) {
+      const oldDir = sessionDir(sessionRoot, session.migrateFrom, targetId)
+      try {
+        await access(oldDir)
+        if (backupDir) {
+          await mkdir(backupDir, { recursive: true })
+          await rename(oldDir, join(backupDir, `${targetId}-migrated`))
+        } else {
+          await rm(oldDir, { recursive: true, force: true })
+        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+
     await mkdir(dir, { recursive: true })
     await writeFile(file, finalData)
 
@@ -166,6 +181,7 @@ export async function importSessionsToDisk(input) {
       path: file,
       cwd: effectiveCwd,
       action: session.action,
+      ...(session.migrateFrom !== undefined ? { migrateFrom: session.migrateFrom } : {}),
       ...(backupPath !== undefined ? { backupPath } : {}),
     })
   }

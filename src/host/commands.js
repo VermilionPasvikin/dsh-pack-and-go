@@ -646,8 +646,33 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const platform = deps.platform ?? process.platform
     const pathMap = { byKey: {} }
     const mappings = []
+    // 已登记工作区路径：同路径复用；已存在但未登记的目录（用户目录）→ 新建「标题 (1)」。
+    const registeredPaths = new Set(
+      (typeof deps.workspaceRegistry.list === 'function'
+        ? deps.workspaceRegistry.list()
+        : []
+      ).map((workspace) => normalizePathKey(workspace.path)),
+    )
     for (const workspace of manifest.workspaces) {
-      const target = join(root, safeDirName(workspace.title, platform))
+      let target = join(root, safeDirName(workspace.title, platform))
+      if (!registeredPaths.has(normalizePathKey(target))) {
+        try {
+          await stat(target)
+          let suffix = 1
+          for (;;) {
+            const candidate = `${target} (${suffix})`
+            try {
+              await stat(candidate)
+              suffix += 1
+            } catch {
+              target = candidate
+              break
+            }
+          }
+        } catch {
+          // 目录不存在，直接使用
+        }
+      }
       await mkdir(target, { recursive: true })
       let canonical = target
       try {
@@ -684,8 +709,36 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       existingCwdById,
       policy: { session: sessionPolicy },
     })
+    if (sessionPolicy === 'overwrite') {
+      const unknown = sessions.written.filter(
+        (written) => written.action === 'overwrite' && !existingCwdById.has(written.id),
+      )
+      if (unknown.length > 0) {
+        return errorResult(
+          `无法覆盖：${unknown.length} 个对话找不到现有位置（请改用「跳过」，或重启 DSH 后重试）。`,
+        )
+      }
+    }
+    // 附件只恢复「实际写入会话」引用的部分（跳过的会话不写附件）。
+    const referencedAttachments = new Set()
+    for (const written of sessions.written) {
+      const source = manifest.sessions.find((item) => item.id === written.id)
+      const packed = source ? byName.get(source.path) : undefined
+      if (!packed) continue
+      for (const ref of extractAttachmentRefs(packed)) referencedAttachments.add(ref.attachmentId)
+    }
     const attachmentEntries = entries
       .filter((entry) => entry.name.startsWith('attachments/'))
+      .filter((entry) => {
+        const match = /attachments\/v1\/(?:file-objects|objects)\/[0-9a-f]{2}\/([0-9a-f]{64})/.exec(
+          entry.name,
+        )
+        if (match) return referencedAttachments.has(`sha256:${match[1]}`)
+        const fileMatch = /attachments\/v1\/files\/[0-9a-f]{2}\/([0-9a-f]{64})\//.exec(entry.name)
+        return fileMatch
+          ? referencedAttachments.has(`sha256:${fileMatch[1]}`)
+          : true
+      })
       .map((entry) => ({ packPath: entry.name, data: entry.data }))
     const attachments =
       attachmentEntries.length > 0
@@ -694,16 +747,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
             attachmentsRoot: join(deps.dshHome, 'attachments', 'v1'),
           })
         : { restored: 0, warnings: [] }
-    const workspaceEntries = entries
-      .filter((entry) => entry.name.startsWith('workspaces/'))
-      .map((entry) => ({ packPath: entry.name, data: entry.data }))
-    const files = await restoreWorkspaceFiles({
-      entries: workspaceEntries,
-      pathMap,
-      targetPlatform: platform,
-    })
-
-    // 只登记真正有会话写入的工作区：避免「会话全部跳过」时出现空工作区。
+    // 只登记/还原真正有会话写入的工作区（会话全跳过 → 不还原文件、不产生空工作区）。
     const writtenByKey = new Map()
     for (const written of sessions.written) {
       const source = manifest.sessions.find((item) => item.id === written.id)
@@ -712,6 +756,24 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
       }
     }
+    const activeWorkspaceKeys = new Set(
+      manifest.workspaces
+        .filter((workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0)
+        .map((workspace) => workspace.key),
+    )
+    const workspaceEntries = entries
+      .filter((entry) => entry.name.startsWith('workspaces/'))
+      .filter((entry) => {
+        const match = /^workspaces\/([^/]+)\//.exec(entry.name)
+        return match ? activeWorkspaceKeys.has(match[1]) : true
+      })
+      .map((entry) => ({ packPath: entry.name, data: entry.data }))
+    const files = await restoreWorkspaceFiles({
+      entries: workspaceEntries,
+      pathMap,
+      targetPlatform: platform,
+    })
+
     const activeWorkspaces = manifest.workspaces.filter(
       (workspace) => (writtenByKey.get(workspace.key) ?? 0) > 0,
     )
@@ -766,9 +828,6 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }
     }
 
-    const createdCount = sessions.written.filter(
-      (item) => item.action === 'import' || item.action === 'new-id',
-    ).length
     const overwrittenCount = sessions.written.filter(
       (item) => item.action === 'overwrite',
     ).length
@@ -811,14 +870,38 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }
     }
 
+    const migrated = sessions.written.filter(
+      (written) => typeof written.migrateFrom === 'string',
+    )
+    const ungroupedCount = sessions.written.filter((written) => {
+      const source = manifest.sessions.find((item) => item.id === written.id)
+      return source?.workspaceKey === undefined
+    }).length
+    const legacyNote =
+      typeof manifest.source.sessionFormat === 'number' && manifest.source.sessionFormat < 4
+        ? '（旧格式包，打开时由 DSH 自动迁移）'
+        : ''
+    const overwrittenFiles = Array.isArray(files.overwritten) ? files.overwritten.length : 0
     return {
       kind: 'success',
-      text: `已导入 ${createdCount} 个对话（覆盖 ${overwrittenCount} 个）、跳过 ${sessions.skipped.length} 个已存在${
-        sessions.unforkable > 0 ? `（其中 ${sessions.unforkable} 个空会话无对话轮次，无法复制）` : ''
-      }；工作区文件 ${files.written.length} 个，附件 ${attachments.restored} 个${
+      text: `已导入 ${
+        sessions.written.filter((item) => item.action === 'import').length
+      } 个对话（覆盖 ${overwrittenCount} 个${
+        migrated.length > 0 ? `，其中 ${migrated.length} 个迁移覆盖` : ''
+      }）、跳过 ${sessions.skipped.length} 个已存在${legacyNote}；工作区文件 ${files.written.length} 个${
+        overwrittenFiles > 0 ? `（覆盖 ${overwrittenFiles} 个）` : ''
+      }，附件 ${attachments.restored} 个${
         attachments.warnings.length > 0 ? `（警告 ${attachments.warnings.length}）` : ''
-      }，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话。${
+      }，登记 ${registered.registered.length} 个工作区，归组 ${attached} 个对话${
+        ungroupedCount > 0 ? `（其中 ${ungroupedCount} 个未归组）` : ''
+      }。${
         mappings.length > 0 ? `工作区映射：\n${mappings.join('\n')}\n` : ''
+      }${
+        migrated.length > 0
+          ? `迁移覆盖：\n${migrated
+              .map((item) => `${item.migrateFrom} → ${item.cwd}`)
+              .join('\n')}\n`
+          : ''
       }若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {

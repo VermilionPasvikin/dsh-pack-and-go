@@ -110,11 +110,20 @@ export function planImport(input) {
       }
     }
     let action = existingIds.has(session.id) ? policy.session : 'import'
-    // 覆盖 = 原地恢复：目标 cwd 对齐现有会话位置（避免写第二份造成重复 id）。
+    let migrateFrom
     if (action === 'overwrite') {
       const currentCwd = existingCwdById.get(session.id)
       if (typeof currentCwd === 'string' && currentCwd.length > 0) {
-        targetCwd = currentCwd
+        if (
+          typeof targetCwd === 'string' &&
+          normalizePath(currentCwd) !== normalizePath(targetCwd)
+        ) {
+          // 迁移覆盖：写入目标位置，旧目录由写入层备份并移除
+          migrateFrom = currentCwd
+        } else {
+          // 原地恢复
+          targetCwd = currentCwd
+        }
       }
     }
     sessions.push({
@@ -122,8 +131,26 @@ export function planImport(input) {
       title: session.title,
       workspaceKey: session.workspaceKey,
       targetCwd,
+      ...(migrateFrom !== undefined ? { migrateFrom } : {}),
       action,
     })
+  }
+
+  // fork 链：父会话被跳过时，子会话强制跳过（保持链完整）。
+  const actionById = new Map(sessions.map((session) => [session.id, session.action]))
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const session of sessions) {
+      if (session.action === 'skip') continue
+      const source = (manifest.sessions ?? []).find((item) => item.id === session.id)
+      const parentId = source?.parentSessionId
+      if (typeof parentId === 'string' && actionById.get(parentId) === 'skip') {
+        session.action = 'skip'
+        actionById.set(session.id, 'skip')
+        changed = true
+      }
+    }
   }
 
   const conversions = (input.preflight?.risks ?? []).map((risk) => ({

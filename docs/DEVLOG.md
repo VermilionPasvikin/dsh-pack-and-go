@@ -642,3 +642,11 @@
 - `docs/IMPORT-BEHAVIOR-TREE.md`：补 3.8 迁移覆盖节点并标记已定。
 - `docs/DESIGN.md`：新增 §3.1 导入行为决策树、§3.2 导出行为决策树（按当前实现）。
 - 待用户审阅 10 个决策点后做 code review 与实现调整。
+
+## 117 · 2026-11-11 · feat: 导入边界规则落地（ADR-0014）
+- ADR-0014（Accepted）：迁移覆盖 + 10 条边界规则实现。
+- `plan-import`：覆盖且 cwd 不同 → `migrateFrom`（迁移覆盖）；父会话跳过 → 子会话强制跳过。
+- `import-pack`：迁移覆盖前备份/移除旧位置同 id 目录（`(id)-migrated`），防止重复 id。
+- `importPack`：覆盖但 cwd 未知 → 拒绝；附件只恢复实际写入会话引用的部分；只还原有会话写入的工作区文件；同名未登记目录 → `标题 (1)`；结果文本增加迁移覆盖/覆盖文件/未归组/旧格式提示；移除 unforkable 残留。
+- `workspaces.restoreWorkspaceFiles`：返回 `overwritten` 列表（覆盖文件统计）。
+- 验证：全量 192 项测试通过（plan-import 迁移/父跳子用例、import-pack 覆盖用例）。
