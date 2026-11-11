@@ -48,6 +48,7 @@ dsh plugin --profile <profile> remove dsh-mover
 | 项目分解与任务清单 | [docs/TASKS.md](docs/TASKS.md) |
 | 开发日志 | [docs/DEVLOG.md](docs/DEVLOG.md) |
 | SPEC §11 验收走查 | [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md) |
+| 黑盒验收用例（v1.2，含覆盖矩阵） | [docs/TEST-CASES.md](docs/TEST-CASES.md) |
 | 当前状态与文档地图 | [docs/INDEX.md](docs/INDEX.md) |
 | 工程纪律与提交规范 | [AGENTS.md](AGENTS.md) |
 
