@@ -45,8 +45,7 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `已选 ${workspaces} 个工作区 · ${sessions} 个对话`,
         fileEstimate: (size) => `含项目文件约 ${size}`,
-        searchPlaceholder: '搜索对话标题',
-        showArchived: '显示已归档',
+                showArchived: '显示已归档',
         ungrouped: '未分组',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
         copyPath: '复制路径',
@@ -127,8 +126,7 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `${workspaces} workspaces · ${sessions} conversations`,
         fileEstimate: (size) => `~${size} with files`,
-        searchPlaceholder: 'Search conversation titles',
-        showArchived: 'Show archived',
+                showArchived: 'Show archived',
         ungrouped: 'Ungrouped',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
         copyPath: 'Copy path',
@@ -445,7 +443,6 @@ window.__ModuleLoader__.load({
       const [meta, setMeta] = useState(null)
       const [sizeById, setSizeById] = useState(() => new Map())
       const [workspaceBytes, setWorkspaceBytes] = useState(() => new Map())
-      const [query, setQuery] = useState('')
       const [showArchived, setShowArchived] = useState(false)
       const [lastExport, setLastExport] = useState(null)
       const [fullMode, setFullMode] = useState(false)
@@ -638,18 +635,7 @@ window.__ModuleLoader__.load({
             0,
           )
         : 0
-      const visibleGroups = useMemo(() => {
-        const trimmed = query.trim().toLowerCase()
-        if (trimmed.length === 0) return groups
-        return groups
-          .map((group) => ({
-            ...group,
-            sessions: group.sessions.filter((session) =>
-              String(session.title).toLowerCase().includes(trimmed),
-            ),
-          }))
-          .filter((group) => group.sessions.length > 0)
-      }, [groups, query])
+      const visibleGroups = groups
 
       const statsText = `${t.selectedStats(selectedGroups.length, selected.size)}${
         includeFiles ? ` · ${t.fileEstimate(formatBytes(sessionBytes + fileBytes))}` : ''
@@ -1825,19 +1811,6 @@ window.__ModuleLoader__.load({
               overflowY: 'auto',
             },
           },
-          allSessions.length > 20
-            ? h(
-                'div',
-                { style: { padding: '6px 8px' } },
-                h('input', {
-                  type: 'text',
-                  value: query,
-                  placeholder: t.searchPlaceholder,
-                  onChange: (event) => setQuery(event.target.value),
-                  style: fieldStyle(),
-                }),
-              )
-            : null,
           visibleGroups.map((group) => renderGroup(group)),
           h(
             'div',

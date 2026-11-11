@@ -769,4 +769,11 @@
   - `host/index.js` 的 execDeps 与命令 deps 同样回退默认 home。
 - 测试：新增「导出附件缺少 dshHome 回退默认 home（不抛 path 错误）」用例；**197 项通过**。
 - 生效方式：desktop 是 link 安装，**重启 DSH 桌面应用**后生效。
+
+## 133 · 2026-11-11 · feat: 移除导出页「搜索对话」框
+- 用户决定：导出页搜索框用处不大且有 bug，移除。
+- Client：删除 `query` 状态、`visibleGroups` 过滤逻辑与搜索输入框渲染；树直接展示 `groups`。
+- 清理：`searchPlaceholder` 文案（zh/en）；CDP 脚本 `d6_search` 改为断言搜索框不存在。
+- SPEC：FR-2「其他选择能力」移除搜索框条目（用户直接指令的产品简化）。
+- 验证：`node --check` 通过；全量测试通过。
 - README/TEST-PLAN 文档导航同步。

@@ -113,7 +113,7 @@ async function main() {
     `(() => { const el = [...document.querySelectorAll('summary')].find((s) => (s.textContent || '').includes('高级选项')); return Boolean(el) })()`,
   )
 
-  // 搜索框是否存在（>20 对话时才出现，这里记录）
+  // 搜索框已按用户决定移除（DEVLOG 133），这里断言不存在。
   results.d6_search = await evaluate(
     `(() => Boolean(document.querySelector('input[placeholder*="搜索对话"]')))()`,
   )
