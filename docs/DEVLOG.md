@@ -591,3 +591,9 @@
 - CLI 导入新 home：恢复 4 个附件文件（file-objects + files）。
 - exec 导入当前 home（new-id → fork）：结果「已导入 1 个对话、附件 0 个（警告 2）」——警告因当前 home 附件对象已被 DSH 锁定（EPERM），真实迁移（新 home）无此问题；fork 会话打开后 PDF/DOCX 附件名正常显示（`corrupt=false`）。
 - 证据：CDP `hasPdf=true / hasDocx=true`；测试计划 E5 标 ✅。
+
+## 108 · 2026-11-11 · fix: 另存为新对话 + 指定目录的落点提示
+- 现象：用户导出「默认工作区 + 13 对话」，清空后指定目录导入（另存为新对话）→ 13 个会话落在被清空的默认工作区，未进「default-workspace（导入 1）」。
+- 根因：`另存为新对话` 走 DSH `fork`，fork **保留源 cwd**；指定目录只影响工作区登记/文件，不改变 fork 会话 cwd。
+- 验证：同包用「跳过」导入新目录 → 13 个会话 cwd 全部改写为 `<目标目录>\default-workspace`（正确）；日志显示 attach 失败（cwd 不匹配新工作区）。
+- 修复：导入页在「指定目录 + 另存为新对话」组合下显示提示（fork 保留源工作区路径，改落点请用跳过/覆盖）。

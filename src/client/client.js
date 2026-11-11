@@ -17,7 +17,7 @@ window.__ModuleLoader__.load({
     const { useEffect, useMemo, useRef, useState } = React
 
     let ownerCtx = null
-    const BUILD_TAG = 'b2111-0130'
+    const BUILD_TAG = 'b2111-0200'
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -65,6 +65,8 @@ window.__ModuleLoader__.load({
         placeFolder: '指定目录',
         conflictSkip: '已存在对话：跳过',
         conflictNewId: '已存在对话：另存为新对话',
+        forkCwdHint:
+          '注意：「另存为新对话」由 DSH 复制生成，会保留原对话的工作区路径，可能仍归入原工作区；如需改落点请用「跳过 / 覆盖」导入。',
         restartHint:
           '导入内容若未出现在左侧列表，请重启 DSH 后可见（工作区索引在启动时构建）。',
         sessionsUnit: (n) => `${n} 个对话`,
@@ -132,6 +134,8 @@ window.__ModuleLoader__.load({
         placeFolder: 'Choose folder',
         conflictSkip: 'Existing conversations: skip',
         conflictNewId: 'Existing conversations: copy as new',
+        forkCwdHint:
+          'Note: "copy as new" uses DSH fork, which keeps the original workspace path and may stay in the old workspace; use skip/overwrite to change the target folder.',
         restartHint:
           'If imported items do not appear on the left, restart DSH (the workspace index is built at startup).',
         sessionsUnit: (n) => `${n} conversations`,
@@ -1477,6 +1481,13 @@ window.__ModuleLoader__.load({
               h('span', null, t.conflictNewId),
             ),
           ),
+          placeMode === 'folder' && importConflictMode === 'new-id'
+            ? h(
+                'div',
+                { style: { fontSize: 11, color: THEME.textMuted, marginBottom: 8 } },
+                t.forkCwdHint,
+              )
+            : null,
           h(
             'div',
             { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 } },
