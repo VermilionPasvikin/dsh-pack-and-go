@@ -121,12 +121,15 @@
 | D7 | ✅ | `cdp/05-export-done.png` + `export-out/cdp-test.dshpack`（26495 B） | 导出完成卡片 |
 | D8 | ✅ | `cdp-result.json`：高级选项存在 | |
 | D10 | ✅ | `cdp/06-preview.png`：对话 2 · 工作区 0 · 冲突 2 项 | 预览 |
-| D11 | ⚠️ | `cdp/07-import-done.png`：结果「已导入 2 个对话」；sessions 目录 +2 | 数据成功 |
-| D12 | ❌ | `cdp/08-after-restart.png`：重启后侧边栏仍只见原有 2 个会话 | **导入会话未出现在 DSH 侧边栏**（待查：session.list/blank/formatStatus 过滤） |
+| D11 | ✅ | exec 导入结果「已导入 1 个对话、跳过 1 个已存在」；侧边栏即时出现「在工作区创建 Markdown 文件」 | fork 成功 1 个（空会话无法 fork，DSH 限制） |
+| D12 | ✅ | 点开 fork 出的会话：`corrupt=false`，历史/用量正常渲染 | 修复后复测（`cdp/23-clean-state.png`） |
 | E1 | ✅ | B3 | |
 | E5 | ⏳ | 未执行（本轮无附件包） | |
 | F1 | ✅ | 测试工作区路径带 marker | |
 
-**本轮结论**：导出/预览/导入数据链路全部通过；唯一未通过的是「导入会话在 DSH 侧边栏可见」，
-需要下一步用 Host selftest 调 `sessionController.list` / `workspaceRegistry.list` 定位过滤原因。
+**本轮结论**：
+1. 导出/预览/导入/热重载/打开历史全部通过（CDP 自动化证据）。
+2. `new-id` 采用官方 `fork`：源会话有 completed turn 时可靠；空会话无法 fork（跳过并提示），这是 DSH 限制。
+3. 之前多轮失败产生的损坏会话已清理到 `<home>/corrupt-backup-3-.../`。
+4. 遗留：空会话的「另存为新对话」不可用（文档说明即可，不阻塞）。
 

@@ -573,3 +573,4 @@
 - 修复：new-id 改为 `sessionController.fork`（源会话在本机时）；空会话（无 completed turn）无法 fork → 跳过并记录；exec 路由 deps 改为**请求时延迟解析**（apply 时 `sessionController` 未就绪取到 undefined）。
 - 验证（CDP 无头浏览器）：导入结果「已导入 1 个对话、跳过 1 个已存在」；侧边栏即时出现 fork 出的会话；点开历史正常加载（corrupt=false）。
 - 清理：重建失败残留的 10 个损坏会话已移到 `<home>/corrupt-backup-3-.../`。
+- 复测：CDP 确认侧边栏即时出现 fork 会话、点开历史正常（`corrupt=false`）；全量 190 项测试通过。
