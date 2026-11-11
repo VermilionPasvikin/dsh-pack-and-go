@@ -662,3 +662,8 @@
   - 覆盖到 B（迁移覆盖）：「覆盖 1 个（其中 1 个迁移覆盖）」+ 提示「`default-workspace（导入 2）/创建测试Markdown文档（原 cdp-A3 → 新 cdp-B3）`」；
   - sessions 目录仅 cdp-B3 存在（A3 旧目录已移除），无重复 id。
 - 验证：192 项测试通过。
+
+## 119 · 2026-11-11 · feat: 迁移包预览冲突明细
+- Host `inspectPack`：返回 `conflictDetails`——会话项含「标题 / 现有 cwd / 目标 cwd / 类型（`migrate-overwrite` 或 `overwrite-in-place`）」；工作区项含「标题 / 路径 / 类型 `same-path-reuse`」；附件内容寻址不计冲突；接受 `target` 参数预判是否迁移。
+- Client：预览时自动带上目标目录；预览卡片按类型列出冲突项（会话/工作区各最多 5 条 + 「…等 N 项」），文案如「对话「X」：覆盖将迁移到新目录」「工作区「Y」：路径已存在，将复用/合并」。
+- 验证：192 项测试通过（inspect 断言更新为 conflictDetails）。

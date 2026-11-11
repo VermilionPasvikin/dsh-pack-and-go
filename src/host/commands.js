@@ -505,7 +505,7 @@ export async function findPacks(directory) {
  * @param {string} packPath
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
-export async function inspectPack(deps, packPath) {
+export async function inspectPack(deps, packPath, targetRoot) {
   if (typeof packPath !== 'string' || packPath.length === 0) {
     return errorResult('缺少迁移包路径。')
   }
@@ -515,29 +515,71 @@ export async function inspectPack(deps, packPath) {
     const manifestEntry = entries.find((entry) => entry.name === 'manifest.json')
     if (!manifestEntry) return errorResult('迁移包缺少 manifest.json')
     const manifest = parseManifest(manifestEntry.data.toString('utf8'))
+    const platform = deps.platform ?? process.platform
 
-    let existingSessionIds = []
-    let workspacePaths = []
+    const existingCwdById = new Map()
     try {
       const snapshots = await deps.sessionPersistence.list()
-      existingSessionIds = snapshots.map((snapshot) => snapshot.header.id)
+      for (const snapshot of snapshots) {
+        if (typeof snapshot.header.cwd === 'string') {
+          existingCwdById.set(snapshot.header.id, snapshot.header.cwd)
+        }
+      }
     } catch {
       // 目标 home 不可读时冲突视为空
     }
+    let workspacePaths = new Set()
     try {
-      workspacePaths = deps.workspaceRegistry.list().map((workspace) => workspace.path)
+      workspacePaths = new Set(
+        deps.workspaceRegistry.list().map((workspace) => normalizePathKey(workspace.path)),
+      )
     } catch {
       // 同上
     }
 
-    const conflicts = {
-      sessions: manifest.sessions
-        .filter((session) => existingSessionIds.includes(session.id))
-        .map((session) => session.id),
-      workspaces: manifest.workspaces
-        .filter((workspace) => workspacePaths.includes(workspace.sourcePath))
-        .map((workspace) => workspace.key),
+    // 给定目标目录时可预判「迁移覆盖」。
+    const target =
+      typeof targetRoot === 'string' && targetRoot.trim().length > 0
+        ? targetRoot.trim()
+        : undefined
+    const previewTargetByKey = {}
+    if (target) {
+      for (const workspace of manifest.workspaces) {
+        previewTargetByKey[workspace.key] = join(
+          target,
+          safeDirName(workspace.title, platform),
+        )
+      }
     }
+
+    const sessionConflicts = []
+    for (const session of manifest.sessions) {
+      const currentCwd = existingCwdById.get(session.id)
+      if (currentCwd === undefined) continue
+      const targetCwd =
+        session.workspaceKey !== undefined ? previewTargetByKey[session.workspaceKey] : undefined
+      const migrate =
+        typeof targetCwd === 'string' &&
+        normalizePathKey(targetCwd) !== normalizePathKey(currentCwd)
+      sessionConflicts.push({
+        id: session.id,
+        title: typeof session.title === 'string' ? session.title : null,
+        currentCwd,
+        targetCwd: targetCwd ?? null,
+        kind: migrate ? 'migrate-overwrite' : 'overwrite-in-place',
+      })
+    }
+    const workspaceConflicts = manifest.workspaces
+      .filter((workspace) => workspacePaths.has(normalizePathKey(workspace.sourcePath)))
+      .map((workspace) => ({
+        key: workspace.key,
+        title: workspace.title,
+        sourcePath: workspace.sourcePath,
+        kind: 'same-path-reuse',
+      }))
+    // 附件是内容寻址：同 id 即同内容，覆盖无副作用，不计为冲突。
+    const attachmentConflicts = []
+
     return {
       kind: 'success',
       text: JSON.stringify({
@@ -548,7 +590,16 @@ export async function inspectPack(deps, packPath) {
         sessions: manifest.sessions.length,
         workspaces: manifest.workspaces.length,
         attachments: manifest.attachments.length,
-        conflicts,
+        conflicts: {
+          sessions: sessionConflicts.length,
+          workspaces: workspaceConflicts.length,
+          attachments: attachmentConflicts.length,
+        },
+        conflictDetails: {
+          sessions: sessionConflicts,
+          workspaces: workspaceConflicts,
+          attachments: attachmentConflicts,
+        },
       }),
     }
   } catch (error) {

@@ -61,6 +61,13 @@ window.__ModuleLoader__.load({
         previewCounts: (sessions, workspaces, attachments) =>
           `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
         previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按所选策略处理）`,
+        conflictSummary: (sessions, workspaces) =>
+          `与当前数据冲突：${sessions} 个对话、${workspaces} 个工作区`,
+        conflictSessionLine: (name, kind) => `对话「${name}」：${kind}`,
+        conflictWorkspaceLine: (name) => `工作区「${name}」：路径已存在，将复用/合并`,
+        conflictMigrateKind: '覆盖将迁移到新目录',
+        conflictInPlaceKind: '覆盖原地恢复',
+        conflictMore: (n) => `…等 ${n} 项`,
         conflictModeLabel: '冲突处理',
         conflictSkipShort: '跳过',
         conflictOverwriteShort: '覆盖',
@@ -131,6 +138,14 @@ window.__ModuleLoader__.load({
         previewCounts: (sessions, workspaces, attachments) =>
           `${sessions} conversations · ${workspaces} workspaces · ${attachments} attachments`,
         previewConflicts: (n) => `${n} conflicts with current data (handled by the selected policy)`,
+        conflictSummary: (sessions, workspaces) =>
+          `Conflicts with current data: ${sessions} conversations, ${workspaces} workspaces`,
+        conflictSessionLine: (name, kind) => `Conversation "${name}": ${kind}`,
+        conflictWorkspaceLine: (name) =>
+          `Workspace "${name}": path exists, will be reused/merged`,
+        conflictMigrateKind: 'overwrite will migrate to the new folder',
+        conflictInPlaceKind: 'overwrite in place',
+        conflictMore: (n) => `…and ${n} more`,
         conflictModeLabel: 'Conflict policy',
         conflictSkipShort: 'skip',
         conflictOverwriteShort: 'overwrite',
@@ -939,7 +954,10 @@ window.__ModuleLoader__.load({
         }
         try {
           let text = null
-          const execResult = await runAction('inspect', { pack: importPackPath.trim() })
+          const execResult = await runAction('inspect', {
+            pack: importPackPath.trim(),
+            ...(importTarget.trim().length > 0 ? { target: importTarget.trim() } : {}),
+          })
           if (!execResult.unsupported) {
             if (execResult.result?.kind === 'success') {
               text = execResult.result.text
@@ -1522,18 +1540,42 @@ window.__ModuleLoader__.load({
                     preview.attachments ?? 0,
                   ),
                 ),
-                (preview.conflicts?.sessions?.length ?? 0) +
-                  (preview.conflicts?.workspaces?.length ?? 0) >
-                0
-                  ? h(
-                      'div',
-                      { style: { color: THEME.error, marginTop: 2 } },
-                      t.previewConflicts(
-                        (preview.conflicts?.sessions?.length ?? 0) +
-                          (preview.conflicts?.workspaces?.length ?? 0),
+                (() => {
+                  const conflictSessions = preview.conflictDetails?.sessions ?? []
+                  const conflictWorkspaces = preview.conflictDetails?.workspaces ?? []
+                  const total = conflictSessions.length + conflictWorkspaces.length
+                  if (total === 0) return null
+                  const lines = [
+                    ...conflictSessions.slice(0, 5).map((item) =>
+                      h(
+                        'div',
+                        { style: { marginTop: 2 } },
+                        t.conflictSessionLine(
+                          item.title ?? item.id,
+                          item.kind === 'migrate-overwrite'
+                            ? t.conflictMigrateKind
+                            : t.conflictInPlaceKind,
+                        ),
                       ),
-                    )
-                  : null,
+                    ),
+                    ...conflictWorkspaces.slice(0, 5).map((item) =>
+                      h(
+                        'div',
+                        { style: { marginTop: 2 } },
+                        t.conflictWorkspaceLine(item.title),
+                      ),
+                    ),
+                  ]
+                  return h(
+                    'div',
+                    { style: { color: THEME.error, marginTop: 4 } },
+                    h('div', null, t.conflictSummary(conflictSessions.length, conflictWorkspaces.length)),
+                    ...lines,
+                    total > lines.length
+                      ? h('div', { style: { marginTop: 2 } }, t.conflictMore(total - lines.length))
+                      : null,
+                  )
+                })(),
                 h(
                   'div',
                   { style: { color: THEME.textMuted, marginTop: 2 } },

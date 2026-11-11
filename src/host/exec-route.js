@@ -56,7 +56,7 @@ async function dispatch(action, args, deps) {
     case 'size':
       return measureWorkspaces(Array.isArray(args.dirs) ? args.dirs : [])
     case 'inspect':
-      return inspectPack(deps, args.pack)
+      return inspectPack(deps, args.pack, args.target)
     case 'export':
       return exportAllSessions(
         deps,

@@ -207,7 +207,9 @@ test('inspect 预览包信息与冲突', async () => {
     const data = JSON.parse(result.text)
     assert.equal(data.sessions, 1)
     assert.equal(data.workspaces, 0)
-    assert.ok(Array.isArray(data.conflicts.sessions))
+    assert.equal(data.conflicts.sessions, 1)
+    assert.ok(Array.isArray(data.conflictDetails.sessions))
+    assert.equal(data.conflictDetails.sessions[0].kind, 'overwrite-in-place')
     assert.ok(data.packBytes > 0)
   } finally {
     await rm(dir, { recursive: true, force: true })
