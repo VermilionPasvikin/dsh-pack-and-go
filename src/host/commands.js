@@ -851,6 +851,17 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     } catch {
       // 列表不可用时只依赖包内 workspaceKey
     }
+    // 迁移覆盖：先解除旧工作区归属，避免持久化的旧 sessionIds 让会话落入“未分组”。
+    for (const written of sessions.written) {
+      if (typeof written.migrateFrom !== 'string') continue
+      const oldWorkspace = workspaceByPath.get(normalizePathKey(written.migrateFrom))
+      if (!oldWorkspace || typeof oldWorkspace.detachSession !== 'function') continue
+      try {
+        await oldWorkspace.detachSession(written.targetId)
+      } catch (detachError) {
+        console.error('[dsh-mover] detach old workspace failed', written.targetId, detachError)
+      }
+    }
     let attached = 0
     for (const written of sessions.written) {
       const source = manifest.sessions.find((item) => item.id === written.id)

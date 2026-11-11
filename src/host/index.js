@@ -100,6 +100,59 @@ export function apply(ctx, config) {
     ctx.effect(() => () => clearInterval(timer))
   }
 
+  // 启动修复：迁移覆盖后的会话可能因旧归属残留而落入「未分组」。
+  // DSH 启动索引已建好，此时按会话 cwd 匹配已登记工作区补 attach（只加不减）。
+  const repairGrouping = async () => {
+    const registry = typeof ctx.get === 'function' ? ctx.get('workspaceRegistry') : undefined
+    const persistence = ctx.sessionPersistence
+    if (!registry || !persistence) return false
+    let workspaces
+    try {
+      workspaces = registry.list()
+    } catch {
+      return false
+    }
+    if (!Array.isArray(workspaces) || workspaces.length === 0) return false
+    const normalize = (value) =>
+      String(value ?? '')
+        .replace(/\\/g, '/')
+        .toLowerCase()
+        .replace(/\/+$/, '')
+    const byPath = new Map(workspaces.map((workspace) => [normalize(workspace.path), workspace]))
+    let snapshots
+    try {
+      snapshots = await persistence.list()
+    } catch {
+      return false
+    }
+    let repaired = 0
+    for (const snapshot of snapshots) {
+      const workspace = byPath.get(normalize(snapshot.header.cwd))
+      if (!workspace || typeof workspace.attachSession !== 'function') continue
+      if (workspace.sessionIds.includes(snapshot.header.id)) continue
+      try {
+        await workspace.attachSession(snapshot.header.id)
+        repaired += 1
+      } catch (attachError) {
+        console.error('[dsh-mover] grouping repair failed', snapshot.header.id, attachError)
+      }
+    }
+    if (repaired > 0) console.log('[dsh-mover] grouping repaired', repaired, 'sessions')
+    return true
+  }
+  {
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts += 1
+      void repairGrouping()
+        .then((done) => {
+          if (done || attempts >= 60) clearInterval(timer)
+        })
+        .catch(() => {})
+    }, 1000)
+    ctx.effect(() => () => clearInterval(timer))
+  }
+
   if (process.env.DSH_MOVER_SELFTEST === '1') {
     console.log('[dsh-mover] apply() reached')
     void (async () => {
