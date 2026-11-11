@@ -379,4 +379,20 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 
 **状态**：Accepted，实施见后续 DEVLOG。
 
+## ADR-0015 · 导出支持「仅工作区」模式（2026-11-11，Accepted）
+
+**背景**：导出以会话为入口，工作区文件只能随会话导出；无法只导出工作区，也无法导出「有文件无对话」或「完全空文件夹」的工作区（SPEC v1.0 范围包含「仅工作区」）。
+
+**决策（用户拍板，B+C）**：
+
+1. 先做 Host/CLI 管线，再做导出页「仅工作区」模式入口；
+2. 包格式：`mode: 'workspaces'`、`sessions: []`、`workspaces` 非空；**不要求向后兼容**（插件尚未发布）；
+3. 空文件夹工作区只导出目录结构（`fileCount: 0`），导入时 `mkdir` + 登记；
+4. CLI：`export --workspace <path>`（可多次，至少一个）；exec：`export.workspaces`；
+5. 导入端复用「空工作区也登记」（ADR-0014 决策 9 的 E 版），无需新逻辑。
+
+**后果**：导出决策树新增模式分支；新增 `exportWorkspacesOnly`；导出页新增模式切换；SPEC 升 v1.2。
+
+**状态**：Accepted，实施见 DEVLOG 124。
+
 **关联**：TASKS T3.5；ADR-0008。

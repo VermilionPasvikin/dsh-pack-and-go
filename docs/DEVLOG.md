@@ -696,3 +696,11 @@
   1. 迁移覆盖时对旧 cwd 所属工作区调用 `detachSession`；
   2. DSH 启动后插件自动补 attach：按会话 header.cwd 匹配已登记工作区（**只加不减**，避免误伤用户手动归组），日志 `grouping repaired N sessions`。
 - 验证：全量 192 项测试通过；重启后 workspace.json 的 sessionIds 与新工作区一致。
+
+## 124 · 2026-11-11 · feat: 导出「仅工作区」模式（ADR-0015）
+- ADR-0015 已批准（B+C）：Host/CLI 管线 + 导出页「仅工作区」入口。
+- Host：`exportWorkspacesOnly`（`mode='workspaces'`、`sessions=[]`、空文件夹 `fileCount: 0`）；exec `export.workspaces`；命令 `--workspace`（可多次）。
+- CLI：`export --workspace <path>`（至少一个）。
+- Client：导出页模式切换「对话 + 工作区 / 仅工作区」；仅工作区模式列出工作区（含空），至少选一个。
+- 文档：ADR-0015、SPEC 升 v1.2（ADR-0013/0014/0015 行为）、DESIGN 导出决策树补模式分支、TASKS M8。
+- 验证：193 项测试通过（新增「仅导出工作区（含空目录）→ 导入登记空工作区」用例）。
