@@ -290,6 +290,34 @@ test('仅导出工作区（含空目录）并导入登记为空工作区', async
   }
 })
 
+test('仅导出工作区：文件符号链接解引用并计入统计', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
+  try {
+    const workspace = join(dir, 'ws-link')
+    await mkdir(workspace, { recursive: true })
+    await writeFile(join(workspace, 'target.txt'), 'x')
+    let linked = false
+    try {
+      await symlink(join(workspace, 'target.txt'), join(workspace, 'link.txt'), 'file')
+      linked = true
+    } catch {
+      // Windows 未开启开发者模式时无法创建符号链接，跳过本用例
+    }
+    if (!linked) return
+    const deps = await makeDeps(dir, join(dir, 'unused.zst'), Buffer.alloc(0))
+    const out = join(dir, 'ws-link.dshpack')
+    const exported = await exportWorkspacesOnly(deps, out, [workspace])
+    assert.equal(exported.kind, 'success')
+    assert.match(exported.text, /解引用 1 个符号链接/)
+    const target = join(dir, 'import-target')
+    const imported = await importPack(deps, out, target, { sessionPolicy: 'skip' })
+    assert.equal(imported.kind, 'success')
+    assert.equal(await readFile(join(target, 'ws-link', 'link.txt'), 'utf8'), 'x')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('导入必须指定目标目录且不接受已移除的 new-id', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-cmd-'))
   try {

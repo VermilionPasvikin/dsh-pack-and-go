@@ -6,7 +6,7 @@
  * Windows 目标会对非法文件名做安全重命名并记录转换。
  */
 
-import { mkdir, stat, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
@@ -99,6 +99,18 @@ export async function restoreWorkspaceFiles(input) {
         // 目标不存在
       }
       await writeFile(target, file.data)
+      // POSIX exec 位恢复（SPEC FR-9）；Windows 目标忽略。
+      if (
+        targetPlatform !== 'win32' &&
+        typeof file.mode === 'number' &&
+        (file.mode & 0o111) !== 0
+      ) {
+        try {
+          await chmod(target, file.mode & 0o777)
+        } catch {
+          // 权限恢复失败不阻断导入
+        }
+      }
       written.push({ key, path: target })
       if (existed) overwritten.push({ key, path: target })
     }

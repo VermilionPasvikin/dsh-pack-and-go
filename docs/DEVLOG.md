@@ -733,3 +733,10 @@
 - 技术债登记：T9.1 符号链接/权限位转换（要做）、T9.2 取消（不做）、T9.3 大工作区测量（本次已完成）。
 - 文档收尾：INDEX / FINAL-REPORT / README / CODE-REVIEW / ACCEPTANCE / TEST-PLAN / IMPORT-REDESIGN / TASKS 与 ADR-0011/0012 状态同步。
 - 验证：194 项测试通过。
+
+## 128 · 2026-11-11 · feat: 符号链接解引用 + 权限位恢复（T9.1）
+- `scan`：文件符号链接按 SPEC FR-9 **默认解引用**（记录 `dereferenced`、目标 size/mode）；目录链接/损坏链接跳过并记录（`symlink-dir-skipped` / `symlink-broken`）。
+- 导出：结果文本统计「解引用 N 个符号链接 / 跳过 N 个」。
+- 导入：POSIX 目标恢复 exec 位（`chmod`，Windows 忽略）。
+- 测试：`scan` 符号链接语义（文件链接解引用、目录链接跳过）+ `commands`「仅导出工作区：文件符号链接解引用并计入统计」（导入后还原为普通文件）；全量通过。
+- 说明：POSIX `chmod` 分支在 Windows 测试环境未实测，待 Linux CI 验证。

@@ -85,25 +85,41 @@ test('空目录被记录', async () => {
   }
 })
 
-test('符号链接被记录但不跟随', async () => {
+test('符号链接：文件链接解引用、目录链接跳过', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-mover-link-'))
   try {
     await writeFile(join(dir, 'target.txt'), 'x')
     await mkdir(join(dir, 'real'))
     await writeFile(join(dir, 'real', 'inner.txt'), 'y')
-    let linked = false
+    let dirLinked = false
+    let fileLinked = false
     try {
       await symlink(join(dir, 'real'), join(dir, 'linkdir'), 'dir')
-      linked = true
+      dirLinked = true
     } catch {
-      // Windows 未开启开发者模式时可能失败；其余断言仍有效
+      // Windows 未开启开发者模式时可能失败
+    }
+    try {
+      await symlink(join(dir, 'target.txt'), join(dir, 'linkfile'), 'file')
+      fileLinked = true
+    } catch {
+      // 同上
     }
     const result = await scanWorkspace(dir, {})
-    if (linked) {
-      const link = result.entries.find((entry) => entry.relPath === 'linkdir')
+    if (dirLinked) {
+      assert.ok(!result.entries.some((entry) => entry.relPath === 'linkdir'))
+      assert.ok(
+        result.excluded.some(
+          (entry) => entry.relPath === 'linkdir' && entry.reason === 'symlink-dir-skipped',
+        ),
+      )
+    }
+    if (fileLinked) {
+      const link = result.entries.find((entry) => entry.relPath === 'linkfile')
       assert.ok(link)
       assert.equal(link.isSymlink, true)
-      assert.ok(!result.entries.some((entry) => entry.relPath.includes('linkdir/')))
+      assert.equal(link.dereferenced, true)
+      assert.equal(link.size, 1)
     }
   } finally {
     await rm(dir, { recursive: true, force: true })

@@ -1,10 +1,12 @@
 /**
  * 工作区扫描：遍历目录、应用排除规则、统计大小（SPEC §FR-4 / §FR-9）。
  *
- * 只读元数据（lstat），不读取文件内容；不跟随符号链接（避免循环）。
+ * 只读元数据（lstat），不递归符号链接目录，避免循环；
+ * 符号链接文件按 FR-9 默认「解引用」为普通文件（记录 dereferenced 标记），
+ * 目录链接与损坏链接跳过并写入 excluded 记录。
  */
 
-import { lstat, readdir } from 'node:fs/promises'
+import { lstat, readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
@@ -99,7 +101,34 @@ export async function scanWorkspace(root, options = {}) {
       const rel = relDir ? `${relDir}/${child.name}` : child.name
       const info = await lstat(abs)
       const isSymlink = info.isSymbolicLink()
-      const isDirectory = !isSymlink && info.isDirectory()
+
+      if (isSymlink) {
+        // 默认解引用：文件链接按普通文件打包；目录链接/损坏链接跳过并记录。
+        try {
+          const targetInfo = await stat(abs)
+          if (targetInfo.isFile()) {
+            entries.push({
+              relPath: rel,
+              name: child.name,
+              isDir: false,
+              isSymlink: true,
+              dereferenced: true,
+              size: targetInfo.size,
+              mode: targetInfo.mode,
+              mtimeMs: targetInfo.mtimeMs,
+            })
+            files += 1
+            totalBytes += targetInfo.size
+            continue
+          }
+          excludedEntries.push({ relPath: rel, reason: 'symlink-dir-skipped' })
+        } catch {
+          excludedEntries.push({ relPath: rel, reason: 'symlink-broken' })
+        }
+        continue
+      }
+
+      const isDirectory = info.isDirectory()
 
       if (isDirectory) {
         if (excluded.has(child.name)) {
@@ -116,7 +145,7 @@ export async function scanWorkspace(root, options = {}) {
         relPath: rel,
         name: child.name,
         isDir: isDirectory,
-        isSymlink,
+        isSymlink: false,
         size: isDirectory ? 0 : info.size,
         mode: info.mode,
         mtimeMs: info.mtimeMs,

@@ -333,7 +333,7 @@ async function cmdImport(options) {
   // 决策 9（E 版）：全部工作区文件都还原（空工作区也保留）。
   const workspaceEntries = entries
     .filter((entry) => entry.name.startsWith('workspaces/'))
-    .map((entry) => ({ packPath: entry.name, data: entry.data }))
+    .map((entry) => ({ packPath: entry.name, data: entry.data, mode: entry.mode }))
   const files = await restoreWorkspaceFiles({
     entries: workspaceEntries,
     pathMap,

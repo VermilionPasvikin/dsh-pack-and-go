@@ -141,6 +141,8 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
     const planItems = []
     const sourcePaths = {}
     const extraEntries = []
+    let dereferencedLinks = 0
+    let skippedLinks = 0
     for (const [index, rawPath] of paths.entries()) {
       const sourcePath = rawPath.trim()
       let info
@@ -160,6 +162,10 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
       }
       const key = `ws-${index + 1}`
       const scan = await scanWorkspace(canonical, {})
+      dereferencedLinks += scan.entries.filter((entry) => entry.dereferenced === true).length
+      skippedLinks += scan.excluded.filter((entry) =>
+        String(entry.reason ?? '').startsWith('symlink-'),
+      ).length
       const files = scan.entries.filter((entry) => entry.isDir !== true)
       const dirs = scan.entries.filter((entry) => entry.isDir === true)
       for (const entry of files) {
@@ -200,7 +206,9 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
     })
     return {
       kind: 'success',
-      text: `已导出 ${workspaces.length} 个工作区（${planItems.length} 个文件）到 ${resolvedTarget}（${written.bytes} 字节）。`,
+      text: `已导出 ${workspaces.length} 个工作区（${planItems.length} 个文件）到 ${resolvedTarget}（${written.bytes} 字节）${
+        dereferencedLinks > 0 ? `；解引用 ${dereferencedLinks} 个符号链接` : ''
+      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}。`,
     }
   } catch (error) {
     return errorResult(
@@ -346,6 +354,8 @@ export async function exportAllSessions(
     const workspaces = []
     const workspaceKeyByCwd = new Map()
     const scannedCwds = []
+    let dereferencedLinks = 0
+    let skippedLinks = 0
     if (includeFiles) {
       const seenCwds = new Set()
       const scanOptions = {}
@@ -360,6 +370,10 @@ export async function exportAllSessions(
         scannedCwds.push(cwd)
         try {
           const scan = await scanWorkspace(cwd, scanOptions)
+          dereferencedLinks += scan.entries.filter((entry) => entry.dereferenced === true).length
+          skippedLinks += scan.excluded.filter((entry) =>
+            String(entry.reason ?? '').startsWith('symlink-'),
+          ).length
           const files = scan.entries
             .filter((entry) => !entry.isDir)
             .map((entry) => ({ relPath: entry.relPath, size: entry.size }))
@@ -515,7 +529,9 @@ export async function exportAllSessions(
     }
     return {
       kind: 'success',
-      text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）${preflightNote}`,
+      text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）${
+        dereferencedLinks > 0 ? `；解引用 ${dereferencedLinks} 个符号链接` : ''
+      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${preflightNote}`,
     }
   } catch (error) {
     return errorResult(
@@ -913,7 +929,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     }
     const workspaceEntries = entries
       .filter((entry) => entry.name.startsWith('workspaces/'))
-      .map((entry) => ({ packPath: entry.name, data: entry.data }))
+      .map((entry) => ({ packPath: entry.name, data: entry.data, mode: entry.mode }))
     const files = await restoreWorkspaceFiles({
       entries: workspaceEntries,
       pathMap,
