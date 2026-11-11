@@ -50,7 +50,13 @@ async function makeDeps(dir, sessionFile, bytes) {
         },
       ],
       create: async () => ({
-        append: async () => {},
+        append: async (events) => {
+          for (const [index, event] of events.entries()) {
+            assert.equal(event.seq, index)
+            assert.equal(typeof event.time, 'number')
+            assert.equal(typeof event.type, 'string')
+          }
+        },
         flush: async () => {},
         close: async () => {},
       }),

@@ -628,12 +628,20 @@ async function importSessionsViaService(deps, manifest, byName, pathMap) {
         : session.cwd
     const newId = `session-${randomUUID()}`
     try {
-      const events = decodeSessionEvents(packed).map((event, index) => ({
-        ...event,
-        seq: index,
-      }))
+      const events = decodeSessionEvents(packed).map((event, index) => {
+        const record = event !== null && typeof event === 'object' ? event : {}
+        return {
+          ...record,
+          type: typeof record.type === 'string' ? record.type : 'unknown',
+          seq: index,
+          // 写入行要求 time；缺失时用递增时间戳兜底
+          time: typeof record.time === 'number' ? record.time : Date.now() + index,
+          data: record.data ?? {},
+        }
+      })
       const handle = await deps.sessionPersistence.create({
-        version: manifest.source.sessionFormat ?? 4,
+        // 固定当前会话格式版本，避免把旧格式行的缺字段写成 v2 行
+        version: 4,
         id: newId,
         createdAt: Date.now(),
         ...(typeof targetCwd === 'string' && targetCwd.length > 0 ? { cwd: targetCwd } : {}),

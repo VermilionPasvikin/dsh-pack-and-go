@@ -540,3 +540,9 @@
 - `importPack` 导入后对每个新会话调用 `sessionController.resolveAgent` 激活（live 索引更新，左侧列表热更新）。
 - Client 新增 `runAction` / `runMoverAction`：操作优先 exec 路由，404 回退命令；load 标题优先 `exec list`（catalog 含事件兜底标题）。
 - 验证：`node --check` 全通过；`commands` 12 项、`client-render` 4 项通过。
+
+## 099 · 2026-11-11 · fix: 服务重建事件字段补齐（released v2 row lacks time）
+- 现象：另存为新对话导入后左侧出现（热重载生效），但打开报 `released v2 row 0 lacks required field time`。
+- 根因：`decodeSessionEvents` 解出的事件缺 `time`（源日志旧格式），服务重建写入时按 v2 行校验失败。
+- 修复：重建前补齐事件必填字段（`type`/`seq`/`time`/`data`，time 缺失用递增时间戳），create 固定 `version: 4`。
+- 测试：`commands` mock 的 `append` 校验 seq/time/type；12 项通过。
