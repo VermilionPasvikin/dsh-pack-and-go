@@ -1,4 +1,4 @@
-# 黑盒验收用例（v1.3，2026-11-12）
+# 黑盒验收用例（v1.4，2026-11-12）
 
 > 目的：按 **导入/导出行为决策树**（`DESIGN.md` §3.1/§3.2、`IMPORT-BEHAVIOR-TREE.md`）逐路径覆盖，供任意平台复用。
 > 执行方式定义：**单测** = `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"`；**CDP** = `tests/e2e/cdp/` 脚本（无头 Chrome）；**集成** = 一次性 `DSH_HOME` 真实导入/导出；**用户人工确认** = 仅纯视觉判断（主题/语言观感）。
@@ -63,6 +63,7 @@
 | P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（真实 POSIX 链接 + CLI 导出/导入：解引用 1、跳过 2） |
 | P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（devlog 134 修复 mode 传递；0755→0755，含单测） |
 | P-05c | 文件权限保真（POSIX，ADR-0016 B1） | 导入含 `0600`/`0644`/`0755` 文件；含 setuid 位；win32 源包 | 按包内 mode 恢复（剥离 setuid/setgid/sticky）；win32 源包仅恢复 exec 位；Windows 目标忽略 | 单测 + E2E | Linux/macOS | ✅ 2026-11-12 Linux（devlog 136） |
+| P-05d | 目录权限保真（POSIX，ADR-0016 B2） | 导入含 `0700`/`0755`/`0500` 目录（含文件）；目录 setuid；win32 源包 | 两阶段恢复（先建可写 → 写完文件 → 深→浅 chmod），剥离 setuid/setgid；win32 源包跳过；Windows 目标忽略 | 单测 | Linux/macOS | ✅ 2026-11-12（devlog 138，Windows 208 项：199 pass + 9 skip） |
 | P-05b | exec 位（Windows） | 同上 | 忽略权限位并记录 | 单测 | Windows | ✅ 代码条件分支 |
 | P-06a | Windows 保留名/长路径 | 预检 `CON`、超长路径 | 列出风险，导入时跳过/重命名 | 单测 | Windows | ✅ `preflight` 测试（部分） |
 | P-06b | macOS 大小写不敏感 | 同名不同大小写文件 | 预检列出大小写冲突 | 单测 | macOS | ⏳ 待 macOS CI |
@@ -95,7 +96,8 @@
 | P-04b 符号链接（POSIX） | ✅ Linux 2026-11-12；macOS 未测 | macOS CI 补 P-04b |
 | P-05a exec 位 | ✅ Linux 2026-11-12（修复后）；macOS 未测 | macOS CI 复核 |
 | P-06b/c 大小写 | ✅ P-06c Linux 2026-11-12；P-06b macOS 未测 | macOS CI 补 P-06b |
-| P-05c 文件权限保真（B1） | ✅ Linux 2026-11-12；目录权限（B2）另立 ADR | macOS CI 复核；B2 待 ADR 批准 |
+| P-05c 文件权限保真（B1） | ✅ Linux 2026-11-12；目录权限（B2）已实现 | macOS CI 复核 |
+| P-05d 目录权限保真（B2） | ✅ 已实现（devlog 138）；POSIX 实测待 Linux CI 复核 | Linux/macOS CI 复核 |
 
 > 2026-11-12 Linux 专项执行明细与证据见仓库外的验证报告（本地 Linux 环境，一次性 `DSH_HOME`）。
 
@@ -105,3 +107,4 @@
 - 2026-11-11（Windows），单测 195 项通过；CDP 覆盖 E-06/E-09/E-11/I-10/I-11/I-19/I-23/P-08（用户确认）。
 - 2026-11-12（Linux，Ubuntu 24.04 / Node 24）：单测 + E2E **198 项通过**；Linux 专项 P-04b ✅、P-05a ✅（先失败→devlog 134 修复）、P-06c ✅；侧边栏「迁移对话或工作区」中英文与浮层经 Firefox WebDriver 实测（无 Chrome，未跑 CDP 脚本）。
 - 2026-11-12（Linux，devlog 136，ADR-0016 B1）：文件权限保真上线，**203 项通过**（198 + 5 新增）；P-05c ✅（0600/0644/0755 往返、setuid 剥离、win32 源包跳过、Windows 目标忽略）；CLI 端到端同样验证。
+- 2026-11-12（Windows，devlog 138，ADR-0016 B2）：目录权限保真上线，**208 项**（199 pass + 9 个 POSIX 用例预期 skip）；P-05d ✅（0700/0755/0500 两阶段、目录 setuid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）。

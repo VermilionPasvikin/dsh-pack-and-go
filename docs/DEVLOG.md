@@ -812,3 +812,11 @@
   - DESIGN §3.1：导入决策树补「文件权限（ADR-0016 B1）」节点；
   - ACCEPTANCE #10：补 Linux 实证；CODE-REVIEW 测试数 194→203。
 - 验证：Windows 本机 `node --test` → **203 项**（198 pass + 5 个 POSIX 权限用例预期 skip）。
+
+## 138 · 2026-11-12 · feat: 目录权限保真（ADR-0016 B2）
+- 用户批准 B2（目录权限）；导出端记录真实目录 mode，导入端两阶段恢复。
+- 导出：`exportWorkspacesOnly` 目录条目带 `mode`；`exportAllSessions` 新增目录条目（含 `mode`）。
+- 导入：`restoreWorkspaceFiles` 先按可写 `mkdir` → 写完全部文件 → 按「深→浅」统一 `chmod` 目录（`mode & 0o777`，剥离 setuid/setgid/sticky）；win32 源包跳过（目录 mode 为合成值）；Windows 目标忽略。
+- 统计：`modes.dirsApplied/dirsFailed`；结果文本「恢复目录权限 N 个」。
+- 测试：新增 5 项（目录 0700/0755/0500 两阶段、目录 setuid/setgid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）；全量 **208 项**（199 pass + 9 skip）。
+- 文档：ADR-0016 B2 Accepted、SPEC v1.4、DESIGN 决策树、TASKS T9.5、TEST-CASES P-05d。

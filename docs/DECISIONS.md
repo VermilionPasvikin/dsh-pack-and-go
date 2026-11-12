@@ -468,3 +468,14 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 7. 不新增包格式字段，`schemaVersion` 不变。
 8. 测试：`0600`/`0644`/`0755` 保持、setuid/setgid 剥离、win32 源包跳过、Windows 目标忽略、CLI 端到端 0600 往返。
 
+**B2 批准与实施（2026-11-12，devlog 138）**
+
+- **用户批准 B2（目录权限保真）**，与上文选项 B 的目录部分一致；B1（文件权限）此前已实现。
+- 实施内容：
+  1. 导出端记录目录真实 mode：`exportWorkspacesOnly` 的目录条目与 `exportAllSessions` 新增的目录条目都写入 `mode`（zip external attributes）；
+  2. 导入端**两阶段**：目录先按可写创建 → 写完全部文件 → 按「深→浅」统一 `chmod`（`mode & 0o777`，剥离 setuid/setgid/sticky）；
+  3. `win32` 源包跳过目录权限恢复（目录 mode 为 libuv 合成 `0o40766`，无 x 位）；Windows 目标忽略；
+  4. `restoreWorkspaceFiles` 返回 `modes.dirsApplied/dirsFailed`；结果文本统计「恢复目录权限 N 个」。
+- 验证：新增 5 项测试（0700/0755/0500 目录两阶段、setuid/setgid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）；Windows 全量 **208 项**（199 pass + 9 个 POSIX 用例预期 skip）。
+- 已知限制：FAT/exFAT/网络文件系统 chmod 语义缺失 → warning；只读父目录下收紧失败 → warning。
+

@@ -3,7 +3,7 @@
 > **打包就走。** 把 DSH 的「对话 + 工作区」装进一个 `.dshpack` 文件，换台电脑（或换个平台）继续用。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
-[![tests](https://img.shields.io/badge/tests-203%20passing-brightgreen.svg)](./tests)
+[![tests](https://img.shields.io/badge/tests-208%20passing-brightgreen.svg)](./tests)
 [![spec](https://img.shields.io/badge/spec-v1.3-informational.svg)](./docs/SPEC.md)
 
 ---
@@ -19,7 +19,7 @@
 | 🧩 **fork 链** | 分支/子代理对话默认连带导出 |
 | 📎 **附件** | 图片、文档等按内容寻址打包与恢复 |
 | 🔗 **符号链接** | 文件链接自动解引用；目录/损坏链接跳过并报告 |
-| 🔐 **权限保真** | POSIX 目标按包内文件 mode 恢复（剥离 setuid/setgid）；Windows 目标忽略（ADR-0016 B1） |
+| 🔐 **权限保真** | POSIX 目标按包内文件/目录 mode 恢复（剥离 setuid/setgid；目录两阶段）；Windows 目标忽略（ADR-0016 B1+B2） |
 | 🚀 **零额外依赖** | 只用 Node 内置能力（zstd、zip、流式 IO） |
 
 导入时如果对话已存在，你可以选择 **跳过** 或 **覆盖**；覆盖会先备份，目标目录不同时会自动执行「**迁移覆盖**」并明确提示原/新位置。
@@ -171,7 +171,7 @@ flowchart LR
 node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 ```
 
-当前 **203 项测试**：Linux 全通过；Windows 198 通过 + 5 个 POSIX 权限用例预期跳过。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
+当前 **208 项测试**：Linux 全通过；Windows 199 通过 + 9 个 POSIX 权限用例预期跳过。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
 
 ---
 

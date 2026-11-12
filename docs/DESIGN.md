@@ -64,9 +64,9 @@ tests/
 │  ├─ 正常 → 写回 <DSH_HOME>/attachments/v1
 │  ├─ 已存在 → 覆盖写；EPERM → warning 不阻断
 │  └─ 会话引用但包内缺失 → warning
-├─ 文件权限（ADR-0016 B1）
-│  ├─ POSIX 目标 + POSIX 源 → 按包内文件 mode 恢复（低 9 位，剥离 setuid/setgid/sticky）
-│  ├─ win32 源包 → 仅恢复 exec 位（Windows mode 是 libuv 合成值）
+├─ 文件/目录权限（ADR-0016 B1+B2）
+│  ├─ POSIX 目标 + POSIX 源 → 文件按 mode 恢复；目录两阶段（先建后收紧，深→浅）
+│  ├─ win32 源包 → 文件仅恢复 exec 位；目录跳过（Windows mode 是 libuv 合成值）
 │  └─ Windows 目标 → 忽略（ADR-0003）
 ├─ 登记与归组
 │  ├─ 登记成功 → attach 会话

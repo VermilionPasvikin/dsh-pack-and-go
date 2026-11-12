@@ -175,7 +175,12 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
       }
       // 目录条目保留空目录结构（导入端 restoreWorkspaceFiles 已支持）。
       for (const entry of dirs) {
-        extraEntries.push({ name: `workspaces/${key}/files/${entry.relPath}/`, isDir: true })
+        extraEntries.push({
+          name: `workspaces/${key}/files/${entry.relPath}/`,
+          isDir: true,
+          // ADR-0016 B2：目录条目记录真实 mode，导入端按包内权限恢复。
+          mode: entry.mode,
+        })
       }
       workspaces.push({
         key,
@@ -364,6 +369,7 @@ export async function exportAllSessions(
     const workspaces = []
     const workspaceKeyByCwd = new Map()
     const scannedCwds = []
+    const extraEntries = []
     let dereferencedLinks = 0
     let skippedLinks = 0
     if (includeFiles) {
@@ -404,6 +410,14 @@ export async function exportAllSessions(
           })
           for (const file of files) {
             sourcePaths[`workspaces/${key}/files/${file.relPath}`] = join(cwd, file.relPath)
+          }
+          // ADR-0016 B2：目录条目（含真实 mode），导入端据此恢复目录权限。
+          for (const directory of scan.entries.filter((entry) => entry.isDir === true)) {
+            extraEntries.push({
+              name: `workspaces/${key}/files/${directory.relPath}/`,
+              isDir: true,
+              mode: directory.mode,
+            })
           }
         } catch (scanError) {
           console.log(
@@ -517,6 +531,7 @@ export async function exportAllSessions(
       sourcePaths,
       manifest,
       outputPath: resolvedTarget,
+      extraEntries,
       compress: options.compress !== false,
     })
     console.log('[dsh-pack-and-go] export written', written.bytes, 'to', resolvedTarget)
@@ -1106,7 +1121,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     const modeNotes = [
       overwrittenFiles > 0 ? `覆盖 ${overwrittenFiles} 个` : '',
       files.modes.applied > 0 ? `恢复权限 ${files.modes.applied} 个` : '',
+      files.modes.dirsApplied > 0 ? `恢复目录权限 ${files.modes.dirsApplied} 个` : '',
       files.modes.failed > 0 ? `权限恢复失败 ${files.modes.failed} 个` : '',
+      files.modes.dirsFailed > 0 ? `目录权限恢复失败 ${files.modes.dirsFailed} 个` : '',
     ]
       .filter(Boolean)
       .join('，')

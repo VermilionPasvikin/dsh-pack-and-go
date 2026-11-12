@@ -349,7 +349,9 @@ async function cmdImport(options) {
     `已导入 ${sessions.written.length} 个对话、跳过 ${sessions.skipped.length} 个已存在${
       migrated.length > 0 ? `（其中 ${migrated.length} 个迁移覆盖）` : ''
     }、${files.written.length} 个工作区文件${
-      files.modes.applied > 0 ? `（恢复权限 ${files.modes.applied} 个）` : ''
+      files.modes.applied > 0 || files.modes.dirsApplied > 0
+        ? `（恢复权限 ${files.modes.applied} 个文件${files.modes.dirsApplied > 0 ? ` / ${files.modes.dirsApplied} 个目录` : ''}）`
+        : ''
     }、${attachments.restored} 个附件；workspace.json ${
       updated ? '已更新' : '未更新（不存在或不兼容）'
     }。重启 DSH 后可见。${

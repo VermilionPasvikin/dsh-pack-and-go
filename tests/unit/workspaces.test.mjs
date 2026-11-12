@@ -193,3 +193,96 @@ test('Windows 目标忽略权限位（ADR-0003）', async () => {
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('目录权限两阶段恢复（ADR-0016 B2）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        { packPath: 'workspaces/w1/files/private/', data: Buffer.alloc(0), mode: 0o40700 },
+        {
+          packPath: 'workspaces/w1/files/private/secret.txt',
+          data: Buffer.from('s'),
+          mode: 0o100600,
+        },
+        { packPath: 'workspaces/w1/files/shared/', data: Buffer.alloc(0), mode: 0o40755 },
+        { packPath: 'workspaces/w1/files/shared/a.txt', data: Buffer.from('a'), mode: 0o100644 },
+        { packPath: 'workspaces/w1/files/readonly/', data: Buffer.alloc(0), mode: 0o40500 },
+        { packPath: 'workspaces/w1/files/readonly/b.txt', data: Buffer.from('b'), mode: 0o100644 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'linux',
+    })
+    const perms = async (name) => (await stat(join(dir, 'p1', name))).mode & 0o777
+    assert.equal(await perms('private'), 0o700)
+    assert.equal(await perms('shared'), 0o755)
+    // 两阶段：0500 目录仍能先写入文件，最后才收紧。
+    assert.equal(await perms('readonly'), 0o500)
+    assert.equal(await readFile(join(dir, 'p1', 'readonly', 'b.txt'), 'utf8'), 'b')
+    assert.equal(result.modes.dirsApplied, 3)
+    assert.equal(result.modes.dirsFailed, 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('目录 setuid/setgid 位被剥离（ADR-0016 B2）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    await restoreWorkspaceFiles({
+      entries: [
+        { packPath: 'workspaces/w1/files/suid-dir/', data: Buffer.alloc(0), mode: 0o104755 },
+        { packPath: 'workspaces/w1/files/sgid-dir/', data: Buffer.alloc(0), mode: 0o102700 },
+      ],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'linux',
+    })
+    for (const name of ['suid-dir', 'sgid-dir']) {
+      const mode = (await stat(join(dir, 'p1', name))).mode
+      assert.equal(mode & 0o4000, 0, name + ' 不得带 setuid')
+      assert.equal(mode & 0o2000, 0, name + ' 不得带 setgid')
+    }
+    assert.equal((await stat(join(dir, 'p1', 'suid-dir'))).mode & 0o777, 0o755)
+    assert.equal((await stat(join(dir, 'p1', 'sgid-dir'))).mode & 0o777, 0o700)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('win32 源包跳过目录权限恢复（ADR-0016 B2）', { skip: process.platform === 'win32' }, async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [{ packPath: 'workspaces/w1/files/d/', data: Buffer.alloc(0), mode: 0o40766 }],
+      pathMap,
+      targetPlatform: 'linux',
+      sourcePlatform: 'win32',
+    })
+    assert.equal(result.modes.dirsApplied, 0)
+    // 目录仍按 mkdir + umask 落盘，不套用 win32 合成 mode。
+    assert.equal((await stat(join(dir, 'p1', 'd'))).mode & 0o777, 0o777 & ~process.umask())
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('Windows 目标忽略目录权限（ADR-0003）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [{ packPath: 'workspaces/w1/files/d/', data: Buffer.alloc(0), mode: 0o40700 }],
+      pathMap,
+      targetPlatform: 'win32',
+      sourcePlatform: 'linux',
+    })
+    assert.equal(result.modes.dirsApplied, 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

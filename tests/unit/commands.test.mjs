@@ -454,3 +454,27 @@ test('导出默认连带 fork 子代理会话，--no-fork 只导出选中', asyn
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test(
+  '仅导出工作区包含目录条目 mode（ADR-0016 B2）',
+  { skip: process.platform === 'win32' },
+  async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const workspace = join(dir, 'ws-dir-mode')
+    await mkdir(join(workspace, 'sub'), { recursive: true })
+    await writeFile(join(workspace, 'sub', 'a.txt'), 'a')
+    const deps = await makeDeps(dir, join(dir, 'unused.zst'), Buffer.alloc(0))
+    const out = join(dir, 'dir-mode.dshpack')
+    const exported = await exportWorkspacesOnly(deps, out, [workspace])
+    assert.equal(exported.kind, 'success')
+    const zip = readZip(await readFile(out))
+    const dirEntry = zip.entries.find(
+      (entry) => entry.name === 'workspaces/ws-1/files/sub/',
+    )
+    assert.ok(dirEntry, '应包含目录条目')
+    assert.equal(dirEntry.mode & 0o777, 0o755, '目录条目应记录真实 mode')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

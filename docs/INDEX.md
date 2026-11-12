@@ -2,16 +2,16 @@
 
 ## 当前状态（2026-11-12）
 
-- 阶段：**SPEC v1.3**；TASKS M0–M9 全部 ✅（T9.2 取消 / T9.4 精确进度为「不做」）；Windows + Linux 专项验证完成。
-- 下一步：ADR-0016 **B2（目录权限保真）** 待用户决定；macOS CI；发布准备（GitHub 已上传，npm 未发布）。
-- 未决项：B2 是否立项；macOS 平台专项。
+- 阶段：**SPEC v1.4**；TASKS M0–M9 全部 ✅（T9.2 取消 / T9.4 精确进度为「不做」）；Windows + Linux 专项验证完成，B2（目录权限）已实现。
+- 下一步：Linux/macOS CI 复核 B2；macOS 平台专项；发布准备（GitHub 已上传，npm 未发布）。
+- 未决项：macOS 平台专项。
 - 最近变更：见 `DEVLOG.md` 最后一条。
 
 ## 文档地图
 
 | 我想知道 | 去哪看 |
 |---|---|
-| 项目要做什么、范围、验收标准 | [SPEC.md](SPEC.md)（v1.3） |
+| 项目要做什么、范围、验收标准 | [SPEC.md](SPEC.md)（v1.4） |
 | 为什么这样决策、备选方案与后果 | [DECISIONS.md](DECISIONS.md)（ADR-0001~0016） |
 | 技术怎么实现、模块划分、接口 | [DESIGN.md](DESIGN.md)（含导入/导出行为决策树） |
 | 导入行为边界与决策 | [IMPORT-BEHAVIOR-TREE.md](IMPORT-BEHAVIOR-TREE.md) |
@@ -23,7 +23,7 @@
 
 ## 文档维护规则
 
-- `SPEC.md`：冻结后只能经“ADR + 升版本”修改（当前 v1.3）。
+- `SPEC.md`：冻结后只能经“ADR + 升版本”修改（当前 v1.4）。
 - `DECISIONS.md`：只追加；被替代时标注 Superseded，不删原文。
 - `DEVLOG.md`：只追加；每个提交一条，编号递增。
 - `DESIGN.md`：随实现更新；重大结构变化先在 `DECISIONS.md` 记一条。

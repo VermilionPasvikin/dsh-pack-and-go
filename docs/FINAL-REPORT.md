@@ -12,14 +12,14 @@
 | CLI | `src/cli/index.js`（`export/import`，`--target` 必填、`--workspace`、`--overwrite`） |
 | 核心库 | `src/core/`（包格式、zstd 帧、路径、预检、扫描、zip、流式 zip、计划、附件、工作区、备份、进度） |
 | Bundle 元数据 | `cordis.patch.yml`、`locale/zh.json`、`locale/en.json`、`icon.svg` |
-| 测试 | `tests/unit/`、`tests/e2e/`（**203 项**） |
+| 测试 | `tests/unit/`、`tests/e2e/`（**208 项**） |
 | 文档 | SPEC v1.3 / DESIGN / DECISIONS（ADR-0001~0016）/ TASKS / DEVLOG / ACCEPTANCE / INDEX / README / AGENTS / IMPORT-BEHAVIOR-TREE / TEST-CASES v1.3 |
 
 ## 2. 验证汇总（截至 2026-11-12）
 
 | 项 | 结果 |
 |---|---|
-| 单元 + E2E 测试 | **203 项**：Linux 全通过；Windows 198 通过 + 5 个 POSIX 权限用例预期跳过 |
+| 单元 + E2E 测试 | **208 项**：Windows 199 通过 + 9 个 POSIX 权限用例预期跳过；Linux 203 通过（B2 新增 5 项待 Linux CI 复核） |
 | Linux 专项 | P-04b 符号链接 ✅、P-05a exec 位 ✅（修复后）、P-06c 大小写 ✅、P-05c 权限保真 ✅（ADR-0016 B1） |
 | 跨平台规则 E2E | 3 passed（Windows→POSIX cwd、POSIX→Windows 非法名、预检报告） |
 | 安全 E2E | 3 passed（包内无凭据/缓存/依赖、路径穿越拒绝、敏感名断言） |
@@ -32,7 +32,7 @@
 ## 3. 已知限制与技术债（按用户决定更新）
 
 1. **取消功能：不做**（用户决定）。
-2. **符号链接/权限位：已完成**（T9.1 解引用 + ADR-0016 B1 文件权限保真）；**目录权限（B2）待另立 ADR**。
+2. **符号链接/权限位：已完成**（T9.1 解引用 + ADR-0016 B1 文件权限 + B2 目录权限两阶段保真）。
 3. **精确进度：不做**（用户决定；1 GB 实测 6.5 s 供参考）。
 4. **CLI 导入需要重启 DSH**：直接更新 `workspace.json`，运行中的 DSH 不热加载。
 5. **已打开会话的覆盖回滚需重启 DSH**（DSH 内存会话无 reload API）；结果文本已精确提示。
@@ -47,7 +47,7 @@
 
 ## 5. 后续建议（按优先级）
 
-1. 决定 ADR-0016 B2（目录权限保真）是否立项；
+1. 在 Linux/macOS CI 复核 B2 目录权限（已实现）；
 2. macOS CI 跑平台专项；
 3. DSH 若开放 session reload API，接入真正的热重载；
 4. 低风险项：exec 请求体大小上限、标题兜底缓存、激活失败提示。

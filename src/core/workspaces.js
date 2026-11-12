@@ -63,8 +63,9 @@ export async function restoreWorkspaceFiles(input) {
   const written = []
   const overwritten = []
   const dirs = []
+  const dirModes = []
   const conversions = []
-  const modes = { applied: 0, failed: 0 }
+  const modes = { applied: 0, failed: 0, dirsApplied: 0, dirsFailed: 0 }
   const warnings = []
 
   for (const [key, files] of byWorkspace) {
@@ -80,6 +81,8 @@ export async function restoreWorkspaceFiles(input) {
         const target = join(targetRoot, file.relative)
         await mkdir(target, { recursive: true })
         dirs.push({ key, path: target })
+        // ADR-0016 B2：目录权限两阶段恢复——先以可写创建，写完全部文件后再统一 chmod。
+        dirModes.push({ key, relative: file.relative, path: target, mode: file.mode })
         continue
       }
 
@@ -127,6 +130,25 @@ export async function restoreWorkspaceFiles(input) {
       }
       written.push({ key, path: target })
       if (existed) overwritten.push({ key, path: target })
+    }
+  }
+
+  // 第二阶段：全量文件写完后统一恢复目录权限（ADR-0016 B2）。
+  // - 仅 POSIX 源 + POSIX 目标；win32 源包的目录 mode 是 libuv 合成值（无 x 位）→ 跳过；
+  // - 只取低 9 位，剥离 setuid/setgid/sticky；
+  // - 先深后浅：先 chmod 深层目录，避免父目录被收紧后无法进入。
+  const fullRestore = targetPlatform !== 'win32' && sourcePlatform !== 'win32'
+  if (fullRestore) {
+    dirModes.sort((a, b) => b.path.length - a.path.length)
+    for (const dir of dirModes) {
+      if (typeof dir.mode !== 'number') continue
+      try {
+        await chmod(dir.path, dir.mode & 0o777)
+        modes.dirsApplied += 1
+      } catch {
+        modes.dirsFailed += 1
+        warnings.push(`目录权限恢复失败：${dir.relative}`)
+      }
     }
   }
 
