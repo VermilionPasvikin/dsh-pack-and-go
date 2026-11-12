@@ -28,6 +28,7 @@ npm view dsh-pack-and-go version repository
 
 - `repository` 必须指回 GitHub 仓库，dsh-market 才会把 npm 包和收录条目关联起来（下载量统计依赖它）。
 - 失败回滚：72 小时内可 `npm unpublish dsh-pack-and-go@0.2.1 --force`；超过则用 `npm deprecate dsh-pack-and-go@0.2.1 "..."`。
+- npm 可能先创建 `0.0.0-stage` 占位版本（staged publishing），正式版本通常在半分钟内上线；若 `npm view` 仍只看到占位，稍等重查，**不要重复 publish**（会报 `cannot publish over the previously published versions`）。
 
 ## 3. 一条命令安装验证
 

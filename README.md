@@ -56,7 +56,7 @@ dsh plugin --profile desktop add github:VermilionPasvikin/dsh-pack-and-go
 
 重启 DSH 后，侧边栏出现「**迁移对话或工作区**」入口。
 
-**npm（发布后）**
+**npm（已发布 0.2.1）**
 
 ```bash
 dsh plugin --profile desktop add dsh-pack-and-go
@@ -205,7 +205,7 @@ node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 
 ## 🗺️ 状态与限制
 
-- 版本 `0.2.1`（SPEC v1.5）；发布渠道：GitHub（可用）→ npm（发布后）→ dsh-market（收录后）；发布步骤见 [docs/RELEASE.md](docs/RELEASE.md)；
+- 版本 `0.2.1`（SPEC v1.5）；发布渠道：npm（`0.2.1` 已发布，`dsh plugin add dsh-pack-and-go`）/ GitHub（可用）→ dsh-market（收录审核中）；发布步骤见 [docs/RELEASE.md](docs/RELEASE.md)；
 - 取消功能与精确进度按用户决定不做（沿用转圈 + 阶段文案）；
 - macOS 平台专项已完成（2026-11-12，220 项全通过）；Linux 已完成符号链接/权限位/大小写/权限保真验证；
 - 已打开会话的回滚/迁移位置显示需要重启 DSH（DSH 未提供会话 reload API）。

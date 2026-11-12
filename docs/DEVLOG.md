@@ -851,3 +851,10 @@
 - 市场素材：`docs/icon-180.png`（SVG 经 Chrome CDP 渲染为 GitHub 托管位图）；`docs/screenshots/{market-export,market-import}.png` + 根 `screenshots.json`；`docs/market/awesome-dsh-plugin.yml`（category `session`）；`docs/RELEASE.md` 发布全流程。
 - 兼容性事实：DSH `@deepseek-ai/dsh-app-boot` 的 `satisfies` 只看 `engines.dsh`（有则忽略 peerDependencies）；dsh-market 目录来自 awesome-dsh-plugin，收录需在对方仓库新增 `data/plugins/VermilionPasvikin__dsh-pack-and-go.yml` 并提 PR（需 GitHub 登录）。
 - 待办（需凭据）：`npm login && npm publish`；push main + tag；向 awesome-dsh-plugin 提收录 PR。发布后按 RELEASE.md 第 3/6 节复验。
+
+## 143 · 2026-11-12 · docs: npm 0.2.1 发布与 npm 渠道安装验证
+- 发布：用户在仓库目录执行 `npm publish`（带 OTP）。npm staged publishing 先创建 `0.0.0-stage` 占位（13:54:12Z），约 2 分钟后 `0.2.1` 正式上线（13:56:50Z，dist-tag latest=0.2.1）；随后重复 publish 报 `cannot publish over the previously published versions: 0.2.1`，属正常。
+- registry 校验：`npm view dsh-pack-and-go version repository dist-tags` → `0.2.1`、repository 指回 GitHub、latest `0.2.1`；`bin` 为 `src/cli/index.js`（npm 归一化），`dsh.bundle` / `dsh.client` / `engines.dsh` 均在。
+- 安装验证：一次性 DSH_HOME（`/tmp/dsh-pack-and-go-npm-*`，复制 web profile 为 npmtest），`dsh plugin --profile npmtest add dsh-pack-and-go@0.2.1` → 5.4s，`dsh.profile.bundles` 追加；启动 web 日志出现 `command registered: mover` 与 `exec route registered: /api/mover/exec`；`--dump-config` 3 处；CDP 打开实例页面无 corrupt。
+- 推送：main @ 537501a、tag v0.2.1 已在 origin；本轮只补文档。
+- 备注：`0.0.0-stage` 为占位版本，无实际代码，可由维护者择机 `npm unpublish`。
