@@ -802,3 +802,13 @@
 - SPEC：FR-2「其他选择能力」移除搜索框条目（用户直接指令的产品简化）。
 - 验证：`node --check` 通过；全量测试通过。
 - README/TEST-PLAN 文档导航同步。
+
+## 137 · 2026-11-12 · docs: 按 Linux 测试结果同步文档（203 项 / SPEC v1.3 / ADR-0016 B1）
+- 同步远程 Linux 端 4 个提交（f83cf83..bcbcb11，fast-forward）并核对测试记录（TEST-CASES §6、DEVLOG 133–136）。
+- 文档同步：
+  - README：徽章 196→203、SPEC v1.3、能力表新增「权限保真」、状态限制更新（Linux 已完成，macOS 待 CI）；
+  - FINAL-REPORT：升级 v1.3（203 项、Linux 专项、技术债 B1 完成/B2 待 ADR、精确进度不做）；
+  - INDEX：状态/下一步/未决（B2、macOS CI）；
+  - DESIGN §3.1：导入决策树补「文件权限（ADR-0016 B1）」节点；
+  - ACCEPTANCE #10：补 Linux 实证；CODE-REVIEW 测试数 194→203。
+- 验证：Windows 本机 `node --test` → **203 项**（198 pass + 5 个 POSIX 权限用例预期 skip）。

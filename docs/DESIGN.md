@@ -64,6 +64,10 @@ tests/
 │  ├─ 正常 → 写回 <DSH_HOME>/attachments/v1
 │  ├─ 已存在 → 覆盖写；EPERM → warning 不阻断
 │  └─ 会话引用但包内缺失 → warning
+├─ 文件权限（ADR-0016 B1）
+│  ├─ POSIX 目标 + POSIX 源 → 按包内文件 mode 恢复（低 9 位，剥离 setuid/setgid/sticky）
+│  ├─ win32 源包 → 仅恢复 exec 位（Windows mode 是 libuv 合成值）
+│  └─ Windows 目标 → 忽略（ADR-0003）
 ├─ 登记与归组
 │  ├─ 登记成功 → attach 会话
 │  ├─ cwd 与工作区 path 不匹配 → attach 失败（日志），会话可能进未分组

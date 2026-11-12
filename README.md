@@ -3,8 +3,8 @@
 > **打包就走。** 把 DSH 的「对话 + 工作区」装进一个 `.dshpack` 文件，换台电脑（或换个平台）继续用。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
-[![tests](https://img.shields.io/badge/tests-196%20passing-brightgreen.svg)](./tests)
-[![spec](https://img.shields.io/badge/spec-v1.2-informational.svg)](./docs/SPEC.md)
+[![tests](https://img.shields.io/badge/tests-203%20passing-brightgreen.svg)](./tests)
+[![spec](https://img.shields.io/badge/spec-v1.3-informational.svg)](./docs/SPEC.md)
 
 ---
 
@@ -19,6 +19,7 @@
 | 🧩 **fork 链** | 分支/子代理对话默认连带导出 |
 | 📎 **附件** | 图片、文档等按内容寻址打包与恢复 |
 | 🔗 **符号链接** | 文件链接自动解引用；目录/损坏链接跳过并报告 |
+| 🔐 **权限保真** | POSIX 目标按包内文件 mode 恢复（剥离 setuid/setgid）；Windows 目标忽略（ADR-0016 B1） |
 | 🚀 **零额外依赖** | 只用 Node 内置能力（zstd、zip、流式 IO） |
 
 导入时如果对话已存在，你可以选择 **跳过** 或 **覆盖**；覆盖会先备份，目标目录不同时会自动执行「**迁移覆盖**」并明确提示原/新位置。
@@ -170,15 +171,15 @@ flowchart LR
 node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 ```
 
-当前 **196 项测试通过**；另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
+当前 **203 项测试**：Linux 全通过；Windows 198 通过 + 5 个 POSIX 权限用例预期跳过。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
 
 ---
 
 ## 🗺️ 状态与限制
 
-- 版本 `0.2.0`（SPEC v1.2），**尚未发布到 npm**；
+- 版本 `0.2.0`（SPEC v1.3），**尚未发布到 npm**；
 - 取消功能与精确进度按用户决定不做（沿用转圈 + 阶段文案）；
-- macOS/Linux 的符号链接、权限位、大小写冲突用例待 CI；
+- macOS 平台专项待 CI；Linux 已完成符号链接/权限位/大小写/权限保真验证；
 - 已打开会话的回滚/迁移位置显示需要重启 DSH（DSH 未提供会话 reload API）。
 
 ---

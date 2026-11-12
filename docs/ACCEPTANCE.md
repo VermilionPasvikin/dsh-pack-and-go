@@ -14,7 +14,7 @@
 | 7 | 截断/篡改包在导入前被拒绝 | ✅ | `tests/unit/zip-reader.test.mjs`（截断、CRC、坏 deflate）；`tests/e2e/security.test.mjs` |
 | 8 | 大工作区导出内存峰值 ≤ 300MB | ✅ | 流式打包（`zip-stream`）：500MB 工作区 → 2.9 s、峰值 RSS 112.3 MB（`tests/e2e/performance.test.mjs`）；用户拍板按此实测判定通过（2026-11-11） |
 | 9 | 包内不含凭据/缓存/node_modules | ✅ | `tests/e2e/security.test.mjs`：导出包条目不含 `.credentials`/`cache/`/`node_modules/`/`llm-deepseek` 等 |
-| 10 | 转换报告覆盖每个被重命名/跳过/解引用条目 | ✅ | 文件符号链接默认解引用（导出文本统计「解引用 N / 跳过 N」）；目录链接/损坏链接跳过并记录；POSIX exec 位恢复（T9.1，DEVLOG 128） |
+| 10 | 转换报告覆盖每个被重命名/跳过/解引用条目 | ✅ | 文件符号链接默认解引用（导出文本统计「解引用 N / 跳过 N」）；目录链接/损坏链接跳过并记录；POSIX exec 位恢复（T9.1）；文件权限保真（ADR-0016 B1）——Linux 实测 P-04b/P-05a/P-05c 通过（203 项测试，2026-11-12） |
 
 ## 结论
 
