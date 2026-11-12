@@ -3,8 +3,8 @@
 ## 当前状态（2026-11-12）
 
 - 阶段：**SPEC v1.5**；TASKS M0–M9 全部 ✅（含 T9.6 ADR-0017、T9.7 macOS 全量回归）；Windows + Linux + macOS 专项验证完成。
-- 下一步：发布准备（GitHub 已上传，npm 未发布）；可选 Windows/Linux CI 复跑以复核 B2 与权限用例。
-- 未决项：无阻塞项；macOS 全量 220 项通过，问题记录见 `TEST-CASES.md` §6 / `DEVLOG.md` 140。
+- 下一步：发布准备进行中（DEVLOG 142）——GitHub 一条命令安装已验证；npm 发布、v0.2.1 tag、dsh-market 收录 PR 待执行，步骤见 [RELEASE.md](RELEASE.md)；可选 Windows/Linux CI 复跑以复核 B2 与权限用例。
+- 未决项：npm 发布需 `npm login` 凭据；dsh-market 收录需向 awesome-dsh-plugin 提 PR（GitHub 登录）。macOS 全量 220 项通过，问题记录见 `TEST-CASES.md` §6 / `DEVLOG.md` 140。
 - 最近变更：见 `DEVLOG.md` 最后一条。
 
 ## 文档地图

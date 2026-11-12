@@ -843,3 +843,11 @@
 - macOS 全量（devlog 140）后校订：TEST-CASES E-11 符号链接 POSIX 状态、§5 证据说明；FINAL-REPORT §5 后续建议；TASKS M4/T4.3 页面渲染状态；SPEC §12 ADR 索引补至 ADR-0017。
 - 计数口径：macOS 220/220；Windows 208（199 pass + 9 skip）；Linux 203 为 B1 时点（B2 新增 5 项待 Linux CI）。
 - 未改实现代码；仅文档一致性修正。
+
+## 142 · 2026-11-12 · chore: 发布准备（npm 元数据 + dsh-market 收录 + 一条命令安装验证）
+- 元数据：version `0.2.1`；移除 `private`；补 `author` / `repository` / `homepage` / `bugs` / `keywords` / `engines.dsh`（`>=0.2.0 <0.3.0`，`semver.satisfies(0.2.2-rc.2, range, {includePrerelease:true})` 通过）/ `publishConfig`；`files` 增 `screenshots.json` 与 `docs/screenshots/**/*.png`。
+- 一条命令安装（GitHub）：一次性 DSH_HOME（复制 web profile），`dsh plugin --profile gh add github:VermilionPasvikin/dsh-pack-and-go` → 3.6s 安装、`dsh.profile.bundles` 追加；启动 web 日志出现 `[dsh-pack-and-go] command registered: mover` 与 `exec route registered: /api/mover/exec`；CDP 确认侧边栏「迁移对话或工作区」存在。
+- npm 渠道：`npm pack --dry-run` → 37 files / 80.9 kB；`npm publish --dry-run` 通过（本机未登录 npm，实际发布待用户凭据）。
+- 市场素材：`docs/icon-180.png`（SVG 经 Chrome CDP 渲染为 GitHub 托管位图）；`docs/screenshots/{market-export,market-import}.png` + 根 `screenshots.json`；`docs/market/awesome-dsh-plugin.yml`（category `session`）；`docs/RELEASE.md` 发布全流程。
+- 兼容性事实：DSH `@deepseek-ai/dsh-app-boot` 的 `satisfies` 只看 `engines.dsh`（有则忽略 peerDependencies）；dsh-market 目录来自 awesome-dsh-plugin，收录需在对方仓库新增 `data/plugins/VermilionPasvikin__dsh-pack-and-go.yml` 并提 PR（需 GitHub 登录）。
+- 待办（需凭据）：`npm login && npm publish`；push main + tag；向 awesome-dsh-plugin 提收录 PR。发布后按 RELEASE.md 第 3/6 节复验。

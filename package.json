@@ -1,12 +1,12 @@
 {
   "name": "dsh-pack-and-go",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "type": "module",
   "description": "Cross-platform migration for DSH conversations and workspaces",
   "license": "MIT",
   "engines": {
-    "node": ">=22.15"
+    "node": ">=22.15",
+    "dsh": ">=0.2.0 <0.3.0"
   },
   "exports": {
     ".": "./src/host/index.js",
@@ -24,7 +24,9 @@
     "src/core/**/*.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.svg",
+    "screenshots.json",
+    "docs/screenshots/**/*.png"
   ],
   "dsh": {
     "bundle": {
@@ -33,11 +35,36 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-chat"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
     }
   },
   "scripts": {
     "test": "node --test \"tests/unit/**/*.test.mjs\"",
     "check": "node --check src/core/constants.js && node --check src/core/errors.js && node --check src/core/manifest.js && node --check src/core/manifest-io.js && node --check src/core/zstd-frames.js && node --check src/core/session-rewrite.js && node --check src/core/paths.js && node --check src/core/preflight.js && node --check src/core/scan.js && node --check src/core/zip-writer.js && node --check src/core/zip-reader.js && node --check src/core/path-map.js && node --check src/core/plan-export.js && node --check src/core/plan-import.js && node --check src/core/progress.js && node --check src/core/export-pack.js && node --check src/core/import-pack.js && node --check src/core/attachments.js && node --check src/core/workspaces.js && node --check src/core/backup.js && node --check src/core/index.js && node --check src/host/index.js && node --check src/host/catalog.js && node --check src/host/register.js && node --check src/host/commands.js && node --check src/host/rebuild.js && node --check tests/unit/smoke.test.mjs && node --check tests/unit/manifest.test.mjs && node --check tests/unit/manifest-io.test.mjs && node --check tests/unit/zstd-frames.test.mjs && node --check tests/unit/session-rewrite.test.mjs && node --check tests/unit/paths.test.mjs && node --check tests/unit/preflight.test.mjs && node --check tests/unit/scan.test.mjs && node --check tests/unit/zip-writer.test.mjs && node --check tests/unit/zip-reader.test.mjs && node --check tests/unit/path-map.test.mjs && node --check tests/unit/plan-export.test.mjs && node --check tests/unit/plan-import.test.mjs && node --check tests/unit/progress.test.mjs && node --check tests/unit/catalog.test.mjs && node --check tests/unit/export-pack.test.mjs && node --check tests/unit/import-pack.test.mjs && node --check tests/unit/attachments.test.mjs && node --check tests/unit/workspaces.test.mjs && node --check tests/unit/backup.test.mjs && node --check tests/unit/register.test.mjs && node --check tests/unit/commands.test.mjs && node --check tests/unit/rebuild.test.mjs && node --check tests/unit/errors.test.mjs"
+  },
+  "author": "Vermilion Pasvikin <onlywork-20221111@outlok.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VermilionPasvikin/dsh-pack-and-go.git"
+  },
+  "homepage": "https://github.com/VermilionPasvikin/dsh-pack-and-go#readme",
+  "bugs": {
+    "url": "https://github.com/VermilionPasvikin/dsh-pack-and-go/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "dsh-plugin",
+    "migration",
+    "backup",
+    "export",
+    "import",
+    "session",
+    "workspace"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }

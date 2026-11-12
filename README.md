@@ -24,6 +24,10 @@
 
 导入时如果对话已存在，你可以选择 **跳过** 或 **覆盖**；覆盖会先备份，目标目录不同时会自动执行「**迁移覆盖**」并明确提示原/新位置。
 
+| 导出 | 导入 |
+|---|---|
+| ![导出面板](docs/screenshots/market-export.png) | ![导入面板](docs/screenshots/market-import.png) |
+
 ---
 
 ## 🧭 平台支持
@@ -43,15 +47,38 @@
 
 ### 安装
 
-```bash
-# 方式 A：本地目录（开发/内测）
-dsh plugin --profile <profile> add /path/to/dsh-pack-and-go
+**一条命令（GitHub，无需等 npm 发布）**
 
-# 方式 B：tarball（npm pack 产物）
-dsh plugin --profile <profile> add ./dsh-pack-and-go-0.2.0.tgz
+```bash
+dsh plugin --profile desktop add github:VermilionPasvikin/dsh-pack-and-go
+# Web / 其他 profile 把 desktop 换成对应 profile 名
 ```
 
-也可以在 DSH 插件管理页添加本地路径。安装后侧边栏出现「**迁移对话或工作区**」入口。
+重启 DSH 后，侧边栏出现「**迁移对话或工作区**」入口。
+
+**npm（发布后）**
+
+```bash
+dsh plugin --profile desktop add dsh-pack-and-go
+```
+
+**插件市场（dsh-market）**
+
+1. 安装 dsh-market 插件：`dsh plugin --profile web add dshmarket`，重启 DSH；
+2. 打开「插件 → 插件市场」，搜索 **Pack and Go** / **对话与工作区迁移**，点「安装」。
+
+> 市场收录审核通过后可见；也可以在 DSH「发现」的索引源里添加 dsh-market 目录。
+
+**本地开发 / 内测**
+
+```bash
+dsh plugin --profile <profile> add /path/to/dsh-pack-and-go
+dsh plugin --profile <profile> add ./dsh-pack-and-go-0.2.1.tgz
+```
+
+也可以在 DSH 插件管理页添加本地路径，或直接输入 npm / GitHub 坐标。安装后侧边栏出现「**迁移对话或工作区**」入口。
+
+> 兼容性：DSH `>=0.2.0 <0.3.0`（当前 0.2.2-rc.2 已验证）；Node.js ≥ 22.15。
 
 ### 使用（Web UI）
 
@@ -156,12 +183,13 @@ flowchart LR
 
 | 文档 | 内容 |
 |---|---|
-| [docs/SPEC.md](docs/SPEC.md) | 需求规格 v1.2 |
+| [docs/SPEC.md](docs/SPEC.md) | 需求规格 v1.5 |
 | [docs/DESIGN.md](docs/DESIGN.md) | 技术设计（含导入/导出行为决策树） |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | ADR 决策记录 |
 | [docs/TEST-CASES.md](docs/TEST-CASES.md) | 黑盒用例 + 决策树覆盖矩阵 |
 | [docs/DEVLOG.md](docs/DEVLOG.md) | 开发日志 |
 | [docs/INDEX.md](docs/INDEX.md) | 当前状态与文档地图 |
+| [docs/RELEASE.md](docs/RELEASE.md) | 发布流程（npm / dsh-market） |
 
 ---
 
@@ -177,7 +205,7 @@ node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 
 ## 🗺️ 状态与限制
 
-- 版本 `0.2.0`（SPEC v1.5），**尚未发布到 npm**；
+- 版本 `0.2.1`（SPEC v1.5）；发布渠道：GitHub（可用）→ npm（发布后）→ dsh-market（收录后）；发布步骤见 [docs/RELEASE.md](docs/RELEASE.md)；
 - 取消功能与精确进度按用户决定不做（沿用转圈 + 阶段文案）；
 - macOS 平台专项已完成（2026-11-12，220 项全通过）；Linux 已完成符号链接/权限位/大小写/权限保真验证；
 - 已打开会话的回滚/迁移位置显示需要重启 DSH（DSH 未提供会话 reload API）。
