@@ -838,3 +838,8 @@
 - 问题记录：① E-05 实现文案「目标目录不存在」与原用例「父目录不存在」不一致——行为正确，按实现校正用例；② 迁移覆盖后热归组 `workspace/move-invalid` 日志噪音、结果「归组 0 个对话」，重启后自愈，符合重启提示，未改代码；③ B2 测试清理 EACCES（已修）。
 - 文档：TEST-CASES 平台结果/§5/§6、TASKS T9.7、INDEX、README/FINAL-REPORT/ACCEPTANCE/CODE-REVIEW 计数同步（220）。
 - 未重复复核：P-08 主题/语言沿用 2026-11-11 用户人工确认。
+
+## 141 · 2026-11-12 · docs: 按 macOS 全量结果校订文档并同步 ADR 索引
+- macOS 全量（devlog 140）后校订：TEST-CASES E-11 符号链接 POSIX 状态、§5 证据说明；FINAL-REPORT §5 后续建议；TASKS M4/T4.3 页面渲染状态；SPEC §12 ADR 索引补至 ADR-0017。
+- 计数口径：macOS 220/220；Windows 208（199 pass + 9 skip）；Linux 203 为 B1 时点（B2 新增 5 项待 Linux CI）。
+- 未改实现代码；仅文档一致性修正。

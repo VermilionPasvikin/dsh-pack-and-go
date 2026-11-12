@@ -47,7 +47,7 @@
 
 ## 5. 后续建议（按优先级）
 
-1. 在 Linux/macOS CI 复核 B2 目录权限（已实现）；
+1. 在 Linux CI 复核 B2 目录权限（macOS 2026-11-12 已全量验证）；
 2. macOS/Linux CI 复跑（本地 macOS 已全量 220 通过）；
 3. DSH 若开放 session reload API，接入真正的热重载；
 4. 低风险项：exec 请求体大小上限、标题兜底缓存、激活失败提示。

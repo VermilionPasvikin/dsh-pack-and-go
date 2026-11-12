@@ -18,7 +18,7 @@
 | E-08 | 排除规则 | 默认 / 全量 / 额外排除 `.cache` | 默认排除 `node_modules` 等；全量不排除；额外排除生效 | 单测 | 全平台 | ✅ `scan`/`plan-export` 测试 |
 | E-09 | 预检默认执行（ADR-0012） | 直接导出（不传 preflight） | 结果含「预检 N 项」 | 单测 + CDP | 全平台 | ✅ CDP「预检 0 项」（DEVLOG 127） |
 | E-10 | 附件 | 导出带附件会话 / 附件缺失 | 包内 `attachments/`；缺失仅 warning 不阻断 | 单测 + 集成 | 全平台 | ✅ 附件 E2E（TEST-PLAN 第二轮） |
-| E-11 | 符号链接 | 工作区含文件链接 / 目录链接 / 损坏链接 | 文件链接解引用；目录/损坏跳过并统计 | 单测 | 条件（Windows 需链接权限） | ✅ 逻辑通过；Windows 无权限时 skip，POSIX 待 CI（§3 P-04） |
+| E-11 | 符号链接 | 工作区含文件链接 / 目录链接 / 损坏链接 | 文件链接解引用；目录/损坏跳过并统计 | 单测 | 条件（Windows 需链接权限） | ✅ 逻辑通过；Windows 无权限时 skip；POSIX 已实测（Linux/macOS 2026-11-12，见 §3 P-04） |
 | E-12 | 压缩 | 默认压缩 / CLI `--no-compress` | 不压缩包明显更大、可读 | 单测 | 全平台 | ✅ `export-pack` 测试 |
 | E-13 | Windows 非法名 | 预检含 `?*:` 文件名 | 预检列出风险（导入时重命名） | 单测 | Windows | ✅ `preflight`/cross-platform 测试 |
 | E-14 | 失败清理 | 连续导出两次 / 中断 | 无 `write after end`、无半截包 | E2E | 全平台 | ✅ `export-pack` sink 修复（DEVLOG 049） |
@@ -101,7 +101,7 @@
 | P-05d 目录权限保真（B2） | ✅ 已实现（devlog 138）；✅ macOS 2026-11-12（B2 用例清理修复后） | 关闭 |
 | P-09 状态事件 cwd（ADR-0017） | ✅ 2026-11-12 macOS 修复验证（单测 + headless）；✅ 全量执行复核 | 关闭 |
 
-> 2026-11-12 Linux 专项执行明细与证据见仓库外的验证报告（本地 Linux 环境，一次性 `DSH_HOME`）。
+> 2026-11-12 Linux 专项明细见 DEVLOG 134/136（一次性 `DSH_HOME`）；macOS 全量执行明细与证据见 §6（DEVLOG 140）。
 
 ## 6. 执行记录
 
