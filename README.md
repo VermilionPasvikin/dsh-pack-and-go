@@ -36,7 +36,7 @@
 |---|---|
 | Windows 10/11 | ✅ 已完成全链路验证（导入/导出/CDP UI） |
 | macOS | ✅ 2026-11-12 全量 220 项通过（P-04b/P-05a/P-05c/P-05d/P-06b/P-09） |
-| Linux（含服务器） | 🧪 代码与测试就绪，CLI 可用，CI 待跑 |
+| Linux（含服务器） | ✅ 2026-11-12 全量 203 项通过（Ubuntu 24.04 / Node 24） |
 | WSL / Termux | 🧪 按 Node 运行环境支持（未单独验证） |
 
 要求：**Node.js ≥ 22.15**、装有 DSH 的任意 profile。
@@ -199,7 +199,7 @@ flowchart LR
 node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 ```
 
-当前 **220 项测试**：macOS 2026-11-12 全量 220 通过；Windows 199 通过 + 9 个 POSIX 权限用例预期跳过；Linux 203 为 B1 时点，B2 新增 5 项待 Linux CI 复核。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
+当前 **220 项测试**：macOS 2026-11-12 全量 220 通过；Windows 199 通过 + 9 个 POSIX 权限用例预期跳过；Linux 203 为 B1 时点，B2 新增 5 项待 Linux 复跑。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
 
 ---
 

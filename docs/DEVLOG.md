@@ -858,3 +858,9 @@
 - 安装验证：一次性 DSH_HOME（`/tmp/dsh-pack-and-go-npm-*`，复制 web profile 为 npmtest），`dsh plugin --profile npmtest add dsh-pack-and-go@0.2.1` → 5.4s，`dsh.profile.bundles` 追加；启动 web 日志出现 `command registered: mover` 与 `exec route registered: /api/mover/exec`；`--dump-config` 3 处；CDP 打开实例页面无 corrupt。
 - 推送：main @ 537501a、tag v0.2.1 已在 origin；本轮只补文档。
 - 备注：`0.0.0-stage` 为占位版本，无实际代码，可由维护者择机 `npm unpublish`。
+
+## 144 · 2026-11-12 · docs: 按工作日志修正 README Linux 平台状态
+- 现象：README 平台矩阵 Linux 行仍写「🧪 代码与测试就绪，CLI 可用，CI 待跑」，与 DEVLOG 134/136 已记录的 Linux 全量测试结果不一致。
+- 依据：DEVLOG 136「全量 203 项通过」（Linux，Ubuntu 24.04 / Node 24）；TEST-CASES §6 同样记录 Linux 198→203 项通过，P-04b/P-05a/P-05c/P-06c 已实测。
+- 更新：README Linux 行改为「✅ 2026-11-12 全量 203 项通过（Ubuntu 24.04 / Node 24）」；README 测试段保留说明：203 为 B1 时点，B2 新增 5 项待 Linux 复跑。
+- 未改代码与测试；计数口径不变：macOS 220/220、Windows 208（199 pass + 9 skip）、Linux 203（B1 时点）。
