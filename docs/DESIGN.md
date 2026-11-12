@@ -30,7 +30,7 @@ tests/
 
 **导出**：读取工作区/会话（DSH 服务）→ 用户选择 → 扫描 + 平台预检 → 流式写包 → 校验 → 完成。
 
-**导入**：读包 → 校验 manifest/版本 → 平台预检与转换 → 冲突处理 → 写会话（含 cwd 改写）→ 复制附件 → 恢复工作区文件 → 登记工作区 → 完成。
+**导入**：读包 → 校验 manifest/版本 → 平台预检与转换 → 冲突处理 → 写会话（含 header cwd 与 `working-directory/change` 状态事件 cwd 改写，ADR-0017）→ 复制附件 → 恢复工作区文件 → 登记工作区 → 完成。
 
 ## 3.1 导入行为决策树（强制指定目录模式，2026-11-11）
 
@@ -52,13 +52,13 @@ tests/
 │  ├─ 标题与其他工作区重名 → 登记名加「（导入 N）」
 │  └─ 工作区无有效会话写入 → 也登记并还原文件（空工作区保留；结果标注「暂无对话」）
 ├─ 会话冲突（每个包内 session）
-│  ├─ 无同 id → 写入 <目标>/<标题>（cwd 改写）
+│  ├─ 无同 id → 写入 <目标>/<标题>（cwd 与状态事件 cwd 改写）
 │  ├─ 同 id + 跳过 → 不写（旧会话保留）
 │  └─ 同 id + 覆盖
 │     ├─ 目标目录 = 现有 cwd → 原地覆盖（恢复）
 │     └─ 目标目录 ≠ 现有 cwd → 迁移覆盖（用户已选 C）
 │        1. 备份并移除旧位置的同 id 会话目录（防重复 id）
-│        2. 写入目标 cwd（包内版本，header.cwd 改写）
+│        2. 写入目标 cwd（包内版本，header.cwd 与 working-directory/change 事件 cwd 改写）
 │        3. 结果提示「已迁移覆盖：<原工作区>/<会话> → <新工作区>/<会话>」
 ├─ 附件（跟随会话策略）
 │  ├─ 正常 → 写回 <DSH_HOME>/attachments/v1
@@ -179,6 +179,14 @@ Host 通过流式 Remote 推送单帧 JSON：
 
 - 校验与构造：`src/core/progress.js` 的 `createProgressEvent()`；百分比用 `progressPercent()`（`success` 恒为 100）。
 - 错误帧携带 `describeError()` 的结果，Client 直接展示中文，不再二次翻译。
+
+## 4.1 会话日志改写策略（ADR-0007 / ADR-0017）
+
+- **header 改写**：只解压首帧、改 `cwd`/`id`/`parentSession`，其余帧字节原样拼接；
+- **状态事件改写**：仅跨平台导入且 `targetCwd` 存在时启用；首帧保持原样，只解压事件帧，仅改 `working-directory/change` 的 `data.cwd`，按行边界重压（默认 1 MB/帧，checksum 跟随原帧）；
+- **触发条件**：`manifest.source.platform !== targetPlatform`；同平台保持 ADR-0007 方案 A 的字节保真；
+- **映射**：源根下 → 目标根 + 相对路径（分隔符转目标平台，win32 忽略大小写）；源根外/源根缺失 → 目标根；
+- **已知边界**：包内会话无 `workspaceKey`（无 `targetCwd`）时不改写，跨平台仍可能打不开（见 SPEC §9）。
 
 ## 5. 包格式
 

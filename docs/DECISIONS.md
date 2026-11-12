@@ -479,3 +479,42 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 - 验证：新增 5 项测试（0700/0755/0500 目录两阶段、setuid/setgid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）；Windows 全量 **208 项**（199 pass + 9 个 POSIX 用例预期 skip）。
 - 已知限制：FAT/exFAT/网络文件系统 chmod 语义缺失 → warning；只读父目录下收紧失败 → warning。
 
+## ADR-0017 · 跨平台导入改写 working-directory/change 状态事件 cwd（2026-11-12，Accepted）
+
+**背景**
+
+- 跨平台（win32 ↔ POSIX）导入时，会话 header 的 cwd 已按 ADR-0005/ADR-0007 改写；但会话日志中的 `working-directory/change` 事件仍保留源平台绝对路径（如 `F:\PersonalProjects\...`）。
+- DSH 的 `@deepseek-ai/dsh-working-directory` 投影以 `zod.string().min(1).refine(isAbsolute).nullable()` 作为 `wire.viewSchema`，`apply` 把最近一次 `working-directory/change` 的 `data.cwd` 作为投影状态；在 macOS/Linux 上 `isAbsolute('F:\...') === false`，投影校验失败，整个会话在 `session-query` 的 `preparedProjections()` 阶段抛 `SESSION_QUERY_CORRUPT_SESSION`，UI 表现为「历史加载失败：… Invalid input」，会话完全打不开（实测于 macOS，DSH 0.2.2-rc.2）。
+- 该字段是**投影/运行时状态**，不是 Q4 所指的「历史消息正文里的路径文本」，不受「不改历史消息」约束；不迁移会导致跨平台导入的会话不可用。
+
+**方案比较**
+
+- A. 只改 header（现状）：跨平台会话在对端仍打不开，问题依旧；
+- B. 删除/替换 `working-directory/change` 事件：丢失「用户中途切换目录」的事实，重放行为改变；
+- C. 全量重写所有事件中的 Windows 路径文本：越界（Q4 明确不改历史消息），且会污染工具输出与用户文本；
+- **采纳 B 的最小变体：保留事件，仅把 `data.cwd` 重写为目标平台合法路径。**
+
+**决策（用户要求修复该导入问题）**
+
+1. `src/core/session-rewrite.js` 新增 `rewriteSessionWorkingDirectories()`，与 header 改写共用首帧解析与版本校验；
+2. 仅当 `session.targetCwd !== undefined` 且 `manifest.source.platform !== targetPlatform` 时启用；同平台继续保持 ADR-0007 方案 A 的字节保真；
+3. 只改写 `type === 'working-directory/change'` 事件的 `data.cwd`，其余行逐字节保持不变；header 帧原样保留为唯一首帧；
+4. cwd 映射：事件路径等于源根或位于源根之下 → `targetCwd + 相对路径`（分隔符转目标平台，win32 比较忽略大小写）；位于源根之外（用户中途切到别的目录）或源根缺失 → 回落 `targetCwd`；已在目标根下的路径保持不变（幂等）；
+5. 事件帧按行边界重压（默认 1 MB 分块，checksum 跟随原首个事件帧），不改变行数与记录语义；
+6. 无目标事件或值未变化时返回原 Buffer，零改写路径字节不变。
+
+**后果**
+
+- 跨平台导入后 `workingDirectory` 投影可通过 `isAbsolute` 校验，会话可打开；同平台导入行为与字节完全不变；
+- 会话日志体积可能因重压变化（原 4 KB 帧 → 1 MB 分块），但行数、事件顺序与除目标事件外的内容不变；
+- 包格式不变（`schemaVersion` 不变）；
+- 新增单测覆盖：映射（Win→POSIX、POSIX→Win、源根外回落、大小写/尾斜杠、幂等）、header 帧字节不变、事件帧 checksum、chunkBytes、版本/参数错误、导入端跨平台/同平台/无 workspaceKey 分支；
+- 已知边界：包内会话无 `workspaceKey`（无 `targetCwd`）时无目标根可映射，事件保持源路径，跨平台仍可能打不开（记入 SPEC §9 风险与 TEST-CASES P-09 缺口）。
+
+**验证**（devlog 139，macOS）
+
+- 单测 205 项：204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，与本 ADR 无关，另行修复）；
+- 一次性 DSH_HOME + 真实 `.dshpack` CLI 导入 → `dsh headless --session-id` 不再报 projection 错，仅到 preset 语义层（headless runner 不复现 UI）；
+- 真实 `~/.dsh` 导入会话备份后按本规则修复，待用户在 GUI 打开确认。
+
+**关联**：SPEC Q4/§1.3/§5.1/§9/§11、ADR-0005、ADR-0007、ADR-0016、TEST-CASES P-09、`src/core/session-rewrite.js`、`src/core/import-pack.js`。

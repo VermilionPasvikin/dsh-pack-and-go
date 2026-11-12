@@ -7,6 +7,9 @@
  * - overwrite：先备份已有文件，再覆盖；
  * - new-id：生成新 session id，改写 header.id 后写入新目录。
  *
+ * 跨平台导入时，除 header.cwd 外还改写 working-directory/change 状态事件的
+ * cwd（ADR-0017）；同平台保持字节保真（ADR-0007 方案 A）。
+ *
  * 附件（T2.8）与工作区文件/登记（T2.9）在后续任务实现。
  */
 
@@ -18,7 +21,7 @@ import { ERROR_CODES, MoverError } from './errors.js'
 import { parseManifest } from './manifest-io.js'
 import { sessionDir } from './paths.js'
 import { planImport } from './plan-import.js'
-import { rewriteSessionHeader } from './session-rewrite.js'
+import { rewriteSessionHeader, rewriteSessionWorkingDirectories } from './session-rewrite.js'
 import { readZip } from './zip-reader.js'
 
 /**
@@ -59,6 +62,7 @@ async function backupExisting(file, backupDir) {
  *   buffer: Buffer,
  *   sessionRoot: string,
  *   pathMap: { byKey: Record<string, string> },
+ *   targetPlatform?: 'win32' | 'darwin' | 'linux',
  *   existingSessionIds?: readonly string[],
  *   existingWorkspacePaths?: readonly string[],
  *   policy?: { session?: string, workspace?: string },
@@ -69,7 +73,15 @@ async function backupExisting(file, backupDir) {
  * @returns {Promise<{
  *   manifest: object,
  *   plan: object,
- *   written: Array<{ id: string, targetId: string, path: string, cwd?: string, action: string, backupPath?: string }>,
+ *   written: Array<{
+ *     id: string,
+ *     targetId: string,
+ *     path: string,
+ *     cwd?: string,
+ *     action: string,
+ *     backupPath?: string,
+ *     cwdEventsRewritten?: number
+ *   }>,
  *   skipped: string[]
  * }>}
  */
@@ -90,6 +102,7 @@ export async function importSessionsToDisk(input) {
     throw importError('迁移包缺少 manifest.json', { reason: 'no-manifest' })
   }
   const manifest = parseManifest(manifestEntry.toString('utf8'))
+  const targetPlatform = input.targetPlatform ?? process.platform
 
   const plan = planImport({
     manifest,
@@ -148,8 +161,23 @@ export async function importSessionsToDisk(input) {
       const mappedParent = targetIdById.get(source.parentSessionId)
       patch.parentSession = mappedParent ?? source.parentSessionId
     }
-    const finalData =
+    let finalData =
       Object.keys(patch).length > 0 ? rewriteSessionHeader(packed, patch) : packed
+
+    // 跨平台时 working-directory/change 记录的是源平台绝对路径，DSH 的
+    // workingDirectory 投影会在 isAbsolute 校验处拒绝它；它属于运行时状态，
+    // 不是历史消息文本，必须随 cwd 一起迁移（ADR-0017）。
+    let cwdEventsRewritten = 0
+    if (session.targetCwd !== undefined && manifest.source.platform !== targetPlatform) {
+      const result = rewriteSessionWorkingDirectories(finalData, {
+        fromCwd: source.cwd,
+        toCwd: session.targetCwd,
+        sourcePlatform: manifest.source.platform,
+        targetPlatform,
+      })
+      finalData = result.buffer
+      cwdEventsRewritten = result.rewritten
+    }
 
     let backupPath
     if (session.action === 'overwrite' && backupDir) {
@@ -183,6 +211,7 @@ export async function importSessionsToDisk(input) {
       action: session.action,
       ...(session.migrateFrom !== undefined ? { migrateFrom: session.migrateFrom } : {}),
       ...(backupPath !== undefined ? { backupPath } : {}),
+      ...(cwdEventsRewritten > 0 ? { cwdEventsRewritten } : {}),
     })
   }
 

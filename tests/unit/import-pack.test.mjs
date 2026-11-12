@@ -377,3 +377,116 @@ test('缺少 manifest 或会话文件时报错', async () => {
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+// ---- 跨平台导入改写 working-directory/change（ADR-0017） ----
+
+function makeEventSessionBytes({ cwd = 'F:\\proj', events = [] } = {}) {
+  const header = {
+    type: 'session',
+    version: 4,
+    id: 's1',
+    createdAt: 1700000000000,
+    isSeeded: false,
+    delegationDepth: 0,
+    cwd,
+  }
+  return Buffer.concat([
+    zlib.zstdCompressSync(Buffer.from(`${JSON.stringify(header)}\n`)),
+    ...events.map((event) => zlib.zstdCompressSync(Buffer.from(`${JSON.stringify(event)}\n`))),
+  ])
+}
+
+function decodeEvents(buffer) {
+  return Buffer.concat(
+    scanFrames(buffer).map((frame) => zlib.zstdDecompressSync(buffer.subarray(frame.start, frame.end))),
+  )
+    .toString('utf8')
+    .split('\n')
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line))
+}
+
+test('跨平台导入改写 working-directory/change 事件 cwd（ADR-0017）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const bytes = makeEventSessionBytes({
+      events: [
+        { type: 'working-directory/change', seq: 2, data: { cwd: 'F:\\proj\\src' } },
+        { type: 'turn/end', seq: 3 },
+      ],
+    })
+    const result = await importSessionsToDisk({
+      buffer: makePack(bytes),
+      sessionRoot,
+      pathMap: { byKey: { w1: '/target/proj' } },
+      targetPlatform: 'linux',
+    })
+    const written = result.written[0]
+    assert.equal(written.cwdEventsRewritten, 1)
+
+    const events = decodeEvents(await readFile(written.path))
+    const header = events[0]
+    assert.equal(header.cwd, '/target/proj')
+    const change = events.find((event) => event.type === 'working-directory/change')
+    assert.equal(change.data.cwd, '/target/proj/src')
+    assert.deepEqual(events.find((event) => event.type === 'turn/end'), { type: 'turn/end', seq: 3 })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('同平台导入不改写事件字节（ADR-0007 保真）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const bytes = makeEventSessionBytes({
+      events: [{ type: 'working-directory/change', seq: 2, data: { cwd: 'F:\\proj\\src' } }],
+    })
+    const result = await importSessionsToDisk({
+      buffer: makePack(bytes),
+      sessionRoot,
+      pathMap: { byKey: { w1: 'C:\\target\\proj' } },
+      targetPlatform: 'win32',
+    })
+    const written = result.written[0]
+    assert.equal(written.cwdEventsRewritten, undefined)
+
+    const events = decodeEvents(await readFile(written.path))
+    assert.equal(events[0].cwd, 'C:\\target\\proj')
+    assert.equal(
+      events.find((event) => event.type === 'working-directory/change').data.cwd,
+      'F:\\proj\\src',
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('无 targetCwd 的会话不改写事件（保持旧行为）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    const bytes = makeEventSessionBytes({
+      events: [{ type: 'working-directory/change', seq: 2, data: { cwd: 'F:\\proj\\src' } }],
+    })
+    const result = await importSessionsToDisk({
+      buffer: makePackNoWorkspace(bytes),
+      sessionRoot,
+      pathMap: { byKey: {} },
+      targetPlatform: 'linux',
+    })
+    const written = result.written[0]
+    assert.equal(written.cwdEventsRewritten, undefined)
+    assert.equal(written.cwd, 'F:\\proj')
+    const events = decodeEvents(await readFile(written.path))
+    assert.equal(
+      events.find((event) => event.type === 'working-directory/change').data.cwd,
+      'F:\\proj\\src',
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

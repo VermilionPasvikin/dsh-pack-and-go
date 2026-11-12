@@ -820,3 +820,11 @@
 - 统计：`modes.dirsApplied/dirsFailed`；结果文本「恢复目录权限 N 个」。
 - 测试：新增 5 项（目录 0700/0755/0500 两阶段、目录 setuid/setgid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）；全量 **208 项**（199 pass + 9 skip）。
 - 文档：ADR-0016 B2 Accepted、SPEC v1.4、DESIGN 决策树、TASKS T9.5、TEST-CASES P-05d。
+
+## 139 · 2026-11-12 · fix: 跨平台导入改写 working-directory/change 状态事件 cwd（ADR-0017）
+- 问题：Windows 导出的会话在 macOS 导入后打开报「历史加载失败：failed to project session ... Invalid input」；根因是 `working-directory/change` 事件仍保留 `F:\...`，`@deepseek-ai/dsh-working-directory` 的 wire 校验用 `path.isAbsolute` 拒绝（zod 4.6.6 的 issue 恰为 `{code:"custom",path:[],message:"Invalid input"}`）。
+- 修复：`session-rewrite.js` 新增 `mapSessionCwd` / `rewriteSessionWorkingDirectories`（首帧原样、只解事件帧、仅改 `working-directory/change` 的 `data.cwd`、按行边界 1 MB 分块重压、checksum 跟随）；`import-pack.js` 仅在 `targetCwd` 定义且源/目标平台不同时启用，同平台保持 ADR-0007 字节保真。
+- 映射：源根下 → 目标根 + 相对路径；源根外 → 目标根（本机会话曾切到 `F:\PersonalProjects\python\新建文件夹`，落在源工作区之外）；已迁移路径幂等。
+- 测试：新增 10 项（映射 Win→POSIX/POSIX→Win、源根外回落、幂等、header 帧字节不变、事件 checksum、chunkBytes、参数/版本、导入端跨平台/同平台/无 workspaceKey）；全量 205 项 → 204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，另行修）。
+- 复验：真实包 CLI 导入一次性 DSH_HOME → `dsh headless --session-id` 由 projection 报错变为 preset 语义提示（日志/投影通过）。
+- 文档：ADR-0017、SPEC v1.5、DESIGN §3/§3.1/§4.1、TASKS T9.6、TEST-CASES v1.5/P-09、INDEX。

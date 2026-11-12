@@ -1,6 +1,12 @@
-# DSH 跨平台迁移助手（暂名 dsh-pack-and-go）· 需求规格 v1.4
+# DSH 跨平台迁移助手（暂名 dsh-pack-and-go）· 需求规格 v1.5
 
-> 状态：**已冻结 v1.4**（2026-11-12）。v1.0 冻结于 2026-11-10；v1.2 由 ADR-0013 / ADR-0014 / ADR-0015 驱动；v1.3 由 ADR-0016（B1，文件权限保真）驱动；v1.4 由 ADR-0016 B2（目录权限保真）驱动。
+> 状态：**已冻结 v1.5**（2026-11-12）。v1.0 冻结于 2026-11-10；v1.2 由 ADR-0013 / ADR-0014 / ADR-0015 驱动；v1.3 由 ADR-0016（B1，文件权限保真）驱动；v1.4 由 ADR-0016 B2（目录权限保真）驱动；v1.5 由 ADR-0017（跨平台改写 working-directory/change 状态事件 cwd）驱动。
+
+## v1.5 变更摘要（相对 v1.4，2026-11-12）
+
+| 类别 | 变更 |
+|---|---|
+| 会话状态事件 cwd（ADR-0017） | 跨平台导入时除 header `cwd` 外，再改写 `working-directory/change` 事件的 `data.cwd`：源根下按相对路径映射到目标根，源根外回落目标根；同平台导入仍只改 header、字节保真；其余事件与历史消息正文不改。 |
 
 ## v1.4 变更摘要（相对 v1.3，2026-11-12）
 
@@ -31,7 +37,7 @@
 | Q1 平台范围 | 按 §4 矩阵（一级三平台 + 二级 WSL/Termux） |
 | Q2 CLI 入口 | 提供 CLI 入口；阶段待定（推荐第二阶段），不阻塞 Web UI 首发 |
 | Q3 符号链接/权限位 | 链接默认解引用；POSIX exec 位在 POSIX 目标保留、Windows 忽略（权限位部分已由 ADR-0016 B1 扩展，见 §FR-9） |
-| Q4 cwd 改写边界 | 只改写 header `cwd`，历史消息中的路径文本不改 |
+| Q4 cwd 改写边界 | 只改写 header `cwd` 与状态事件 `working-directory/change` 的 `data.cwd`（ADR-0017）；历史消息正文中的路径文本不改 |
 | Q5 其他默认值 | 冲突跳过/合并、`.git` 保留、`node_modules` 排除、单文件 zip、Agent 工具可选 |
 | Q6 选择模型 | 「工作区 → 对话」树 + 一个“含项目文件”开关 |
 
@@ -106,6 +112,7 @@
 
 - 在 Linux/macOS 上，`isAbsolute('C:\\x') === false` → 带 Windows cwd 的会话头会被判为**非法 header，会话无法打开**。
 - 因此 **Windows → POSIX 必须改写 cwd**；反向（POSIX → Windows）虽然能通过绝对性检查，但 cwd 指向不存在路径，工作区归属也会失败。
+- `@deepseek-ai/dsh-working-directory` 的投影把最近一次 `working-directory/change` 的 `data.cwd` 作为运行时状态，并用同一个 `isAbsolute` 校验；因此 **跨平台还必须改写该事件 cwd**（ADR-0017），否则会话在投影阶段失败，UI 显示「历史加载失败 … Invalid input」。
 
 `packages/workspace/workspace/src/paths.ts`：
 
@@ -493,6 +500,7 @@ workspaces/
 3. **导入 = 文件写回 + cwd 改写 + 工作区登记**：
    - 同平台同路径：直接复制，零解析；
    - 跨平台/改路径：解出第一帧 header、改 `cwd`、重压缩、拼接其余帧（需要 zstd 帧扫描）；
+   - 跨平台时再解压事件帧，仅改写 `working-directory/change` 的 `data.cwd`（ADR-0017），其余事件保持原样；
    - 工作区用 `workspaces.create({path})` 登记（路径必须已存在且合法）。
 4. **会话写入**：写新的 generation 文件（不覆盖已提交文件）；同 id 冲突时按 FR-10 处理。
 5. **进度**：Host `@Remote({ mode: 'stream' })` 推送；Client 订阅。
@@ -503,6 +511,7 @@ workspaces/
 | 风险 | 影响 | 缓解 |
 |---|---|---|
 | header cwd 改写出错 | 会话打不开 | 改写后解回校验 header 与行数；失败回滚；原文件不动 |
+| 状态事件 cwd 未改写 | 跨平台会话在目标端打不开（投影 `isAbsolute` 失败） | 跨平台导入改写 `working-directory/change`（ADR-0017）；单测 + 一次性 DSH_HOME headless 复验 |
 | zstd 帧扫描实现错误 | 会话损坏 | 单元测试覆盖多帧/尾帧/RLE/checksum；与官方实现对照 |
 | 平台文件名冲突 | 导入失败或丢文件 | FR-9 预检 + 自动重命名 + 报告；绝不静默跳过 |
 | 活跃会话写锁 | 导入失败 | 检测活跃会话；提示先结束；导出只读 |
@@ -530,7 +539,7 @@ workspaces/
 2. 选择模型验收：勾一个工作区默认全选其对话；取消部分对话后仍可导出；「只带文件」只导出项目；只勾对话可导出且导入后正确归组；未归入工作区的对话可选。
 3. 500 MB 工作区导出进度完整，取消后清理临时文件。
 4. **跨平台验收**：在一次性 `DSH_HOME`（`%TEMP%` 或 `/tmp`）中模拟：
-   - Windows 包 → 用 POSIX 规则校验：会话 header cwd 已改写、`isAbsolute` 通过；
+   - Windows 包 → 用 POSIX 规则校验：会话 header cwd 已改写、`isAbsolute` 通过；会话日志内 `working-directory/change` 事件 cwd 同样已改写且 `isAbsolute` 通过（ADR-0017）；
    - 含 Windows 非法文件名的包 → 导入预检报告并自动重命名；
    - POSIX 大小写冲突包 → 冲突被检测并处理。
 5. 导入后工作区与对话出现在侧边栏，会话可打开、可继续发消息（界面与历史正常）。
