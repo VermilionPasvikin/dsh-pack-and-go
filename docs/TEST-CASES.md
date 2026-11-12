@@ -12,7 +12,7 @@
 | E-02 | 仅工作区（含文件） | 切「仅工作区」→ 选工作区 → 导出 | 包内 `workspaces/<key>/files/...` 含文件内容；结果「N 个文件」 | 单测 + CDP | 全平台 | ✅ `commands`「仅导出工作区（含文件）」 |
 | E-03 | 仅工作区（空文件夹） | 选空目录工作区 → 导出 | `fileCount: 0`、仅目录骨架；导入后目录存在 | 单测 | 全平台 | ✅ `commands`「空目录」用例 |
 | E-04 | 目标解析 | 分别填目录、完整文件名、已存在文件名 | 目录→自动命名；同名自动加序号；文件原样 | 单测 | 全平台 | ✅ `resolveExportTarget` 测试 |
-| E-05 | 父目录不存在 | 目标填 `Z:\nope\x.dshpack` | 红字「父目录不存在」，无产物 | 单测 + CDP | 全平台 | ✅ `commands` 测试 |
+| E-05 | 目标目录不存在 | 目标填 `Z:\nope\x.dshpack`（macOS：`<不存在目录>/x.dshpack`） | 红字「目标目录不存在」，无产物 | 单测 + CDP | 全平台 | ✅ `commands` 测试；2026-11-12 macOS CDP：红字「导出失败：目标目录不存在：/tmp/.../no-such-parent/sub」，无产物 |
 | E-06 | 输入校验 | 不选内容 / 目标为空 点导出 | 按钮禁用 / 红字提示 | CDP + 单测 | 全平台 | ✅ CDP 截图（36/37） |
 | E-07 | fork 链 | 导出含子代理会话 / `--no-fork` | 默认连带祖先+后代；关闭时仅所选 | 单测 | 全平台 | ✅ `commands` fork 链用例 |
 | E-08 | 排除规则 | 默认 / 全量 / 额外排除 `.cache` | 默认排除 `node_modules` 等；全量不排除；额外排除生效 | 单测 | 全平台 | ✅ `scan`/`plan-export` 测试 |
@@ -60,13 +60,13 @@
 | P-02 | 合法名转换 | POSIX→Windows 含 `?*:` 文件名 | 自动安全重命名并写转换报告 | E2E | 全平台（模拟） | ✅ `cross-platform.test` |
 | P-03 | 预检报告可序列化 | 预检含风险工作区 | JSON 可读、逐项列出 | E2E | 全平台 | ✅ `cross-platform.test` |
 | P-04a | 符号链接（Windows） | 创建文件/目录链接后导出 | 文件链接解引用；目录链接跳过并记录 | 单测 | Windows（需开发者模式/管理员） | ✅ 2026-11-11 本机（开发者模式已开，scan/commands 用例通过） |
-| P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（真实 POSIX 链接 + CLI 导出/导入：解引用 1、跳过 2） |
-| P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（devlog 134 修复 mode 传递；0755→0755，含单测） |
-| P-05c | 文件权限保真（POSIX，ADR-0016 B1） | 导入含 `0600`/`0644`/`0755` 文件；含 setuid 位；win32 源包 | 按包内 mode 恢复（剥离 setuid/setgid/sticky）；win32 源包仅恢复 exec 位；Windows 目标忽略 | 单测 + E2E | Linux/macOS | ✅ 2026-11-12 Linux（devlog 136） |
-| P-05d | 目录权限保真（POSIX，ADR-0016 B2） | 导入含 `0700`/`0755`/`0500` 目录（含文件）；目录 setuid；win32 源包 | 两阶段恢复（先建可写 → 写完文件 → 深→浅 chmod），剥离 setuid/setgid；win32 源包跳过；Windows 目标忽略 | 单测 | Linux/macOS | ✅ 2026-11-12（devlog 138，Windows 208 项：199 pass + 9 skip） |
+| P-04b | 符号链接（POSIX） | 同上 | 同上（必跑） | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（真实 POSIX 链接 + CLI 导出/导入：解引用 1、跳过 2）；✅ 2026-11-12 macOS（单测：文件链接解引用、目录链接跳过） |
+| P-05a | exec 位（POSIX） | 导入含可执行位文件 | 恢复 `755` | 单测 | Linux/macOS | ✅ 2026-11-12 Linux（devlog 134 修复 mode 传递；0755→0755，含单测）；✅ 2026-11-12 macOS（POSIX 目标恢复 0755） |
+| P-05c | 文件权限保真（POSIX，ADR-0016 B1） | 导入含 `0600`/`0644`/`0755` 文件；含 setuid 位；win32 源包 | 按包内 mode 恢复（剥离 setuid/setgid/sticky）；win32 源包仅恢复 exec 位；Windows 目标忽略 | 单测 + E2E | Linux/macOS | ✅ 2026-11-12 Linux（devlog 136）；✅ 2026-11-12 macOS（0600/0644/0755、setuid 剥离、win32 源包） |
+| P-05d | 目录权限保真（POSIX，ADR-0016 B2） | 导入含 `0700`/`0755`/`0500` 目录（含文件）；目录 setuid；win32 源包 | 两阶段恢复（先建可写 → 写完文件 → 深→浅 chmod），剥离 setuid/setgid；win32 源包跳过；Windows 目标忽略 | 单测 | Linux/macOS | ✅ 2026-11-12（devlog 138，Windows 208 项：199 pass + 9 skip）；✅ 2026-11-12 macOS（0700/0755/0500 两阶段；测试清理修复后 220/220） |
 | P-05b | exec 位（Windows） | 同上 | 忽略权限位并记录 | 单测 | Windows | ✅ 代码条件分支 |
 | P-06a | Windows 保留名/长路径 | 预检 `CON`、超长路径 | 列出风险，导入时跳过/重命名 | 单测 | Windows | ✅ `preflight` 测试（部分） |
-| P-06b | macOS 大小写不敏感 | 同名不同大小写文件 | 预检列出大小写冲突 | 单测 | macOS | ⏳ 待 macOS CI |
+| P-06b | macOS 大小写不敏感 | 同名不同大小写文件 | 预检列出大小写冲突 | 单测 | macOS | ✅ 2026-11-12 macOS（APFS 大小写不敏感实测：A.txt/a.txt 同 inode；detectCaseCollisions 报 1 冲突） |
 | P-06c | Linux 大小写敏感 | 同名不同大小写文件 | 无冲突 | 单测 | Linux | ✅ 2026-11-12 Linux（冲突 0；darwin 阳性对照 2） |
 | P-07 | 中文/空格/长路径 | 导出导入中文目录、空格路径 | 正常读写 | 单测 + CDP | 全平台 | ✅ 现有测试（中文路径） |
 | P-08 | 主题/语言 | 切换深/浅主题、中/英 | 文案与配色跟随 | 用户人工确认 | 全平台 | ✅ 用户已确认（2026-11-11） |
@@ -94,12 +94,12 @@
 
 | 用例 | 缺口 | 建议 |
 |---|---|---|
-| P-04b 符号链接（POSIX） | ✅ Linux 2026-11-12；macOS 未测 | macOS CI 补 P-04b |
-| P-05a exec 位 | ✅ Linux 2026-11-12（修复后）；macOS 未测 | macOS CI 复核 |
-| P-06b/c 大小写 | ✅ P-06c Linux 2026-11-12；P-06b macOS 未测 | macOS CI 补 P-06b |
-| P-05c 文件权限保真（B1） | ✅ Linux 2026-11-12；目录权限（B2）已实现 | macOS CI 复核 |
-| P-05d 目录权限保真（B2） | ✅ 已实现（devlog 138）；POSIX 实测待 Linux CI 复核 | Linux/macOS CI 复核 |
-| P-09 状态事件 cwd（ADR-0017） | ✅ 2026-11-12 macOS 修复验证（单测 + headless）；macOS 全量执行时复核 | macOS 全量执行 |
+| P-04b 符号链接（POSIX） | ✅ Linux 2026-11-12；✅ macOS 2026-11-12（单测） | 关闭 |
+| P-05a exec 位 | ✅ Linux 2026-11-12（修复后）；✅ macOS 2026-11-12 | 关闭 |
+| P-06b/c 大小写 | ✅ P-06c Linux 2026-11-12；✅ P-06b macOS 2026-11-12（APFS 实测） | 关闭 |
+| P-05c 文件权限保真（B1） | ✅ Linux 2026-11-12；✅ macOS 2026-11-12 | 关闭 |
+| P-05d 目录权限保真（B2） | ✅ 已实现（devlog 138）；✅ macOS 2026-11-12（B2 用例清理修复后） | 关闭 |
+| P-09 状态事件 cwd（ADR-0017） | ✅ 2026-11-12 macOS 修复验证（单测 + headless）；✅ 全量执行复核 | 关闭 |
 
 > 2026-11-12 Linux 专项执行明细与证据见仓库外的验证报告（本地 Linux 环境，一次性 `DSH_HOME`）。
 
@@ -111,3 +111,5 @@
 - 2026-11-12（Linux，devlog 136，ADR-0016 B1）：文件权限保真上线，**203 项通过**（198 + 5 新增）；P-05c ✅（0600/0644/0755 往返、setuid 剥离、win32 源包跳过、Windows 目标忽略）；CLI 端到端同样验证。
 - 2026-11-12（Windows，devlog 138，ADR-0016 B2）：目录权限保真上线，**208 项**（199 pass + 9 个 POSIX 用例预期 skip）；P-05d ✅（0700/0755/0500 两阶段、目录 setuid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）。
 - 2026-11-12（macOS，devlog 139，ADR-0017）：`working-directory/change` 状态事件 cwd 跨平台改写上线；新增 10 项测试；全量 205 项 → 204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，另行修复）；P-09 ✅（真实包 CLI 导入一次性 DSH_HOME 后 headless 投影通过）。
+- 2026-11-12（macOS，Apple Silicon / Node 24.14 / Chrome 156 headless CDP，devlog 140）：全量 `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"` → **220 项全部通过**（220 pass / 0 fail / 0 skip，2047 ms）；平台专项 P-04b/P-05a/P-05c/P-05d/P-06b/P-07/P-09 通过（P-06b 另以 APFS 同 inode 实测佐证）。CDP 在一次性 `DSH_HOME` + 隔离 profile 内跑通 E-01/E-02/E-05/E-06/E-15/I-02/I-11/I-19/I-23，证据见本地 `/tmp/dsh-pack-and-go-web-IjaLyr/evidence/`（截图 + JSON）。
+- 2026-11-12 macOS 问题记录（非阻塞）：① E-05 文案不一致——实现提示「目标目录不存在」，原用例写「父目录不存在」，行为正确，已按实现校正用例预期；② 迁移覆盖后热归组失败——`controller reindex failed ... workspace/move-invalid: the session is not accounted`，结果「归组 0 个对话」，重启后 `grouping repaired 2 sessions` 且工作区/对话正确，符合 UI「重启 DSH 后可见」提示，属热更新限制（建议后续降噪/文档化，未改代码）；③ `tests/unit/workspaces.test.mjs` B2 用例在 POSIX 清理 0500 目录报 EACCES，测试代码修复（finally 先 chmod 0700 再 rm），全量恢复 220/220。

@@ -1,6 +1,6 @@
 /**
  * CDP 测试第二阶段：导出 + 导入流程（AGENTS.md §8）。
- * 用法：node cdp-flow-test.mjs <url> <outDir> <exportDir> <packPath>
+ * 用法：node cdp-flow-test.mjs <url> <outDir> <exportDir> <packPath> [importDir]
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -10,6 +10,7 @@ const url = process.argv[2]
 const outDir = process.argv[3]
 const exportDir = process.argv[4]
 const packPath = process.argv[5]
+const importDir = process.argv[6] ?? path.join(exportDir, 'imported')
 fs.mkdirSync(outDir, { recursive: true })
 fs.mkdirSync(exportDir, { recursive: true })
 
@@ -106,9 +107,9 @@ async function main() {
   }
   const bodyText = `document.body ? document.body.innerText : ''`
   const results = {}
-  const findLine = (needles) =>
+  const findLine = (needles, excludes = []) =>
     evaluate(
-      `(() => { const line = [...document.querySelectorAll('div')].map((d) => d.textContent).find((t) => t && ${JSON.stringify(needles)}.some((n) => t.includes(n))); return line ? line.slice(0, 300) : null })()`,
+      `(() => { const lines = [...document.querySelectorAll('div')].map((d) => d.textContent).filter((t) => t && t.length <= 400 && ${JSON.stringify(needles)}.some((n) => t.includes(n)) && !${JSON.stringify(excludes)}.some((n) => t.includes(n))); return lines.sort((a, b) => a.length - b.length)[0]?.slice(0, 300) ?? null })()`,
     )
 
   await send('Page.enable')
@@ -155,6 +156,9 @@ async function main() {
   results.setPack = await evaluate(
     `window.__moverTest.setInput('迁移包', ${JSON.stringify(packPath)})`,
   )
+  results.setImportTarget = await evaluate(
+    `window.__moverTest.setInput('目标目录', ${JSON.stringify(importDir)})`,
+  )
   results.clickPreview = await evaluate(`window.__moverTest.clickText('预览')`)
   results.previewShown = Boolean(await waitFor(bodyText, (t) => t.includes('迁移包预览'), 20000))
   results.afterPreview = await findLine(['迁移包预览', '预览失败', '读取失败'])
@@ -165,11 +169,18 @@ async function main() {
   results.importResult = Boolean(
     await waitFor(
       bodyText,
-      (t) => t.includes('已导入') || t.includes('跳过') || t.includes('导入失败'),
+      (t) =>
+        t.includes('已导入') ||
+        t.includes('导入完成') ||
+        t.includes('请先选择目标目录') ||
+        /导入失败[：:]/.test(t),
       30000,
     ),
   )
-  results.afterImport = await findLine(['已导入', '跳过', '导入失败'])
+  results.afterImport = await findLine(
+    ['已导入', '导入完成', '导入失败：', '请先选择目标目录'],
+    ['会直接报错', '已存在对话：跳过'],
+  )
   await shot('07-import-done.png')
 
   fs.writeFileSync(path.join(outDir, 'cdp-flow-result.json'), JSON.stringify(results, null, 2))

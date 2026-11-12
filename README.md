@@ -3,8 +3,8 @@
 > **打包就走。** 把 DSH 的「对话 + 工作区」装进一个 `.dshpack` 文件，换台电脑（或换个平台）继续用。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
-[![tests](https://img.shields.io/badge/tests-208%20passing-brightgreen.svg)](./tests)
-[![spec](https://img.shields.io/badge/spec-v1.3-informational.svg)](./docs/SPEC.md)
+[![tests](https://img.shields.io/badge/tests-220%20passing-brightgreen.svg)](./tests)
+[![spec](https://img.shields.io/badge/spec-v1.5-informational.svg)](./docs/SPEC.md)
 
 ---
 
@@ -31,7 +31,7 @@
 | 平台 | 状态 |
 |---|---|
 | Windows 10/11 | ✅ 已完成全链路验证（导入/导出/CDP UI） |
-| macOS | 🧪 代码与测试就绪，CI 待跑 |
+| macOS | ✅ 2026-11-12 全量 220 项通过（P-04b/P-05a/P-05c/P-05d/P-06b/P-09） |
 | Linux（含服务器） | 🧪 代码与测试就绪，CLI 可用，CI 待跑 |
 | WSL / Termux | 🧪 按 Node 运行环境支持（未单独验证） |
 
@@ -171,15 +171,15 @@ flowchart LR
 node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"
 ```
 
-当前 **208 项测试**：Linux 全通过；Windows 199 通过 + 9 个 POSIX 权限用例预期跳过。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
+当前 **220 项测试**：macOS 2026-11-12 全量 220 通过；Windows 199 通过 + 9 个 POSIX 权限用例预期跳过；Linux 203 为 B1 时点，B2 新增 5 项待 Linux CI 复核。另有 CDP 无头浏览器用例覆盖真实 UI 路径（导出/导入/冲突/迁移提示/仅工作区）。
 
 ---
 
 ## 🗺️ 状态与限制
 
-- 版本 `0.2.0`（SPEC v1.3），**尚未发布到 npm**；
+- 版本 `0.2.0`（SPEC v1.5），**尚未发布到 npm**；
 - 取消功能与精确进度按用户决定不做（沿用转圈 + 阶段文案）；
-- macOS 平台专项待 CI；Linux 已完成符号链接/权限位/大小写/权限保真验证；
+- macOS 平台专项已完成（2026-11-12，220 项全通过）；Linux 已完成符号链接/权限位/大小写/权限保真验证；
 - 已打开会话的回滚/迁移位置显示需要重启 DSH（DSH 未提供会话 reload API）。
 
 ---

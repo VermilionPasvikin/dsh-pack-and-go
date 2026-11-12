@@ -2,9 +2,9 @@
 
 ## 当前状态（2026-11-12）
 
-- 阶段：**SPEC v1.5**；TASKS M0–M9 全部 ✅，新增 T9.6（ADR-0017 跨平台状态事件 cwd 改写）已完成；Windows + Linux 专项验证完成；macOS 专项进行中。
-- 下一步：macOS 平台专项——按 `TEST-CASES.md`（v1.5）全量执行并记录问题；发布准备（GitHub 已上传，npm 未发布）。
-- 未决项：macOS 平台专项（P-04b/P-05a/P-05c/P-05d/P-06b/P-09 待 macOS 实测）。
+- 阶段：**SPEC v1.5**；TASKS M0–M9 全部 ✅（含 T9.6 ADR-0017、T9.7 macOS 全量回归）；Windows + Linux + macOS 专项验证完成。
+- 下一步：发布准备（GitHub 已上传，npm 未发布）；可选 Windows/Linux CI 复跑以复核 B2 与权限用例。
+- 未决项：无阻塞项；macOS 全量 220 项通过，问题记录见 `TEST-CASES.md` §6 / `DEVLOG.md` 140。
 - 最近变更：见 `DEVLOG.md` 最后一条。
 
 ## 文档地图

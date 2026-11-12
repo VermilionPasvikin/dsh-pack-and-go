@@ -828,3 +828,13 @@
 - 测试：新增 10 项（映射 Win→POSIX/POSIX→Win、源根外回落、幂等、header 帧字节不变、事件 checksum、chunkBytes、参数/版本、导入端跨平台/同平台/无 workspaceKey）；全量 205 项 → 204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，另行修）。
 - 复验：真实包 CLI 导入一次性 DSH_HOME → `dsh headless --session-id` 由 projection 报错变为 preset 语义提示（日志/投影通过）。
 - 文档：ADR-0017、SPEC v1.5、DESIGN §3/§3.1/§4.1、TASKS T9.6、TEST-CASES v1.5/P-09、INDEX。
+
+## 140 · 2026-11-12 · test: macOS 全量执行 TEST-CASES 220 项通过
+- 环境：macOS（Apple Silicon），Node v24.14.0，Chrome 156 headless CDP；仓库 a5905ce（ADR-0017）。
+- 全量：`node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"` → 220 tests / 220 pass / 0 fail / 0 skip（205 unit + 15 e2e），2047 ms，EXIT 0。
+- macOS 平台专项：P-04b 文件链接解引用 + 目录链接跳过；P-05a 0755→0755；P-05c 0600/0644/0755、setuid 剥离、win32 源包；P-05d 0700/0755/0500 两阶段（修复清理后）；P-06b APFS 大小写不敏感（A.txt/a.txt 同 inode）+ detectCaseCollisions 1 冲突；P-07 中文/空格名；P-09 真实 Windows 包导入 headless 投影通过（devlog 139）。
+- 修复：`tests/unit/workspaces.test.mjs` B2 用例 finally 先 chmod 0700 再 rm，消除 POSIX 清理 EACCES。
+- CDP（一次性 DSH_HOME + 隔离 web-e2e profile，未触碰真实 ~/.dsh）：E-01 导出（2 对话 + 1 工作区 + 4 文件）；E-02 仅工作区（mode=workspaces、fileCount 4、空目录骨架）；E-05 非法目标红字无产物；E-06 未选择时开始打包禁用；E-15 打包完成文案；I-02/I-11/I-19/I-23 覆盖/迁移/预览/结果提示。证据：`/tmp/dsh-pack-and-go-web-IjaLyr/evidence/`（截图 + JSON）。
+- 问题记录：① E-05 实现文案「目标目录不存在」与原用例「父目录不存在」不一致——行为正确，按实现校正用例；② 迁移覆盖后热归组 `workspace/move-invalid` 日志噪音、结果「归组 0 个对话」，重启后自愈，符合重启提示，未改代码；③ B2 测试清理 EACCES（已修）。
+- 文档：TEST-CASES 平台结果/§5/§6、TASKS T9.7、INDEX、README/FINAL-REPORT/ACCEPTANCE/CODE-REVIEW 计数同步（220）。
+- 未重复复核：P-08 主题/语言沿用 2026-11-11 用户人工确认。

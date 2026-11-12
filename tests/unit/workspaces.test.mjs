@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, readFile, stat, mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, rm, readFile, stat, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -224,6 +224,8 @@ test('目录权限两阶段恢复（ADR-0016 B2）', { skip: process.platform ==
     assert.equal(result.modes.dirsApplied, 3)
     assert.equal(result.modes.dirsFailed, 0)
   } finally {
+    // POSIX 下 0500 目录内的文件无法直接 unlink，清理前先恢复写权限（macOS/Linux 通用）。
+    await chmod(join(dir, 'p1', 'readonly'), 0o700).catch(() => {})
     await rm(dir, { recursive: true, force: true })
   }
 })
