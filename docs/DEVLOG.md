@@ -883,3 +883,11 @@
 - 当前会话：repair 追加 2 处，备份 `...bak-2026-11-18T05-29-29-954Z`；debug 副本重启后 composer 恢复默认输入框（可用）。
 - 测试：新增 normalize 单测、跨平台导入集成、CLI repair（含 auto 预设）；**226 项全绿**。
 - 待用户：重启真实 DSH web / 重开会话验证。
+## 147 · 2026-11-18 · chore: 版本 0.2.2 发布准备
+- 版本  .2.1 →  .2.2（包含 devlog 145/146：deliverables 文件引用重定位 + epair、权限预设归一化）。
+- 校验：226 项测试（217 pass + 9 个 POSIX 用例预期 skip）；
+pm pack --dry-run 40 文件 / 168 KB。
+- 待发布：
+pm login 后执行 
+pm publish --access public；打 tag 0.2.2 并推送。
+- 发布手册已同步到 docs/RELEASE.md。

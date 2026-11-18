@@ -1,4 +1,4 @@
-# 发布手册（0.2.1）
+# 发布手册（0.2.2）
 
 > 目标：用户一条命令安装（GitHub / npm），并在 [dsh-market](https://github.com/dsh-market/dsh-market) 里一键安装。
 
@@ -7,7 +7,7 @@
 - Node.js ≥ 22.15；DSH `>=0.2.0 <0.3.0`（当前验证：DSH 0.2.2-rc.2 / Electron runtime 24）
 - npm 已登录且能发布 `dsh-pack-and-go`（当前未占用）：`npm whoami`
 - GitHub 已登录（提 dsh-market 收录 PR 用）：`gh auth status`
-- 版本号在 `package.json`：`0.2.1`；`engines.dsh` 已声明
+- 版本号在 `package.json`：`0.2.2`；`engines.dsh` 已声明
 
 ## 1. 本地校验
 
@@ -27,7 +27,7 @@ npm view dsh-pack-and-go version repository
 ```
 
 - `repository` 必须指回 GitHub 仓库，dsh-market 才会把 npm 包和收录条目关联起来（下载量统计依赖它）。
-- 失败回滚：72 小时内可 `npm unpublish dsh-pack-and-go@0.2.1 --force`；超过则用 `npm deprecate dsh-pack-and-go@0.2.1 "..."`。
+- 失败回滚：72 小时内可 `npm unpublish dsh-pack-and-go@0.2.2 --force`；超过则用 `npm deprecate dsh-pack-and-go@0.2.2 "..."`。
 - npm 可能先创建 `0.0.0-stage` 占位版本（staged publishing），正式版本通常在半分钟内上线；若 `npm view` 仍只看到占位，稍等重查，**不要重复 publish**（会报 `cannot publish over the previously published versions`）。
 
 ## 3. 一条命令安装验证
@@ -56,9 +56,9 @@ DSH_HOME=$TMP dsh --profile verify --no-open --port 0 --host 127.0.0.1
 ## 4. 打 tag 与推送
 
 ```bash
-git tag -a v0.2.1 -m "dsh-pack-and-go 0.2.1"
+git tag -a v0.2.2 -m "dsh-pack-and-go 0.2.1"
 git push origin main
-git push origin v0.2.1
+git push origin v0.2.2
 ```
 
 ## 5. 提交 dsh-market 收录
