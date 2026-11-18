@@ -22,6 +22,7 @@ import { parseManifest } from './manifest-io.js'
 import { sessionDir } from './paths.js'
 import { planImport } from './plan-import.js'
 import {
+  normalizeSessionAgentState,
   rewriteSessionFileReferences,
   rewriteSessionHeader,
   rewriteSessionWorkingDirectories,
@@ -198,6 +199,15 @@ export async function importSessionsToDisk(input) {
       fileRefsRewritten = refs.rewritten
     }
 
+    // 源机器的 auto 权限预设可能在目标 profile 不存在（DSH 恢复时报
+    // "cannot restore preset auto"），跨平台导入时归一化为 workspace-write（ADR-0017 补充二）。
+    let agentStateRewritten = 0
+    if (manifest.source.platform !== targetPlatform) {
+      const normalized = normalizeSessionAgentState(finalData)
+      finalData = normalized.buffer
+      agentStateRewritten = normalized.rewritten
+    }
+
     let backupPath
     if (session.action === 'overwrite' && backupDir) {
       backupPath = await backupExisting(file, backupDir)
@@ -232,6 +242,7 @@ export async function importSessionsToDisk(input) {
       ...(backupPath !== undefined ? { backupPath } : {}),
       ...(cwdEventsRewritten > 0 ? { cwdEventsRewritten } : {}),
       ...(fileRefsRewritten > 0 ? { fileRefsRewritten } : {}),
+      ...(agentStateRewritten > 0 ? { agentStateRewritten } : {}),
     })
   }
 

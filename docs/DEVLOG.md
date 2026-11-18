@@ -875,3 +875,11 @@
 - 当前会话修复：`session-721899c1...` 改写 101 处（2 个交付路径 + 100 个 meta.cwd），备份 `session.v4.jsonl.zstd.bak-2026-11-18T05-10-58-941Z`；事件 959 条不变。
 - 测试：新增 session-rewrite 单测（改写/幂等/repair 后缀）、跨平台导入集成、CLI `repair` 端到端；**224 项全绿**。
 - 待用户：重启 DSH web / 重开会话验证按钮。
+
+## 146 · 2026-11-18 · fix: 导入/repair 归一化 auto 权限预设（会话不可用）
+- 现象：修好文件按钮后，打开 `zmediakit-repair` 会话仍显示「会话不可用」（composer placeholder），历史可读但无法继续。
+- 排查：debug 副本 + Firefox WebDriver 复现；会话最后 `permission/preset=auto`、`sandbox/mode=danger-full-access`；DSH 恢复时报 `cannot restore preset "auto" without its active integration`。
+- 修复：`normalizeSessionAgentState()`（仅当存在 auto 预设时）：auto→workspace-write、danger-full-access→workspace-write、never→ask；跨平台导入自动调用，`repair` 同样调用。
+- 当前会话：repair 追加 2 处，备份 `...bak-2026-11-18T05-29-29-954Z`；debug 副本重启后 composer 恢复默认输入框（可用）。
+- 测试：新增 normalize 单测、跨平台导入集成、CLI repair（含 auto 预设）；**226 项全绿**。
+- 待用户：重启真实 DSH web / 重开会话验证。

@@ -545,3 +545,28 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 - 新增单测：deliverables/meta.cwd 改写与幂等、repair 最长后缀、跨平台导入集成；全量 223 项通过。
 - 边界：交付文件若在导入时被 Windows 文件名转换重命名，最长后缀匹配可能失败（保留原路径）；源根外绝对路径不改。
 - 关联：ADR-0001 Q4、ADR-0017、SPEC §FR-8、TEST-CASES I-24/R-01、`src/core/session-rewrite.js`、`src/core/import-pack.js`、`src/cli/index.js`。
+
+## ADR-0017 补充二 · 导入/repair 归一化权限预设状态（2026-11-18，Accepted）
+
+**背景**
+
+- 会话最后一条 `permission/preset` 可能是源机器的 `auto`。DSH 恢复会话时 `permission: cannot restore preset "auto" without its active integration`（目标 profile 未启用 auto 集成），会话在 UI 中显示「会话不可用」（composer 占位）。
+- 同一会话的 `sandbox/mode` 可能是 `danger-full-access`、`approval/policy` 可能是 `never`，与 `auto` 联动；只改 preset 会留下不一致状态。
+- 该状态是运行时权限配置，不是历史消息文本；跨平台导入/repair 应落到目标 profile 可用的默认值。
+
+**决策**
+
+1. 新增 `normalizeSessionAgentState()`：仅当会话出现 `permission/preset = auto` 时生效；
+   - `permission/preset` 的 `auto` → `workspace-write`；
+   - `sandbox/mode` 的 `danger-full-access` → `workspace-write`；
+   - `approval/policy` 的 `never` → `ask`。
+2. 跨平台导入时自动调用（`manifest.source.platform !== targetPlatform`），结果写入 `agentStateRewritten`。
+3. `repair` 命令对已导入会话同样调用（与文件引用/文件路径修复合并计数）。
+4. 无 `auto` 的会话零字节改动；同平台导入保持现状。
+5. 已知边界：用户自定义的其它 profile 预设名无法自动映射；本次只处理 `auto`（来源机器最常见的不可恢复预设）。
+
+**验证**
+
+- `session-rewrite` 单测、跨平台导入集成、CLI repair 端到端；全量 **226 项通过**。
+- 真实 `zmediakit-repair` 会话 repair 追加 2 处（permission auto→workspace-write、sandbox danger-full-access→workspace-write）；debug 副本重启后 composer 从「Session unavailable」恢复为默认输入框。
+- 关联：ADR-0017、SPEC v1.7、TEST-CASES I-25、`src/core/session-rewrite.js`、`src/core/import-pack.js`、`src/cli/index.js`。

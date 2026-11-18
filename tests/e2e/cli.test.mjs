@@ -251,7 +251,9 @@ test('CLI repair 修复已导入会话的失效绝对路径', async () => {
         },
       },
       { type: 'tool/result', seq: 2, data: { meta: { cwd: 'F:\\\\proj' } } },
-      { type: 'turn/end', seq: 3 },
+      { type: 'permission/preset', seq: 3, data: { preset: 'auto' } },
+      { type: 'sandbox/mode', seq: 4, data: { mode: 'danger-full-access' } },
+      { type: 'turn/end', seq: 5 },
     ]
     const file = join(sessionDir, 'session.v4.jsonl.zstd')
     await writeFile(
@@ -266,7 +268,7 @@ test('CLI repair 修复已导入会话的失效绝对路径', async () => {
 
     const result = runCli(['repair', '--home', home, '--session', 'session-1'])
     assert.equal(result.status, 0, result.stderr)
-    assert.match(result.stdout, /修复 session-1: 改写 2 处/)
+    assert.match(result.stdout, /修复 session-1: 改写 4 处/)
     const files = await readdir(sessionDir)
     assert.ok(files.some((name) => name.includes('.bak-')), '应写备份')
 
@@ -285,6 +287,8 @@ test('CLI repair 修复已导入会话的失效绝对路径', async () => {
       ['docs/a.md', 'AGENTS.md'],
     )
     assert.equal(decoded.find((event) => event.type === 'tool/result').data.meta.cwd, cwd)
+    assert.equal(decoded.find((event) => event.type === 'permission/preset').data.preset, 'workspace-write')
+    assert.equal(decoded.find((event) => event.type === 'sandbox/mode').data.mode, 'workspace-write')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

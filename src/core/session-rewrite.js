@@ -557,6 +557,79 @@ export function rewriteSessionFileReferences(buffer, input = {}) {
 }
 
 /**
+ * 跨平台导入时归一化会话的权限状态（ADR-0017 补充二）：
+ *
+ * 源机器可能启用目标 profile 不存在的 `auto` 权限预设；DSH 恢复会话时
+ * `cannot restore preset "auto" without its active integration`，会话不可用。
+ * 仅当会话里出现 `permission/preset = auto` 时：
+ * - `permission/preset` 的 auto → `workspace-write`；
+ * - `sandbox/mode` 的 danger-full-access → `workspace-write`；
+ * - `approval/policy` 的 never → `ask`。
+ *
+ * @param {Buffer} buffer
+ * @param {{ preset?: string, sandbox?: string, chunkBytes?: number }} [input]
+ * @returns {{ buffer: Buffer, rewritten: number }}
+ */
+export function normalizeSessionAgentState(buffer, input = {}) {
+  const preset =
+    typeof input.preset === 'string' && input.preset.length > 0 ? input.preset : 'workspace-write'
+  const sandbox =
+    typeof input.sandbox === 'string' && input.sandbox.length > 0
+      ? input.sandbox
+      : 'workspace-write'
+
+  // 先判断是否存在 auto 预设；没有时不触碰任何事件字节（同平台/普通会话零改动）。
+  if (!Buffer.isBuffer(buffer)) {
+    throw headerError('会话改写需要 Buffer 输入', { reason: 'not-buffer' })
+  }
+  const frames = scanFrames(buffer)
+  let hasAuto = false
+  for (const frame of frames.slice(1)) {
+    let text
+    try {
+      text = zlib.zstdDecompressSync(buffer.subarray(frame.start, frame.end)).toString('utf8')
+    } catch {
+      continue
+    }
+    for (const line of text.split('\n')) {
+      if (line.length === 0) continue
+      try {
+        const event = JSON.parse(line)
+        if (event?.type === 'permission/preset' && event.data?.preset === 'auto') {
+          hasAuto = true
+          break
+        }
+      } catch {
+        // 非 JSON 行忽略
+      }
+    }
+    if (hasAuto) break
+  }
+  if (!hasAuto) return { buffer, rewritten: 0 }
+
+  return rewriteEventLines(
+    buffer,
+    (event) => {
+      let changed = false
+      if (event.type === 'permission/preset' && event.data?.preset === 'auto') {
+        event.data.preset = preset
+        changed = true
+      }
+      if (event.type === 'sandbox/mode' && event.data?.mode === 'danger-full-access') {
+        event.data.mode = sandbox
+        changed = true
+      }
+      if (event.type === 'approval/policy' && event.data?.policy === 'never') {
+        event.data.policy = 'ask'
+        changed = true
+      }
+      return changed
+    },
+    input.chunkBytes ?? EVENT_FRAME_BYTES,
+  )
+}
+
+/**
  * 修复已导入会话中的失效绝对路径（ADR-0017 补充，repair 命令使用）：
  *
  * - `deliverables/presented`：绝对且目标端不存在的路径，按最长后缀在 `sessionCwd`

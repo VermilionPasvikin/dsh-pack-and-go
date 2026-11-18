@@ -25,6 +25,7 @@ import {
   parseManifest,
   planExport,
   readZip,
+  normalizeSessionAgentState,
   readSessionHeaderFromBuffer,
   repairSessionFileReferences,
   restoreAttachments,
@@ -418,9 +419,18 @@ async function cmdRepair(options) {
         failed += 1
         continue
       }
-      if (result.rewritten === 0) continue
+      let normalized
+      try {
+        normalized = normalizeSessionAgentState(result.buffer)
+      } catch {
+        failed += 1
+        continue
+      }
+      const rewritten = result.rewritten + normalized.rewritten
+      if (rewritten === 0) continue
       changedSessions += 1
-      repaired += result.rewritten
+      repaired += rewritten
+      result = { buffer: normalized.buffer, rewritten }
       if (options['dry-run'] === true) {
         console.log(`[dry-run] ${id}: 将改写 ${result.rewritten} 处（${file}）`)
         continue

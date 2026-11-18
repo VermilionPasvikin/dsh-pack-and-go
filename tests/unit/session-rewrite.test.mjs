@@ -13,6 +13,7 @@ import {
   rewriteSessionWorkingDirectories,
   rewriteSessionFileReferences,
   repairSessionFileReferences,
+  normalizeSessionAgentState,
   readSessionHeaderFromBuffer,
 } from '../../src/core/session-rewrite.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -418,4 +419,33 @@ test('repairSessionFileReferences 按最长后缀修复绝对路径', async () =
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+test('normalizeSessionAgentState 归一化 auto 权限预设', () => {
+  const buffer = makeEventsSession([
+    { type: 'permission/preset', seq: 2, data: { preset: 'workspace-write' } },
+    { type: 'sandbox/mode', seq: 3, data: { mode: 'workspace-write' } },
+    { type: 'permission/preset', seq: 4, data: { preset: 'auto' } },
+    { type: 'sandbox/mode', seq: 5, data: { mode: 'danger-full-access' } },
+    { type: 'approval/policy', seq: 6, data: { policy: 'never' } },
+    { type: 'turn/end', seq: 7 },
+  ])
+  const result = normalizeSessionAgentState(buffer)
+  assert.equal(result.rewritten, 3)
+  const events = decodeLines(result.buffer).map((line) => JSON.parse(line))
+  assert.deepEqual(
+    events.filter((event) => event.type === 'permission/preset').map((event) => event.data.preset),
+    ['workspace-write', 'workspace-write'],
+  )
+  assert.deepEqual(
+    events.filter((event) => event.type === 'sandbox/mode').map((event) => event.data.mode),
+    ['workspace-write', 'workspace-write'],
+  )
+  assert.equal(events.find((event) => event.type === 'approval/policy').data.policy, 'ask')
+  assert.equal(events.find((event) => event.type === 'turn/end').seq, 7)
+
+  const plain = makeEventsSession([{ type: 'turn/end', seq: 2 }])
+  const plainResult = normalizeSessionAgentState(plain)
+  assert.equal(plainResult.rewritten, 0)
+  assert.deepEqual(plainResult.buffer, plain)
 })

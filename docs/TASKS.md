@@ -153,6 +153,7 @@
 | T9.6 | 跨平台导入改写 `working-directory/change` 状态事件 cwd（ADR-0017） | — | 跨平台会话在目标端可通过投影校验（`isAbsolute`）；同平台字节不变 | ✅ 2026-11-12 |
 | T9.7 | macOS 全量执行 TEST-CASES 并记录问题（含 P-04b/P-05a/P-05c/P-05d/P-06b/P-07/P-09） | T9.6 | 220 项单测+E2E 通过；CDP E-01/E-02/E-05/E-06/I-02/I-11/I-19/I-23 有证据；问题记录入 DEVLOG 140 | ✅ 2026-11-12 |
 | T9.8 | 重定位导入改写 `deliverables/presented` 文件路径 + `tool` meta.cwd（ADR-0017 补充） | T9.6 | 单测/集成：交付文件路径变相对、meta.cwd 变目标 cwd；`repair` 修复已导入会话 | ✅ 2026-11-18（zmediakit-repair repair 101 处） |
+| T9.9 | 导入/repair 归一化 `auto` 权限预设状态（ADR-0017 补充二） | T9.8 | 跨平台会话不再因 preset auto 不可恢复而「会话不可用」 | ✅ 2026-11-18（zmediakit-repair repair 2 处） |
 
 ## 3. 当前进度
 
@@ -160,5 +161,6 @@
 - 2026-11-12 追加并完成 **T9.6**（ADR-0017，跨平台状态事件 cwd 改写）。
 - 2026-11-12 完成 **T9.7**：macOS 全量执行 TEST-CASES（220/220），问题记录见 DEVLOG 140。
 - 2026-11-18 完成 **T9.8**：重定位导入改写 deliverables 文件引用路径 + `repair` 命令；全量 223 项通过。
+- 2026-11-18 完成 **T9.9**：导入/repair 归一化 auto 权限预设（workspace-write）；全量 226 项通过。
 - 待办：无未完成的功能任务；后续优化见 `CODE-REVIEW.md` 与 `FINAL-REPORT.md` §5。
 - 阻塞/暂缓：T9.2 取消功能（用户决定不做）。

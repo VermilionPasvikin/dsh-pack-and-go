@@ -478,6 +478,36 @@ test('跨平台导入改写 deliverables/presented 路径与 tool meta.cwd（ADR
   }
 })
 
+test('跨平台导入归一化 auto 权限预设（ADR-0017 补充二）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const bytes = makeEventSessionBytes({
+      events: [
+        { type: 'permission/preset', seq: 2, data: { preset: 'auto' } },
+        { type: 'sandbox/mode', seq: 3, data: { mode: 'danger-full-access' } },
+        { type: 'approval/policy', seq: 4, data: { policy: 'never' } },
+        { type: 'turn/end', seq: 5 },
+      ],
+    })
+    const result = await importSessionsToDisk({
+      buffer: makePack(bytes),
+      sessionRoot,
+      pathMap: { byKey: { w1: '/target/proj' } },
+      targetPlatform: 'linux',
+    })
+    const written = result.written[0]
+    assert.equal(written.agentStateRewritten, 3)
+    const events = decodeEvents(await readFile(written.path))
+    assert.equal(events.find((event) => event.type === 'permission/preset').data.preset, 'workspace-write')
+    assert.equal(events.find((event) => event.type === 'sandbox/mode').data.mode, 'workspace-write')
+    assert.equal(events.find((event) => event.type === 'approval/policy').data.policy, 'ask')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('同平台导入不改写事件字节（ADR-0007 保真）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {

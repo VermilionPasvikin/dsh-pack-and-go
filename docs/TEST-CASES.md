@@ -1,4 +1,4 @@
-# 黑盒验收用例（v1.6，2026-11-18）
+# 黑盒验收用例（v1.7，2026-11-18）
 
 > 目的：按 **导入/导出行为决策树**（`DESIGN.md` §3.1/§3.2、`IMPORT-BEHAVIOR-TREE.md`）逐路径覆盖，供任意平台复用。
 > 执行方式定义：**单测** = `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"`；**CDP** = `tests/e2e/cdp/` 脚本（无头 Chrome）；**集成** = 一次性 `DSH_HOME` 真实导入/导出；**用户人工确认** = 仅纯视觉判断（主题/语言观感）。
@@ -52,7 +52,9 @@
 | I-22 | 导入后激活/广播 | 导入后左侧即时出现 | resolveAgent + attach + 广播 | 集成 | 全平台 | ✅（DEVLOG 90/109） |
 | I-23 | 预览冲突明细 | 预览含冲突包 | 按类型列出「对话「X」：覆盖将迁移 / 原地恢复」 | CDP | 全平台 | ✅ CDP（DEVLOG 119） |
 | I-24 | 交付文件路径 | 跨平台/换目录导入含 `deliverables/presented` 的会话 | 文件路径改写为工作区相对 POSIX 路径；`meta.cwd` 映射到目标 cwd；按钮可打开 | 单测 + 集成 | 全平台 | ✅ 单测/导入集成（DEVLOG 145） |
+| I-25 | 权限预设状态 | 跨平台导入含 `permission/preset=auto` 的会话 | auto → workspace-write、danger-full-access → workspace-write、never → ask；目标 profile 可恢复会话 | 单测 + 集成 | 全平台 | ✅ 单测/导入集成（DEVLOG 146） |
 | R-01 | repair 已导入会话 | 对含失效绝对路径的会话执行 `repair` | 按最长后缀恢复相对路径、meta.cwd 置为会话 cwd，写前备份 | 单测 + CLI | 全平台 | ✅ 单测 + zmediakit-repair（DEVLOG 145） |
+| R-02 | repair 权限预设 | 对含 `auto` 预设的会话执行 `repair` | auto/danger-full-access 归一化为 workspace-write；会话可恢复 | 单测 + CLI | 全平台 | ✅ CLI repair + debug 重启验证（DEVLOG 146） |
 
 ## 3. 跨平台专项与平台分化
 
@@ -91,6 +93,7 @@
 | 导入：登记/归组/激活/双记账 | I-17、I-18、I-22 |
 | 导入：结果提示/预览 | I-19、I-23 |
 | 导入：文件引用路径/repair | I-24、R-01 |
+| 导入：权限预设/repair | I-25、R-02 |
 | 跨平台与平台分化 | P-01、P-02、P-03、P-04a/b、P-05a/b、P-06a/b/c、P-07、P-08、P-09 |
 
 ## 5. 未决/待补用例（供排期）
@@ -113,6 +116,7 @@
 - 2026-11-12（Linux，Ubuntu 24.04 / Node 24）：单测 + E2E **198 项通过**；Linux 专项 P-04b ✅、P-05a ✅（先失败→devlog 134 修复）、P-06c ✅；侧边栏「迁移对话或工作区」中英文与浮层经 Firefox WebDriver 实测（无 Chrome，未跑 CDP 脚本）。
 - 2026-11-12（Linux，devlog 136，ADR-0016 B1）：文件权限保真上线，**203 项通过**（198 + 5 新增）；P-05c ✅（0600/0644/0755 往返、setuid 剥离、win32 源包跳过、Windows 目标忽略）；CLI 端到端同样验证。
 - 2026-11-18（Linux）：I-24/R-01 上线；全量 **223 项通过**；真实 `zmediakit-repair` 会话 repair 101 处（2 个交付路径 + 100 个 meta.cwd）。
+- 2026-11-18（Linux）：I-25/R-02 上线；全量 **226 项通过**；同一会话再 repair 2 处（auto→workspace-write、danger-full-access→workspace-write），debug 副本重启后「Session unavailable」消失。
 - 2026-11-12（Windows，devlog 138，ADR-0016 B2）：目录权限保真上线，**208 项**（199 pass + 9 个 POSIX 用例预期 skip）；P-05d ✅（0700/0755/0500 两阶段、目录 setuid 剥离、win32 源跳过、Windows 目标忽略、导出目录条目 mode）。
 - 2026-11-12（macOS，devlog 139，ADR-0017）：`working-directory/change` 状态事件 cwd 跨平台改写上线；新增 10 项测试；全量 205 项 → 204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，另行修复）；P-09 ✅（真实包 CLI 导入一次性 DSH_HOME 后 headless 投影通过）。
 - 2026-11-12（macOS，Apple Silicon / Node 24.14 / Chrome 156 headless CDP，devlog 140）：全量 `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"` → **220 项全部通过**（220 pass / 0 fail / 0 skip，2047 ms）；平台专项 P-04b/P-05a/P-05c/P-05d/P-06b/P-07/P-09 通过（P-06b 另以 APFS 同 inode 实测佐证）。CDP 在一次性 `DSH_HOME` + 隔离 profile 内跑通 E-01/E-02/E-05/E-06/E-15/I-02/I-11/I-19/I-23，证据见本地 `/tmp/dsh-pack-and-go-web-IjaLyr/evidence/`（截图 + JSON）。

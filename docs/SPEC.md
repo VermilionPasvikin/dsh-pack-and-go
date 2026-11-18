@@ -1,6 +1,12 @@
-# DSH 跨平台迁移助手（暂名 dsh-pack-and-go）· 需求规格 v1.6
+# DSH 跨平台迁移助手（暂名 dsh-pack-and-go）· 需求规格 v1.7
 
-> 状态：**已冻结 v1.5**（2026-11-12）。v1.0 冻结于 2026-11-10；v1.2 由 ADR-0013 / ADR-0014 / ADR-0015 驱动；v1.3 由 ADR-0016（B1，文件权限保真）驱动；v1.4 由 ADR-0016 B2（目录权限保真）驱动；v1.5 由 ADR-0017（跨平台改写 working-directory/change 状态事件 cwd）驱动；v1.6 由 ADR-0017 补充（重定位导入改写 deliverables/presented 文件引用路径 + repair）驱动。
+> 状态：**已冻结 v1.5**（2026-11-12）。v1.0 冻结于 2026-11-10；v1.2 由 ADR-0013 / ADR-0014 / ADR-0015 驱动；v1.3 由 ADR-0016（B1，文件权限保真）驱动；v1.4 由 ADR-0016 B2（目录权限保真）驱动；v1.5 由 ADR-0017（跨平台改写 working-directory/change 状态事件 cwd）驱动；v1.6 由 ADR-0017 补充（重定位导入改写 deliverables/presented 文件引用路径 + repair）驱动；v1.7 由 ADR-0017 补充二（权限预设状态归一化）驱动。
+
+## v1.7 变更摘要（相对 v1.6，2026-11-18）
+
+| 类别 | 变更 |
+|---|---|
+| 权限状态（ADR-0017 补充二） | 跨平台导入/repair 时，若会话最后权限预设为源机器的 `auto`，归一化为 `workspace-write`（sandbox `danger-full-access`→`workspace-write`、approval `never`→`ask`），避免目标 profile 恢复会话时报「Session unavailable」。 |
 
 ## v1.6 变更摘要（相对 v1.5，2026-11-18）
 
@@ -295,6 +301,7 @@ DSH 没有“会话/工作区导入导出”的官方能力（只有单会话日
 - **仅对话导入**：会话归属由包内 workspaceKey + 目标目录决定；无 workspaceKey 的会话保留源 cwd（未分组）。
 - **空工作区**：包内无会话的工作区也登记并还原文件（结果标注「暂无对话」）。
 - **结构化文件引用**：`deliverables/presented` 的 `files[].path`、`tool` 事件的 `meta.cwd` 随 cwd 映射改写（ADR-0017 补充）；历史消息正文不改。
+- **权限状态**：源机器 `auto` 预设归一化为 `workspace-write`（ADR-0017 补充二），保证目标 profile 可恢复会话。
 
 ### FR-9 文件系统兼容预检与转换（v0.2 新增）
 
