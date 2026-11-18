@@ -437,6 +437,47 @@ test('跨平台导入改写 working-directory/change 事件 cwd（ADR-0017）', 
   }
 })
 
+test('跨平台导入改写 deliverables/presented 路径与 tool meta.cwd（ADR-0017 补充）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
+  try {
+    const sessionRoot = join(dir, 'sessions')
+    await mkdir(sessionRoot, { recursive: true })
+    const bytes = makeEventSessionBytes({
+      events: [
+        {
+          type: 'deliverables/presented',
+          seq: 2,
+          data: {
+            files: [{ path: 'F:\\proj\\docs\\a.md' }, { path: 'F:\\proj\\AGENTS.md' }],
+          },
+        },
+        { type: 'tool/result', seq: 3, data: { meta: { cwd: 'F:\\proj' } } },
+        { type: 'turn/end', seq: 4 },
+      ],
+    })
+    const result = await importSessionsToDisk({
+      buffer: makePack(bytes),
+      sessionRoot,
+      pathMap: { byKey: { w1: '/target/proj' } },
+      targetPlatform: 'linux',
+    })
+    const written = result.written[0]
+    assert.equal(written.fileRefsRewritten, 2)
+
+    const events = decodeEvents(await readFile(written.path))
+    assert.equal(events[0].cwd, '/target/proj')
+    const presented = events.find((event) => event.type === 'deliverables/presented')
+    assert.deepEqual(
+      presented.data.files.map((file) => file.path),
+      ['docs/a.md', 'AGENTS.md'],
+    )
+    assert.equal(events.find((event) => event.type === 'tool/result').data.meta.cwd, '/target/proj')
+    assert.deepEqual(events.find((event) => event.type === 'turn/end'), { type: 'turn/end', seq: 4 })
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('同平台导入不改写事件字节（ADR-0007 保真）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-import-'))
   try {

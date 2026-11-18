@@ -864,3 +864,14 @@
 - 依据：DEVLOG 136「全量 203 项通过」（Linux，Ubuntu 24.04 / Node 24）；TEST-CASES §6 同样记录 Linux 198→203 项通过，P-04b/P-05a/P-05c/P-06c 已实测。
 - 更新：README Linux 行改为「✅ 2026-11-12 全量 203 项通过（Ubuntu 24.04 / Node 24）」；README 测试段保留说明：203 为 B1 时点，B2 新增 5 项待 Linux 复跑。
 - 未改代码与测试；计数口径不变：macOS 220/220、Windows 208（199 pass + 9 skip）、Linux 203（B1 时点）。
+
+## 145 · 2026-11-18 · fix: 重定位导入改写 deliverables 文件引用路径 + repair（ADR-0017 补充）
+- 现象：Windows→Linux 导入的 `zmediakit-repair` 会话中，消息下方「在工作区中查看」报「找不到路径」，会话进入错误态。
+- 根因：`deliverables/presented` 的 `files[].path` 仍是 `F:\...` 绝对路径；DSH `present.open` 用 `workspaceFiles.stat(workspaceRoot=session.cwd, file.path)` 解析，旧路径不在新工作区。`tool/result` 的 `meta.cwd`（100 处）同样指向源 cwd。
+- 修复：
+  - `rewriteSessionFileReferences()`：重定位导入时把交付文件路径转工作区相对 POSIX 路径、`meta.cwd` 映射到目标 cwd；历史正文不改；
+  - `import-pack` 在 header/状态事件改写后调用，written 记录 `fileRefsRewritten`；
+  - 新增 `dsh-pack-and-go repair --home ... [--session id] [--dry-run]`：按最长后缀修复已导入会话，写前备份。
+- 当前会话修复：`session-721899c1...` 改写 101 处（2 个交付路径 + 100 个 meta.cwd），备份 `session.v4.jsonl.zstd.bak-2026-11-18T05-10-58-941Z`；事件 959 条不变。
+- 测试：新增 session-rewrite 单测（改写/幂等/repair 后缀）、跨平台导入集成、CLI `repair` 端到端；**224 项全绿**。
+- 待用户：重启 DSH web / 重开会话验证按钮。

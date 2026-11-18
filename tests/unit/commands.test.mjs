@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, mkdir, writeFile, readFile, readdir } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, stat, writeFile, readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -473,7 +473,9 @@ test(
       (entry) => entry.name === 'workspaces/ws-1/files/sub/',
     )
     assert.ok(dirEntry, '应包含目录条目')
-    assert.equal(dirEntry.mode & 0o777, 0o755, '目录条目应记录真实 mode')
+    // 目录 mode 受当前 umask 影响，按实际创建的目录比较，避免依赖 022 的 CI 假设。
+    const expectedMode = (await stat(join(workspace, 'sub'))).mode & 0o777
+    assert.equal(dirEntry.mode & 0o777, expectedMode, '目录条目应记录真实 mode')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

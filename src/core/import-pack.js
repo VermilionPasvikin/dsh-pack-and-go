@@ -21,7 +21,11 @@ import { ERROR_CODES, MoverError } from './errors.js'
 import { parseManifest } from './manifest-io.js'
 import { sessionDir } from './paths.js'
 import { planImport } from './plan-import.js'
-import { rewriteSessionHeader, rewriteSessionWorkingDirectories } from './session-rewrite.js'
+import {
+  rewriteSessionFileReferences,
+  rewriteSessionHeader,
+  rewriteSessionWorkingDirectories,
+} from './session-rewrite.js'
 import { readZip } from './zip-reader.js'
 
 /**
@@ -179,6 +183,21 @@ export async function importSessionsToDisk(input) {
       cwdEventsRewritten = result.rewritten
     }
 
+    // 重定位导入时 deliverables/presented 的绝对路径与 tool meta.cwd 仍指向源机器；
+    // DSH 的「在工作区中查看」会按新 cwd 解析这些路径，必须改成目标端可解析的形式
+    // （ADR-0017 补充，2026-11-18）。
+    let fileRefsRewritten = 0
+    if (session.targetCwd !== undefined && source.cwd !== session.targetCwd) {
+      const refs = rewriteSessionFileReferences(finalData, {
+        fromCwd: source.cwd,
+        toCwd: session.targetCwd,
+        sourcePlatform: manifest.source.platform,
+        targetPlatform,
+      })
+      finalData = refs.buffer
+      fileRefsRewritten = refs.rewritten
+    }
+
     let backupPath
     if (session.action === 'overwrite' && backupDir) {
       backupPath = await backupExisting(file, backupDir)
@@ -212,6 +231,7 @@ export async function importSessionsToDisk(input) {
       ...(session.migrateFrom !== undefined ? { migrateFrom: session.migrateFrom } : {}),
       ...(backupPath !== undefined ? { backupPath } : {}),
       ...(cwdEventsRewritten > 0 ? { cwdEventsRewritten } : {}),
+      ...(fileRefsRewritten > 0 ? { fileRefsRewritten } : {}),
     })
   }
 

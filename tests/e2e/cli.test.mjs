@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, mkdir, writeFile, readFile, stat, chmod } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, readdir, writeFile, readFile, stat, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,6 +11,7 @@ import { buildManifest, buildPackToFile } from '../../src/core/export-pack.js'
 import { planExport } from '../../src/core/plan-export.js'
 import { readZip } from '../../src/core/zip-reader.js'
 import { projectKey } from '../../src/core/paths.js'
+import { scanFrames } from '../../src/core/zstd-frames.js'
 
 const CLI = fileURLToPath(new URL('../../src/cli/index.js', import.meta.url))
 
@@ -217,6 +218,73 @@ test('CLI 工作区导出/导入按包内 mode 恢复文件权限（ADR-0016 B1�
     assert.equal(await perms('private.txt'), 0o600)
     assert.equal(await perms('plain.txt'), 0o644)
     assert.equal(await perms('run.sh'), 0o755)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('CLI repair 修复已导入会话的失效绝对路径', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cli-'))
+  try {
+    const home = await makeHome(dir)
+    const cwd = join(home, 'zmediakit-repair')
+    await mkdir(join(cwd, 'docs'), { recursive: true })
+    await writeFile(join(cwd, 'docs', 'a.md'), 'x')
+    await writeFile(join(cwd, 'AGENTS.md'), 'y')
+    const sessionDir = join(home, 'sessions', '--proj--', 'session-1')
+    await mkdir(sessionDir, { recursive: true })
+    const header = {
+      type: 'session',
+      version: 4,
+      id: 'session-1',
+      createdAt: 1700000000000,
+      isSeeded: false,
+      delegationDepth: 0,
+      cwd,
+    }
+    const events = [
+      {
+        type: 'deliverables/presented',
+        seq: 1,
+        data: {
+          files: [{ path: 'F:\\\\proj\\\\docs\\\\a.md' }, { path: 'F:\\\\proj\\\\AGENTS.md' }],
+        },
+      },
+      { type: 'tool/result', seq: 2, data: { meta: { cwd: 'F:\\\\proj' } } },
+      { type: 'turn/end', seq: 3 },
+    ]
+    const file = join(sessionDir, 'session.v4.jsonl.zstd')
+    await writeFile(
+      file,
+      Buffer.concat([
+        zlib.zstdCompressSync(Buffer.from(`${JSON.stringify(header)}\n`)),
+        ...events.map((event) =>
+          zlib.zstdCompressSync(Buffer.from(`${JSON.stringify(event)}\n`)),
+        ),
+      ]),
+    )
+
+    const result = runCli(['repair', '--home', home, '--session', 'session-1'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, /修复 session-1: 改写 2 处/)
+    const files = await readdir(sessionDir)
+    assert.ok(files.some((name) => name.includes('.bak-')), '应写备份')
+
+    const buffer = await readFile(file)
+    const frames = scanFrames(buffer)
+    const decoded = Buffer.concat(
+      frames.map((frame) => zlib.zstdDecompressSync(buffer.subarray(frame.start, frame.end))),
+    )
+      .toString('utf8')
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line))
+    const presented = decoded.find((event) => event.type === 'deliverables/presented')
+    assert.deepEqual(
+      presented.data.files.map((item) => item.path),
+      ['docs/a.md', 'AGENTS.md'],
+    )
+    assert.equal(decoded.find((event) => event.type === 'tool/result').data.meta.cwd, cwd)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

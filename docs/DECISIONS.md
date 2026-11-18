@@ -518,3 +518,30 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 - 真实 `~/.dsh` 导入会话备份后按本规则修复，待用户在 GUI 打开确认。
 
 **关联**：SPEC Q4/§1.3/§5.1/§9/§11、ADR-0005、ADR-0007、ADR-0016、TEST-CASES P-09、`src/core/session-rewrite.js`、`src/core/import-pack.js`。
+
+## ADR-0017 补充 · 重定位导入改写 deliverables/presented 文件引用路径（2026-11-18，Accepted）
+
+**背景**
+
+- ADR-0017 只改写 `working-directory/change` 的 `data.cwd`；`deliverables/presented` 的 `data.files[].path` 与 `tool/result`/`tool/call` 的 `data.meta.cwd` 仍是源机器绝对路径。
+- DSH 的「在工作区中查看」走 `POST /api/present.open` → `workspaceFiles.stat({ workspaceRoot: session.cwd }, file.path)`；旧 Windows 路径（`F:\...`）不在新工作区，报「找不到路径」，文件卡片进入错误态（会话日志/投影缓存本身完好，刷新或重开会话可恢复）。
+- 目标是同平台换目录导入（重定位）同样存在；不限于跨平台。
+
+**决策**（用户批准，2026-11-18）
+
+1. 新增 `rewriteSessionFileReferences()`：重定位导入（`source.cwd !== targetCwd`）时，
+   - `deliverables/presented` 的 `data.files[].path`：源根下绝对路径 → **工作区相对 POSIX 路径**（DSH `workspaceFiles.stat` 支持相对路径；更可移植）；已在目标根下的绝对路径同样转相对；源根外路径不改；
+   - `tool/result` 与 `tool/call` 的 `data.meta.cwd`：按 `mapSessionCwd` 映射到 `targetCwd`；
+   - 历史消息正文不改（沿用 ADR-0001 Q4）。
+2. 事件帧按行重压（与 ADR-0017 相同的帧重写机制），header 帧字节不变，seq/time/事件数不变。
+3. 新增 `dsh-pack-and-go repair --home <DSH_HOME> [--session <id>] [--dry-run]` 修复已导入会话：
+   - `deliverables/presented` 的绝对路径按**最长后缀**在 `session.cwd` 下查找真实文件，命中后写成相对路径；
+   - `working-directory/change` 的 cwd、`tool` 事件的 `meta.cwd` 置为 `session.cwd`；
+   - 写前备份 `<file>.bak-<时间戳>`。
+
+**后果/验证**
+
+- 用户当前会话 `zmediakit-repair`（`session-721899c1...`）执行 repair：改写 101 处（2 个交付文件路径 + 100 个 meta.cwd），备份保留；DSH 重启/重开会话后按钮应恢复。
+- 新增单测：deliverables/meta.cwd 改写与幂等、repair 最长后缀、跨平台导入集成；全量 223 项通过。
+- 边界：交付文件若在导入时被 Windows 文件名转换重命名，最长后缀匹配可能失败（保留原路径）；源根外绝对路径不改。
+- 关联：ADR-0001 Q4、ADR-0017、SPEC §FR-8、TEST-CASES I-24/R-01、`src/core/session-rewrite.js`、`src/core/import-pack.js`、`src/cli/index.js`。

@@ -381,6 +381,281 @@ export function rewriteSessionWorkingDirectories(buffer, input = {}) {
 }
 
 /**
+ * 判断值是否为该平台的绝对路径。
+ * @param {string} value
+ * @param {string} platform
+ * @returns {boolean}
+ */
+function isAbsolutePath(value, platform) {
+  if (typeof value !== 'string' || value.length === 0) return false
+  if (platform === 'win32') {
+    return /^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\]/.test(value)
+  }
+  return value.startsWith('/')
+}
+
+/**
+ * 返回绝对路径相对 root 的 POSIX 相对路径；不在 root 下返回 undefined。
+ * @param {string} value
+ * @param {string} root
+ * @param {string} platform
+ * @returns {string|undefined}
+ */
+function relativeUnderRoot(value, root, platform) {
+  const separator = separatorFor(platform)
+  const normalizedRoot = normalizeCwd(root, platform)
+  const normalizedValue = normalizeCwd(value, platform)
+  if (normalizedRoot.length === 0) return undefined
+  const foldedRoot = foldCwd(normalizedRoot, platform)
+  const foldedValue = foldCwd(normalizedValue, platform)
+  if (foldedValue === foldedRoot) return ''
+  const prefix = foldedRoot.endsWith(separator) ? foldedRoot : foldedRoot + separator
+  if (!foldedValue.startsWith(prefix)) return undefined
+  const start = normalizedRoot.length + (normalizedRoot.endsWith(separator) ? 0 : 1)
+  return normalizedValue.slice(start).split(separator).join('/')
+}
+
+/**
+ * 统一的事件行重写：首帧原样保留，事件帧按行解压/变换/重压。
+ * @param {Buffer} buffer
+ * @param {(event: Record<string, any>) => boolean} transform 返回 true 表示事件被改写
+ * @param {number} [chunkBytes]
+ * @returns {{ buffer: Buffer, rewritten: number }}
+ */
+function rewriteEventLines(buffer, transform, chunkBytes = EVENT_FRAME_BYTES) {
+  if (!Buffer.isBuffer(buffer)) {
+    throw headerError('会话改写需要 Buffer 输入', { reason: 'not-buffer' })
+  }
+  if (!Number.isSafeInteger(chunkBytes) || chunkBytes <= 0) {
+    throw headerError('chunkBytes 必须是正整数', { reason: 'invalid-chunk-size' })
+  }
+  const { frames, first, header } = decodeSessionHeader(buffer)
+  assertCurrentVersion(header)
+  if (frames.length === 1) return { buffer, rewritten: 0 }
+
+  const eventFrames = frames.slice(1)
+  const decoded = []
+  for (const frame of eventFrames) {
+    try {
+      decoded.push(zlib.zstdDecompressSync(buffer.subarray(frame.start, frame.end)))
+    } catch (error) {
+      throw frameError('事件帧解压失败', {
+        reason: 'decompress-failed',
+        offset: frame.start,
+        cause: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  const text = Buffer.concat(decoded).toString('utf8')
+  const trailingNewline = text.endsWith('\n')
+  const lines = text.split('\n')
+  if (trailingNewline) lines.pop()
+
+  let rewritten = 0
+  const nextLines = lines.map((line) => {
+    if (line.length === 0) return line
+    let event
+    try {
+      event = JSON.parse(line)
+    } catch {
+      return line
+    }
+    if (event === null || typeof event !== 'object') return line
+    if (transform(event) !== true) return line
+    rewritten += 1
+    return JSON.stringify(event)
+  })
+
+  if (rewritten === 0) return { buffer, rewritten: 0 }
+  const eventFramesOut = packEventFrames(
+    nextLines,
+    trailingNewline,
+    chunkBytes,
+    eventFrames[0].checksum,
+  )
+  return {
+    buffer: Buffer.concat([buffer.subarray(first.start, first.end), ...eventFramesOut]),
+    rewritten,
+  }
+}
+
+/**
+ * 跨平台/重定位导入时改写结构化文件引用路径（ADR-0017 补充）：
+ *
+ * - `deliverables/presented` 的 `data.files[].path`：源根下绝对路径 → 工作区相对 POSIX 路径，
+ *   保证 DSH 的 `/api/present.open` 在新 cwd 下仍可解析；
+ * - `tool/result`/`tool/call` 的 `data.meta.cwd`：源根 cwd → 目标 cwd；
+ * - 历史消息正文里的路径文本不改（沿用 ADR-0001 Q4）。
+ *
+ * @param {Buffer} buffer
+ * @param {{
+ *   fromCwd?: string,
+ *   toCwd: string,
+ *   sourcePlatform: 'win32'|'darwin'|'linux',
+ *   targetPlatform: 'win32'|'darwin'|'linux',
+ *   chunkBytes?: number
+ * }} input
+ * @returns {{ buffer: Buffer, rewritten: number }}
+ */
+export function rewriteSessionFileReferences(buffer, input = {}) {
+  const { fromCwd, toCwd, sourcePlatform, targetPlatform } = input
+  if (typeof toCwd !== 'string' || toCwd.length === 0) {
+    throw headerError('toCwd 必须是非空字符串', { reason: 'invalid-cwd' })
+  }
+  separatorFor(sourcePlatform)
+  separatorFor(targetPlatform)
+  const target = normalizeCwd(toCwd, targetPlatform)
+
+  return rewriteEventLines(
+    buffer,
+    (event) => {
+      let changed = false
+
+      if (event.type === 'deliverables/presented') {
+        const files = event.data?.files
+        if (Array.isArray(files)) {
+          for (const file of files) {
+            if (!file || typeof file.path !== 'string' || file.path.length === 0) continue
+            const path = file.path
+            let relative
+            if (isAbsolutePath(path, sourcePlatform)) {
+              relative = relativeUnderRoot(path, fromCwd ?? '', sourcePlatform)
+            }
+            if (
+              (relative === undefined || relative.length === 0) &&
+              isAbsolutePath(path, targetPlatform)
+            ) {
+              relative = relativeUnderRoot(path, target, targetPlatform)
+            }
+            if (relative !== undefined && relative.length > 0 && relative !== path) {
+              file.path = relative
+              changed = true
+            }
+          }
+        }
+      } else if (event.type === 'tool/result' || event.type === 'tool/call') {
+        const meta = event.data?.meta
+        if (meta && typeof meta.cwd === 'string' && meta.cwd.length > 0) {
+          const mapped = mapSessionCwd(meta.cwd, {
+            fromCwd,
+            toCwd,
+            sourcePlatform,
+            targetPlatform,
+          })
+          if (mapped !== meta.cwd) {
+            meta.cwd = mapped
+            changed = true
+          }
+        }
+      }
+
+      return changed
+    },
+    input.chunkBytes ?? EVENT_FRAME_BYTES,
+  )
+}
+
+/**
+ * 修复已导入会话中的失效绝对路径（ADR-0017 补充，repair 命令使用）：
+ *
+ * - `deliverables/presented`：绝对且目标端不存在的路径，按最长后缀在 `sessionCwd`
+ *   下查找真实文件，命中后写成工作区相对 POSIX 路径；
+ * - `tool/result`/`tool/call` 的 `meta.cwd` 与 `working-directory/change` 的 `cwd`：
+ *   绝对且不等于 `sessionCwd` 时改为 `sessionCwd`。
+ *
+ * @param {Buffer} buffer
+ * @param {{
+ *   sessionCwd: string,
+ *   exists?: (relativePosix: string) => boolean,
+ *   chunkBytes?: number
+ * }} input
+ * @returns {{ buffer: Buffer, rewritten: number }}
+ */
+export function repairSessionFileReferences(buffer, input = {}) {
+  const sessionCwd = typeof input.sessionCwd === 'string' ? input.sessionCwd : ''
+  if (sessionCwd.length === 0) {
+    throw headerError('sessionCwd 必须是非空字符串', { reason: 'invalid-cwd' })
+  }
+  const exists = typeof input.exists === 'function' ? input.exists : undefined
+
+  return rewriteEventLines(
+    buffer,
+    (event) => {
+      let changed = false
+
+      if (event.type === 'deliverables/presented' && exists !== undefined) {
+        const files = event.data?.files
+        if (Array.isArray(files)) {
+          for (const file of files) {
+            if (!file || typeof file.path !== 'string' || file.path.length === 0) continue
+            const path = file.path
+            if (!isAbsolutePath(path, 'win32') && !isAbsolutePath(path, 'linux')) continue
+            const segments = path
+              .replace(/\\/g, '/')
+              .split('/')
+              .filter((segment) => segment.length > 0)
+            let start = 0
+            if (segments.length > 0 && /^[A-Za-z]:$/.test(segments[0])) start = 1
+            let relative
+            for (let index = start; index < segments.length; index += 1) {
+              const candidate = segments.slice(index).join('/')
+              if (exists(candidate)) {
+                relative = candidate
+                break
+              }
+            }
+            if (relative !== undefined && relative !== path) {
+              file.path = relative
+              changed = true
+            }
+          }
+        }
+      }
+
+      if (event.type === 'working-directory/change') {
+        const cwd = event.data?.cwd
+        if (
+          typeof cwd === 'string' &&
+          cwd.length > 0 &&
+          cwd !== sessionCwd &&
+          (isAbsolutePath(cwd, 'win32') || isAbsolutePath(cwd, 'linux'))
+        ) {
+          event.data.cwd = sessionCwd
+          changed = true
+        }
+      }
+
+      if (event.type === 'tool/result' || event.type === 'tool/call') {
+        const meta = event.data?.meta
+        if (
+          meta &&
+          typeof meta.cwd === 'string' &&
+          meta.cwd.length > 0 &&
+          meta.cwd !== sessionCwd &&
+          (isAbsolutePath(meta.cwd, 'win32') || isAbsolutePath(meta.cwd, 'linux'))
+        ) {
+          meta.cwd = sessionCwd
+          changed = true
+        }
+      }
+
+      return changed
+    },
+    input.chunkBytes ?? EVENT_FRAME_BYTES,
+  )
+}
+
+/**
+ * 读取会话首帧 header（repair 等诊断用途）。
+ * @param {Buffer} buffer
+ * @returns {Record<string, any>}
+ */
+export function readSessionHeaderFromBuffer(buffer) {
+  return decodeSessionHeader(buffer).header
+}
+
+/**
  * 读取会话文件、改写 cwd、写入目标文件。
  * @param {string} sourcePath
  * @param {string} targetPath

@@ -11,6 +11,7 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { access, copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -24,6 +25,8 @@ import {
   parseManifest,
   planExport,
   readZip,
+  readSessionHeaderFromBuffer,
+  repairSessionFileReferences,
   restoreAttachments,
   restoreWorkspaceFiles,
   safeDirName,
@@ -36,6 +39,7 @@ const USAGE = `dsh-pack-and-go <命令> [选项]
 命令:
   export   导出对话
   import   导入迁移包
+  repair   修复已导入会话中失效的绝对文件路径
 
 选项:
   --home <目录>      DSH_HOME（必填）
@@ -43,6 +47,8 @@ const USAGE = `dsh-pack-and-go <命令> [选项]
   --pack <文件>      import 的迁移包（必填）
   --target <目录>    import 的目标目录（必填，不会回退默认目录）
   --sessions <ids>   export 只导出指定会话（逗号分隔）
+  --session <id>     repair 只修复指定会话（可选）
+  --dry-run          repair 只报告不写入
   -h, --help         显示帮助
 `
 
@@ -362,6 +368,77 @@ async function cmdImport(options) {
   )
 }
 
+/**
+ * 修复已导入会话中失效的绝对路径（ADR-0017 补充）。
+ * @param {{ home?: string, session?: string, dryRun?: boolean }} options
+ */
+async function cmdRepair(options) {
+  if (!options.home) fail('缺少 --home')
+  const sessionsRoot = join(options.home, 'sessions')
+  const projects = await readdir(sessionsRoot, { withFileTypes: true }).catch(() => [])
+  const wanted = typeof options.session === 'string' ? options.session.trim() : ''
+  let scanned = 0
+  let changedSessions = 0
+  let repaired = 0
+  let failed = 0
+
+  for (const project of projects.filter((entry) => entry.isDirectory())) {
+    const projectDir = join(sessionsRoot, project.name)
+    const dirs = await readdir(projectDir, { withFileTypes: true }).catch(() => [])
+    for (const dir of dirs.filter((entry) => entry.isDirectory())) {
+      const sessionDir = join(projectDir, dir.name)
+      const files = await readdir(sessionDir).catch(() => [])
+      const log = files.find((name) => /^session\.v\d+\.jsonl\.zstd$/.test(name))
+      if (!log) continue
+      const file = join(sessionDir, log)
+      let buffer
+      try {
+        buffer = await readFile(file)
+      } catch {
+        failed += 1
+        continue
+      }
+      let header
+      try {
+        header = readSessionHeaderFromBuffer(buffer)
+      } catch {
+        failed += 1
+        continue
+      }
+      const id = typeof header.id === 'string' ? header.id : dir.name
+      if (wanted && !dir.name.includes(wanted) && id !== wanted) continue
+      scanned += 1
+      const cwd = typeof header.cwd === 'string' ? header.cwd : ''
+      if (cwd.length === 0) continue
+      const exists = (relative) => existsSync(join(cwd, relative))
+      let result
+      try {
+        result = repairSessionFileReferences(buffer, { sessionCwd: cwd, exists })
+      } catch {
+        failed += 1
+        continue
+      }
+      if (result.rewritten === 0) continue
+      changedSessions += 1
+      repaired += result.rewritten
+      if (options['dry-run'] === true) {
+        console.log(`[dry-run] ${id}: 将改写 ${result.rewritten} 处（${file}）`)
+        continue
+      }
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const backup = `${file}.bak-${stamp}`
+      await copyFile(file, backup)
+      await writeFile(file, result.buffer)
+      console.log(`修复 ${id}: 改写 ${result.rewritten} 处，备份 ${backup}`)
+    }
+  }
+  console.log(
+    `完成：扫描 ${scanned} 个会话，修复 ${changedSessions} 个（${repaired} 处）${
+      failed > 0 ? `，失败 ${failed} 个` : ''
+    }。`,
+  )
+}
+
 async function main() {
   let parsed
   try {
@@ -374,6 +451,8 @@ async function main() {
         pack: { type: 'string' },
         target: { type: 'string' },
         sessions: { type: 'string' },
+        session: { type: 'string' },
+        'dry-run': { type: 'boolean' },
         workspace: { type: 'string', multiple: true },
         overwrite: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
@@ -390,6 +469,7 @@ async function main() {
   }
   if (command === 'export') return cmdExport(parsed.values)
   if (command === 'import') return cmdImport(parsed.values)
+  if (command === 'repair') return cmdRepair(parsed.values)
   fail(`未知命令：${command}`)
 }
 

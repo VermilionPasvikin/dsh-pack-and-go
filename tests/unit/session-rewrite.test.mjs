@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -10,6 +11,9 @@ import {
   rewriteSessionCwd,
   rewriteSessionCwdFile,
   rewriteSessionWorkingDirectories,
+  rewriteSessionFileReferences,
+  repairSessionFileReferences,
+  readSessionHeaderFromBuffer,
 } from '../../src/core/session-rewrite.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
@@ -311,4 +315,107 @@ test('rewriteSessionWorkingDirectories 参数与版本校验', () => {
     () => rewriteSessionWorkingDirectories('not a buffer', WIN_TO_POSIX),
     (error) => error instanceof MoverError && error.code === ERROR_CODES.SESSION_HEADER_INVALID,
   )
+})
+
+function makeEventsSession(events, { cwd = 'F:\\proj', checksum = false } = {}) {
+  const header = {
+    type: 'session',
+    version: 4,
+    id: 'session-1',
+    createdAt: 1700000000000,
+    isSeeded: false,
+    delegationDepth: 0,
+    cwd,
+  }
+  const options = checksum
+    ? { params: { [zlib.constants.ZSTD_c_checksumFlag]: 1 } }
+    : undefined
+  return Buffer.concat([
+    zstd(`${JSON.stringify(header)}\n`, options),
+    ...events.map((event) => zstd(`${JSON.stringify(event)}\n`, options)),
+  ])
+}
+
+test('改写 deliverables/presented 路径与 tool meta.cwd（ADR-0017 补充）', () => {
+  const buffer = makeEventsSession([
+    {
+      type: 'deliverables/presented',
+      seq: 2,
+      data: {
+        files: [
+          { path: 'F:\\proj\\docs\\a.md' },
+          { path: 'F:\\proj\\AGENTS.md' },
+          { path: 'docs/relative.md' },
+        ],
+      },
+    },
+    { type: 'tool/result', seq: 3, data: { meta: { cwd: 'F:\\proj' } } },
+    { type: 'user/message', seq: 4, data: { text: 'F:\\proj\\docs\\a.md' } },
+  ])
+  const result = rewriteSessionFileReferences(buffer, {
+    fromCwd: 'F:\\proj',
+    toCwd: '/home/u/proj',
+    sourcePlatform: 'win32',
+    targetPlatform: 'linux',
+  })
+  assert.equal(result.rewritten, 2)
+  const events = decodeLines(result.buffer).map((line) => JSON.parse(line))
+  const presented = events.find((event) => event.type === 'deliverables/presented')
+  assert.deepEqual(
+    presented.data.files.map((file) => file.path),
+    ['docs/a.md', 'AGENTS.md', 'docs/relative.md'],
+  )
+  assert.equal(events.find((event) => event.type === 'tool/result').data.meta.cwd, '/home/u/proj')
+  assert.equal(
+    events.find((event) => event.type === 'user/message').data.text,
+    'F:\\proj\\docs\\a.md',
+  )
+  const headerBefore = scanFrames(buffer)[0]
+  const headerAfter = scanFrames(result.buffer)[0]
+  assert.deepEqual(
+    buffer.subarray(headerBefore.start, headerBefore.end),
+    result.buffer.subarray(headerAfter.start, headerAfter.end),
+  )
+  const again = rewriteSessionFileReferences(result.buffer, {
+    fromCwd: 'F:\\proj',
+    toCwd: '/home/u/proj',
+    sourcePlatform: 'win32',
+    targetPlatform: 'linux',
+  })
+  assert.equal(again.rewritten, 0)
+})
+
+test('repairSessionFileReferences 按最长后缀修复绝对路径', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-repair-'))
+  try {
+    await mkdir(join(dir, 'docs'), { recursive: true })
+    await writeFile(join(dir, 'docs', 'a.md'), 'x')
+    await writeFile(join(dir, 'AGENTS.md'), 'y')
+    const buffer = makeEventsSession([
+      {
+        type: 'deliverables/presented',
+        seq: 2,
+        data: {
+          files: [
+            { path: 'F:\\PersonalProjects\\proj\\docs\\a.md' },
+            { path: 'F:\\PersonalProjects\\proj\\AGENTS.md' },
+          ],
+        },
+      },
+      { type: 'tool/result', seq: 3, data: { meta: { cwd: 'F:\\PersonalProjects\\proj' } } },
+    ])
+    const exists = (relative) => existsSync(join(dir, relative))
+    const result = repairSessionFileReferences(buffer, { sessionCwd: dir, exists })
+    assert.equal(result.rewritten, 2)
+    const events = decodeLines(result.buffer).map((line) => JSON.parse(line))
+    const presented = events.find((event) => event.type === 'deliverables/presented')
+    assert.deepEqual(
+      presented.data.files.map((file) => file.path),
+      ['docs/a.md', 'AGENTS.md'],
+    )
+    assert.equal(events.find((event) => event.type === 'tool/result').data.meta.cwd, dir)
+    assert.equal(readSessionHeaderFromBuffer(result.buffer).cwd, 'F:\\proj')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })
