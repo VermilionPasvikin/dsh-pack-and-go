@@ -114,7 +114,7 @@ tests/
    └─ 绿字：「已导出 N 个对话[，含 M 个工作区（K 个文件）]到 <路径>（B 字节）[；预检 R 项]」
 ```
 
-## 4. 关键接口（已用 `cordis_inspect_query` 核实，2026-11-10，DSH 0.2.2-rc.1）
+## 4. 关键接口（已用 `cordis_inspect_query` 核实，2026-11-10，DSH 0.2.2-rc.1；2026-11-23 在 DSH 0.2.2-rc.5 上复验通过，见 `docs/compat/reports/detect-0.2.2-rc.5.md`）
 
 > 来源：当前 Host 的 `Service.listService`（host）。实现时仍须在目标 Host 上以运行时
 > `ctx.get()` 校验；不同 DSH 版本可能有差异，不使用未在本文列出的方法。

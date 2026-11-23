@@ -78,7 +78,7 @@ dsh plugin --profile <profile> add ./dsh-pack-and-go-0.2.1.tgz
 
 也可以在 DSH 插件管理页添加本地路径，或直接输入 npm / GitHub 坐标。安装后侧边栏出现「**迁移对话或工作区**」入口。
 
-> 兼容性：DSH `>=0.2.0 <0.3.0`（当前 0.2.2-rc.2 已验证）；Node.js ≥ 22.15。
+> 兼容性：DSH `>=0.2.0 <0.3.0`（当前 0.2.2-rc.5 已验证，2026-11-23 检出报告见 `docs/compat/reports/detect-0.2.2-rc.5.md`）；Node.js ≥ 22.15。
 
 ### 使用（Web UI）
 

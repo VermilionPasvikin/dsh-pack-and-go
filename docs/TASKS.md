@@ -168,17 +168,19 @@
 | T10.1 | 建立依赖清单（五类契约面）+ 基线快照 `docs/compat/baseline/0.2.2-rc.2.json`（14 包/433 契约文件签名） | — | UPSTREAM-COMPAT §2 覆盖全部 DSH 依赖点；基线由 freeze 脚本可重现 | ✅ 2026-11-23 |
 | T10.2 | 零依赖脚本 `scripts/compat/`（freeze-baseline / check-upstream / probe-host + tar/registry 库）与 `tests/compat/` 测试 | T10.1 | 退出码 0/1/2 语义实测正确；compat 测试 20 项通过；rc.2→rc.5 diff 演练出报告 | ✅ 2026-11-23 |
 | T10.3 | runbook 文档 `docs/UPSTREAM-COMPAT.md` + ADR-0018 + AGENTS/INDEX 接入 | T10.2 | 文档每步有命令/预期/判据/失败下一步；AGENTS 含引用与触发描述 | ✅ 2026-11-23 |
-| T10.4 | **首个正式检出**：对本机已升级的 DSH 0.2.2-rc.5 执行 D0–D5，产出 `docs/compat/reports/detect-0.2.2-rc.5.md` | T10.3 | 报告含 diff 摘要、五类分类结论、D4 探针日志与「是否修复」结论 | ⬜ |
-| T10.5 | 0.2.2-rc.5 回归与修复：R1–R4（必要时 R5/CDP）；发现破坏则按 §5 决策树修复并写修复记录 | T10.4 | R1–R4 证据齐全；无破坏则记录「兼容」结论 | ⬜ |
-| T10.6 | 基线升级到 0.2.2-rc.5（freeze 新快照，旧快照保留）并校订 `engines.dsh` 与 `docs/RELEASE.md` 验证版本 | T10.5 | 新基线文件入库；RELEASE.md 验证版本一致 | ⬜ |
+| T10.4 | **首个正式检出**：对本机已升级的 DSH 0.2.2-rc.5 执行 D0–D5，产出 `docs/compat/reports/detect-0.2.2-rc.5.md` | T10.3 | 报告含 diff 摘要、五类分类结论、D4 探针日志与「是否修复」结论 | ✅ 2026-11-23（五类全部兼容，无需修复） |
+| T10.5 | 0.2.2-rc.5 回归与修复：R1–R4（必要时 R5/CDP）；发现破坏则按 §5 决策树修复并写修复记录 | T10.4 | R1–R4 证据齐全；无破坏则记录「兼容」结论 | ✅ 2026-11-23（R1 全量 251 项 241/0/10；R2 compat 25/25；R3 CLI E2E；R4 探针 + rc.2 CLI 黄金对照） |
+| T10.6 | 基线升级到 0.2.2-rc.5（freeze 新快照，旧快照保留）并校订 `engines.dsh` 与 `docs/RELEASE.md` 验证版本 | T10.5 | 新基线文件入库；RELEASE.md 验证版本一致 | ✅ 2026-11-23（`docs/compat/baseline/0.2.2-rc.5.json`，14 包/433 文件） |
+| T10.7 | 发布准备：版本 0.2.3、README 兼容性行、RELEASE.md、DEVLOG 与 `npm pack --dry-run` 校验 | T10.6 | 版本引用一致；pack 文件清单正确 | ✅ 2026-11-23 |
+| T10.8 | npm 发布 0.2.3 + 打 tag v0.2.3 + 推送（**需用户凭据**：`npm login && npm publish`、`git tag/push`） | T10.7 | `npm view dsh-pack-and-go version` = 0.2.3；tag 在 origin | ⬜ |
 
 ## 3. 当前进度
 
-- 当前里程碑：**M0–M9 任务全部 ✅**；**M10 进行中**（T10.1–T10.3 ✅ 2026-11-23，流程已建立；T10.4–T10.6 待执行：对本机已升级的 DSH 0.2.2-rc.5 做首个正式检出、回归与基线升级）。
+- 当前里程碑：**M0–M9 任务全部 ✅**；**M10 进行中**（T10.1–T10.7 ✅ 2026-11-23：流程建立 + 对 0.2.2-rc.5 的正式检出/回归/基线升级 + 发布准备完成；T10.8 发布动作待用户凭据执行）。
 - 2026-11-12 追加并完成 **T9.6**（ADR-0017，跨平台状态事件 cwd 改写）。
 - 2026-11-12 完成 **T9.7**：macOS 全量执行 TEST-CASES（220/220），问题记录见 DEVLOG 140。
 - 2026-11-18 完成 **T9.8**：重定位导入改写 deliverables 文件引用路径 + `repair` 命令；全量 223 项通过。
 - 2026-11-18 完成 **T9.9**：导入/repair 归一化 auto 权限预设（workspace-write）；全量 226 项通过。
-- 2026-11-23 完成 **T10.1–T10.3**：宿主跨版本维护闭环（依赖清单、基线快照、零依赖脚本、runbook、ADR-0018）；检出流程与回归分层见 `docs/UPSTREAM-COMPAT.md`。
-- 待办：T10.4 对 0.2.2-rc.5 的正式检出（本机宿主已自动升级到 0.2.2-rc.5）→ T10.5 回归 → T10.6 基线升级。
+- 2026-11-23 完成 **T10.1–T10.7**：宿主跨版本维护闭环建立（脚本/基线/runbook/ADR-0018）→ 对 0.2.2-rc.5 正式检出（五类契约全部兼容，报告 `docs/compat/reports/detect-0.2.2-rc.5.md`）→ 回归 R1–R4 全过 → 基线升级 0.2.2-rc.5 → 发布 0.2.3 准备就绪。
+- 待办：T10.8 发布 0.2.3（npm login/publish + git tag/push，需用户凭据）。
 - 阻塞/暂缓：T9.2 取消功能（用户决定不做）。

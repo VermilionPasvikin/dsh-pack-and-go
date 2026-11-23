@@ -388,13 +388,12 @@ node --test --experimental-test-isolation=none "tests/e2e/cli.test.mjs"
 
 ---
 
-## 附录 A · 首次建立记录（2026-11-23）
+## 附录 A · 首次建立与首个正式检出记录
 
 - 基线：`docs/compat/baseline/0.2.2-rc.2.json`（14 契约包 / 433 契约文件签名）。
-- 首次演练：check-upstream 检出 `0.2.2-rc.5` —— 11 包版本变化、24 文件变化、0 增 0 删；
-  关键变化包括 `dsh-session-format/index.js`、`dsh-session-persistence-jsonl/worker.cjs`、
-  `dsh-workspace/index.js`、`dsh-attachment-local/index.js`、`dsh-home-paths/index.js`、
-  `dsh-client-ui-cordis/client.js`、`dsh-client-ui-chat/client.js`。本机宿主已自动更新到
-  `0.2.2-rc.5`，**首次正式检出与基线升级（D0–D5 + R1–R4）是建立本流程后的第一个待办任务**
-  （见 TASKS.md M10）。
+- 首次演练：check-upstream 检出 `0.2.2-rc.5` —— 11 包版本变化、24 文件变化、0 增 0 删。
+- **首个正式检出（2026-11-23，T10.4）已完成**：五类契约全部判定「兼容」（GitHub compare 证明
+  会话/工作区/附件等源码零变化 + 一次性 DSH_HOME 运行时探针 + 0.2.2-rc.2 CLI 黄金对照），
+  无需修复；回归 R1–R4 全过；基线已升级至 `docs/compat/baseline/0.2.2-rc.5.json`。
+  详见 `docs/compat/reports/detect-0.2.2-rc.5.md`（也是检出报告模板的第一个实例）。
 - 依据决策：ADR-0018。
