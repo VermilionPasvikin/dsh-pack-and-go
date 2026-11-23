@@ -570,3 +570,52 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
 - `session-rewrite` 单测、跨平台导入集成、CLI repair 端到端；全量 **226 项通过**。
 - 真实 `zmediakit-repair` 会话 repair 追加 2 处（permission auto→workspace-write、sandbox danger-full-access→workspace-write）；debug 副本重启后 composer 从「Session unavailable」恢复为默认输入框。
 - 关联：ADR-0017、SPEC v1.7、TEST-CASES I-25、`src/core/session-rewrite.js`、`src/core/import-pack.js`、`src/cli/index.js`。
+
+## ADR-0018 · 建立宿主跨版本维护闭环（2026-11-23，Accepted）
+
+**背景**
+
+- 本插件运行在 DSH 进程内，依赖一批跨版本不承诺稳定的契约：Cordis 服务与 API、
+  服务方法签名（DESIGN §4）、会话文件格式（v4 zstd 多帧）、数据目录布局
+  （sessions/、storages/workspace.json、attachments/v1）、事件 schema、Client UI 运行时
+  （ModuleLoader/remote/slots/token）、插件加载与安装方言（cordis.patch.yml、dsh.bundle）。
+- DSH 桌面版走 nightly 自动更新渠道，本机宿主已从 0.2.2-rc.2 自动更新到 0.2.2-rc.5；
+  项目验证基线停留在 rc.2，没有任何检出-修复-回归闭环，宿主破坏只能靠用户报障发现。
+- 本机 DSH 核心代码打包在 `app.asar` 内不可读；DSH 本体开源
+  （github.com/deepseek-ai/deepseek-harness）且发布到 npm（`@deepseek-ai/dsh` 及
+  `@deepseek-ai/dsh-*` 分包），可作为稳定的源码/签名基准。
+
+**决策**（用户批准，2026-11-23；选项：文档+零依赖脚本、npm 包+GitHub 按需对照、
+基线=0.2.2-rc.2、手动 runbook、修复策略决策树、文档名 UPSTREAM-COMPAT.md）
+
+1. **依赖清单为唯一权威依赖面记录**：`docs/UPSTREAM-COMPAT.md` §2 按五类
+   （A Cordis 服务/API、B 方法契约、C 数据文件格式、D Client 运行时、E 打包分发）逐条登记
+   「破坏方式/检出/修复/回归」；新增依赖必须同步更新清单、`scripts/compat/config.mjs`
+   的 `WATCH_PACKAGES` 并重新冻结基线。
+2. **基线快照 = 契约签名**：`docs/compat/baseline/<dshVersion>.json` 记录 14 个契约包的
+   version + integrity + 契约文件 sha256（package.json + lib/src 源码，排除 dist/map/min），
+   **不复制第三方源码**（避免体积与许可证问题）；基线版本 = 已完整验证的宿主版本
+   （当前 0.2.2-rc.2），升级基线用 freeze 脚本生成新文件、旧文件保留。
+3. **零依赖脚本**：`scripts/compat/`（freeze-baseline / check-upstream / probe-host + 手写
+   ustar 解析与 registry 访问），纯 Node 内置 API、无子进程；退出码 0=无变化、1=有变化、
+   2=错误。受限沙箱下 `node --test` 需 `--experimental-test-isolation=none`。
+4. **手动 runbook 触发**：不配置 CI 与定时任务；触发条件 = 本机 DSH 升级 / 用户报告升级后
+   异常 / 定期巡检（UPSTREAM-COMPAT §1）。
+5. **修复策略决策树**（UPSTREAM-COMPAT §5.1）：engines 范围内小版本 → 直接适配并兼容新旧；
+   DSH 0.3 等大版本或格式版本升级 → 先写 ADR 定兼容策略（双版本/升上限/冻结）；不可修复 →
+   标注功能降级并写 ADR。修复后重跑 freeze 升基线。
+6. **源码基准**：npm tarball（registry.npmjs.org，含 integrity 校验）为运行契约基准；
+   GitHub 仓库按需浅克隆做语义对照；**不以本地 app.asar 为基准**。
+7. **回归分层**（UPSTREAM-COMPAT §6 R1–R6）：单元+compat 测试 → 脚本网络自测 → CLI 导入导出
+   E2E → 真实宿主自检（DSH_PACK_AND_GO_SELFTEST*，一次性 DSH_HOME）→ CDP 冒烟 → 记录收尾。
+
+**后果/验证**
+
+- 新增：`docs/UPSTREAM-COMPAT.md`、`scripts/compat/`（6 文件）、`tests/compat/`（3 文件）、
+  `docs/compat/baseline/0.2.2-rc.2.json`（14 包 / 433 契约文件签名）。
+- 已演练：check-upstream 检出 rc.2→rc.5 —— 11 包版本变化、24 文件变化、0 增 0 删；
+  freeze/check/probe 退出码语义与 compat 测试（20 pass）验证通过。
+- 首个待办：对本机已升级的 **0.2.2-rc.5 执行正式检出（D0–D5）+ 回归（R1–R4），通过后升级基线**
+  （TASKS.md M10）。
+- 边界：探针依赖真实 dsh CLI；网络用例由 `DSH_COMPAT_NETWORK=1` 门控；CI 自动化留待需要时再议。
+- 关联：`AGENTS.md` §2/§4、`docs/TASKS.md` M10、`docs/RELEASE.md`（验证版本随基线更新）。
