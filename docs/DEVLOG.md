@@ -906,3 +906,17 @@
 - AGENTS.md：§2 导航表加 `docs/UPSTREAM-COMPAT.md`（宿主升级/用户报升级后异常时必读）；§4 新增宿主跨版本维护纪律（检出→修复→回归→升基线；新增 DSH 依赖同步更新清单与 WATCH_PACKAGES）。
 - INDEX.md：当前状态/下一步更新（宿主已 0.2.2-rc.5，基线仍 rc.2）；文档地图加手册入口。
 - 修复：devlog 147 条目历史写入含 NUL 字节（文件被判为二进制），本次按上下文恢复原文（0.2.1→0.2.2、npm pack、npm publish、v0.2.2）并保持编号不变。
+
+## 150 · 2026-11-23 · chore: 宿主 0.2.2-rc.5 正式检出与 0.2.3 发布准备（T10.4–T10.7）
+- 背景：发布 0.2.3 前按 UPSTREAM-COMPAT 流程对本机已升级的 DSH 0.2.2-rc.5 做首个正式检出。
+- 检出（D1–D3）：check-upstream 11 包/24 文件变化；GitHub compare（dsh-v0.2.2-rc.2...rc.5，19 commits/300 files）证明**契约源码零变化**——session-format/session-persistence-jsonl/workspace/attachment-local/home-paths 的 src 全未动（npm hash 差异=重建产物）；`sidebar.footer.action` 契约未变（仅新增 `sidebar.session.action`、`workspace.picker` Factory、目录流第三 hole）；cordis 4.1.0 与 loader/include 版本未变。
+- 运行时探针（D4，一次性 DSH_HOME `%TEMP%\dsh-compat-e2e-probe`，web 模板 profile + plugin add file:）：
+  - 插件激活无 pending；`command registered: mover`；`exec route registered`；
+  - SELFTEST `{"ungrouped":1,"sessions":1}`（CLI 导入会话被 sessionPersistence.list 正确读出）；
+  - CLI export/import 往返成功、workspace.json（unit v2）更新；
+  - CMD 探针 `commands.find true`；REBUILD 探针因自造会话缺 v4 `producer-owned source kind` 字段失败——**用 npm 安装的 DSH 0.2.2-rc.2 CLI 对同一 home/数据跑同一探针报完全相同错误**，两版本行为一致（REBUILD 成功路径受探针数据限制未覆盖，相关包源码零变化，风险低）。
+- 结论：**五类契约全部兼容，无需修复**；报告 `docs/compat/reports/detect-0.2.2-rc.5.md`（检出报告模板首个实例）。
+- 回归（T10.5）：R1 全量 251 项（241 pass / 0 fail / 10 预期 skip）；R2 `DSH_COMPAT_NETWORK=1` compat 25/25；R3 CLI E2E 通过；R4 = D4 探针。
+- 基线升级（T10.6）：`docs/compat/baseline/0.2.2-rc.5.json`（14 包/433 文件），旧基线保留。
+- 发布准备（T10.7）：package.json 0.2.2→**0.2.3**；README 兼容性行、RELEASE.md（0.2.3）、DESIGN §4 复验注记、TASKS（T10.4–T10.7 ✅，T10.8 待用户凭据）、INDEX、UPSTREAM-COMPAT 附录 A。
+- 待用户：`npm login && npm publish --access public`；`git tag -a v0.2.3 -m "dsh-pack-and-go 0.2.3" && git push origin main && git push origin v0.2.3`。
