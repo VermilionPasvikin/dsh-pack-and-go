@@ -65,7 +65,7 @@
 
 ## 013 · 2026-11-10 · docs: T1.4 技术验证（zstd 多帧）
 - 变更：临时脚本（`%TEMP%`，未入库）对真实会话文件做帧扫描与逐帧解码，未修改任何源文件。
-- 验证：`session-0cf30744.../session.v4.jsonl.zstd` → 851 帧、压缩 1,397,398 B、解压 4,889,816 B、1284 行事件、首行 `type=session version=4 cwd=F:\PersonalProjects\python\新建文件夹`；每帧 `zstdDecompressSync` 独立成功；整文件单次调用只返回首帧 225 B，确认**必须逐帧扫描**。
+- 验证：`session-0cf30744.../session.v4.jsonl.zstd` → 851 帧、压缩 1,397,398 B、解压 4,889,816 B、1284 行事件、首行 `type=session version=4 cwd=F:\\PersonalProjects\\python\\新建文件夹`；每帧 `zstdDecompressSync` 独立成功；整文件单次调用只返回首帧 225 B，确认**必须逐帧扫描**。
 - 阻塞：ADR-0007（改写策略：只重写首帧 / 全量重压缩 / DSH 服务重建会话）需用户拍板；T1.4 保持 🟨。
 
 ## 014 · 2026-11-10 · docs: ADR-0007 会话改写策略（A 主 + C 兜底）
@@ -140,7 +140,7 @@
 
 ## 028 · 2026-11-10 · feat: 建立 Host 插件骨架并在一次性 profile 中验证加载
 - 变更：新增 `src/host/index.js`（`name` + `apply` 骨架）、`cordis.patch.yml`（insert 行）；根 `package.json` 增加 `exports`/`files`/`dsh.bundle.patch`。
-- 验证：一次性 `DSH_HOME`（`%TEMP%\dsh-e2e-7ee81587c7ac4c8e9fb7acd46e177cad`，带 `.dsh-e2e-marker`）中执行 `dsh mover-test --from-default-profile web --dump-config` 创建 profile；`dsh plugin --profile mover-test add "file:F:\PersonalProjects\python\新建文件夹"` 安装成功（pnpm，811ms）；`--dump-config` 输出包含 `- id: dsh-mover` / `name: dsh-mover`。
+- 验证：一次性 `DSH_HOME`（`%TEMP%\\dsh-e2e-7ee81587c7ac4c8e9fb7acd46e177cad`，带 `.dsh-e2e-marker`）中执行 `dsh mover-test --from-default-profile web --dump-config` 创建 profile；`dsh plugin --profile mover-test add "file:F:\\PersonalProjects\\python\\新建文件夹"` 安装成功（pnpm，811ms）；`--dump-config` 输出包含 `- id: dsh-mover` / `name: dsh-mover`。
 - 下一步：T2.2（确认 DSH 服务实际签名并更新 DESIGN）。
 
 ## 029 · 2026-11-10 · docs: 核实 DSH 服务签名并更新设计
@@ -183,13 +183,13 @@
 
 ## 036 · 2026-11-10 · feat: 导出任务编排（集成验证通过）
 - 变更：`src/host/catalog.js` 增加 `locationPath`（来自 `snapshot.location.path`）；`src/host/index.js` 增加 `DSH_MOVER_SELFTEST_EXPORT` 自检导出（catalog → `planExport` → `buildManifest` → `buildPack` → 写包）。
-- 验证：一次性 `DSH_HOME` 的 `mover-test` profile 中导出 `%TEMP%\dsh-mover-selftest.dshpack`（1128 B）；外部 `readZip` 校验：3 条目（manifest 579B / README 20B / 会话 349B），manifest `schemaVersion=2`、`mode=sessions`、`sessionFormat=4`，会话文件与源大小一致。
+- 验证：一次性 `DSH_HOME` 的 `mover-test` profile 中导出 `%TEMP%\\dsh-mover-selftest.dshpack`（1128 B）；外部 `readZip` 校验：3 条目（manifest 579B / README 20B / 会话 349B），manifest `schemaVersion=2`、`mode=sessions`、`sessionFormat=4`，会话文件与源大小一致。
 - 说明：首版为内存打包（单文件 ≤256 MiB），流式优化留给性能任务。
 - 下一步：T2.6（导入任务编排）。
 
 ## 037 · 2026-11-10 · feat: 导入编排（会话写盘，集成验证通过）
 - 变更：新增 `src/core/import-pack.js`（`importSessionsToDisk`：读包 → manifest 校验 → `planImport` → cwd 改写 → 写入 `sessionRoot`）；`src/core/index.js` 导出；`package.json` check 同步；新增 `tests/unit/import-pack.test.mjs`。
-- 验证：134 项单测全绿；用 T2.5 产物（`%TEMP%\dsh-mover-selftest.dshpack`）导入临时目标根：写入 `_no-cwd/<id>/session.v4.jsonl.zstd`（349B，与源一致），2 帧可解析，header cwd 保持源值（未归组会话）。
+- 验证：134 项单测全绿；用 T2.5 产物（`%TEMP%\\dsh-mover-selftest.dshpack`）导入临时目标根：写入 `_no-cwd/<id>/session.v4.jsonl.zstd`（349B，与源一致），2 帧可解析，header cwd 保持源值（未归组会话）。
 - 说明：附件（T2.8）与工作区文件/登记（T2.9）尚未纳入导入编排。
 - 下一步：T2.7（会话写入细节：覆盖备份/new-id、Host 内可列出）。
 
@@ -328,7 +328,7 @@
 - 下一步：无。
 
 ## 062 · 2026-11-10 · docs: 导出/导入缺陷复现与修复计划
-- 复现：`%TEMP%\repro-zip2.mjs`（混合 data + 6×90KB 不可压缩文件，连续 5 轮）→ 5/5 `write after end`；桌面同时存在截断包（66629 B）与完整包（76497 B）。
+- 复现：`%TEMP%\\repro-zip2.mjs`（混合 data + 6×90KB 不可压缩文件，连续 5 轮）→ 5/5 `write after end`；桌面同时存在截断包（66629 B）与完整包（76497 B）。
 - 根因：`zip-stream.js` deflate 分支 `pipe` + `pipeline` 混用，`output.end()` 后仍有迟到写入；失败未清理半成品。
 - 另发现：DSH 无文件选择服务（Host 无 `directory-picker` 服务可查询）；导入后侧边栏未刷新（同 id 默认跳过 + 无通知）。
 - 产出：新增 `docs/PLAN-FIX-01.md`（D1/D2/D3 方案 + 漂移修复排期 + 待决策项）。
@@ -559,12 +559,12 @@
 
 ## 102 · 2026-11-11 · fix: CLI 重复导入冲突检测 + 首轮自动化
 - 修复：CLI `import` 未传 `existingSessionIds`，重复导入会覆盖且提示「已导入 N」；现在扫描已有 id，输出「跳过 N 个已存在」。
-- 首轮证据：测试工作区 `%TEMP%\dsh-mover-e2e-4915...`——B1 导出 3 对话（46842 B）、B2 导入 3 会话、B3 重导「跳过 3 个」且文件数不变、B5 损坏包退出码 1。
+- 首轮证据：测试工作区 `%TEMP%\\dsh-mover-e2e-4915...`——B1 导出 3 对话（46842 B）、B2 导入 3 会话、B3 重导「跳过 3 个」且文件数不变、B5 损坏包退出码 1。
 - 验证：全量 190 项测试通过。
 
 ## 103 · 2026-11-11 · test: 测试基础设施与首轮自动化
 - 新增 `tests/e2e/cdp/`：CDP 驱动无头 Chrome（`cdp-dsh-test.mjs` 入口/浮层/树/勾选/高级选项，`cdp-flow-test.mjs` 导出+导入全流程，`cdp-nav-check.mjs` 导航+侧边栏读取，`cdp-eval.mjs` 调试，`check-sessions.mjs` 会话头校验）。
-- 首轮执行（测试工作区 `%TEMP%\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`）：A1 190 项通过；B1/B2/B3/B5 CLI 通过；D1–D8、D10 通过；D7 导出包 26495 B；D11 导入数据成功（已导入 2 个）。
+- 首轮执行（测试工作区 `%TEMP%\\dsh-mover-e2e-491526332be6484b83ad9c28d5b06175`）：A1 190 项通过；B1/B2/B3/B5 CLI 通过；D1–D8、D10 通过；D7 导出包 26495 B；D11 导入数据成功（已导入 2 个）。
 - 遗留：**D12 导入会话未出现在 DSH 侧边栏**（重启后仍不显示；会话文件 header 合法 version=4/cwd 正确，疑似 DSH `session.list` 对 blank/formatStatus 过滤，待 Host selftest 定位）。
 - 证据：`%TEMP%` 下 `cdp/*.png`、`cdp-result.json`、`logs/*.log`、`export-out/cdp-test.dshpack`。
 
@@ -595,7 +595,7 @@
 ## 108 · 2026-11-11 · fix: 另存为新对话 + 指定目录的落点提示
 - 现象：用户导出「默认工作区 + 13 对话」，清空后指定目录导入（另存为新对话）→ 13 个会话落在被清空的默认工作区，未进「default-workspace（导入 1）」。
 - 根因：`另存为新对话` 走 DSH `fork`，fork **保留源 cwd**；指定目录只影响工作区登记/文件，不改变 fork 会话 cwd。
-- 验证：同包用「跳过」导入新目录 → 13 个会话 cwd 全部改写为 `<目标目录>\default-workspace`（正确）；日志显示 attach 失败（cwd 不匹配新工作区）。
+- 验证：同包用「跳过」导入新目录 → 13 个会话 cwd 全部改写为 `<目标目录>\\default-workspace`（正确）；日志显示 attach 失败（cwd 不匹配新工作区）。
 - 修复：导入页在「指定目录 + 另存为新对话」组合下显示提示（fork 保留源工作区路径，改落点请用跳过/覆盖）。
 
 ## 109 · 2026-11-11 · docs: 导入模式重设计方案
@@ -822,9 +822,9 @@
 - 文档：ADR-0016 B2 Accepted、SPEC v1.4、DESIGN 决策树、TASKS T9.5、TEST-CASES P-05d。
 
 ## 139 · 2026-11-12 · fix: 跨平台导入改写 working-directory/change 状态事件 cwd（ADR-0017）
-- 问题：Windows 导出的会话在 macOS 导入后打开报「历史加载失败：failed to project session ... Invalid input」；根因是 `working-directory/change` 事件仍保留 `F:\...`，`@deepseek-ai/dsh-working-directory` 的 wire 校验用 `path.isAbsolute` 拒绝（zod 4.6.6 的 issue 恰为 `{code:"custom",path:[],message:"Invalid input"}`）。
+- 问题：Windows 导出的会话在 macOS 导入后打开报「历史加载失败：failed to project session ... Invalid input」；根因是 `working-directory/change` 事件仍保留 `F:\\...`，`@deepseek-ai/dsh-working-directory` 的 wire 校验用 `path.isAbsolute` 拒绝（zod 4.6.6 的 issue 恰为 `{code:"custom",path:[],message:"Invalid input"}`）。
 - 修复：`session-rewrite.js` 新增 `mapSessionCwd` / `rewriteSessionWorkingDirectories`（首帧原样、只解事件帧、仅改 `working-directory/change` 的 `data.cwd`、按行边界 1 MB 分块重压、checksum 跟随）；`import-pack.js` 仅在 `targetCwd` 定义且源/目标平台不同时启用，同平台保持 ADR-0007 字节保真。
-- 映射：源根下 → 目标根 + 相对路径；源根外 → 目标根（本机会话曾切到 `F:\PersonalProjects\python\新建文件夹`，落在源工作区之外）；已迁移路径幂等。
+- 映射：源根下 → 目标根 + 相对路径；源根外 → 目标根（本机会话曾切到 `F:\\PersonalProjects\\python\\新建文件夹`，落在源工作区之外）；已迁移路径幂等。
 - 测试：新增 10 项（映射 Win→POSIX/POSIX→Win、源根外回落、幂等、header 帧字节不变、事件 checksum、chunkBytes、参数/版本、导入端跨平台/同平台/无 workspaceKey）；全量 205 项 → 204 pass + 1 项 macOS 既有环境问题（workspaces B2 用例清理只读目录 EACCES，另行修）。
 - 复验：真实包 CLI 导入一次性 DSH_HOME → `dsh headless --session-id` 由 projection 报错变为 preset 语义提示（日志/投影通过）。
 - 文档：ADR-0017、SPEC v1.5、DESIGN §3/§3.1/§4.1、TASKS T9.6、TEST-CASES v1.5/P-09、INDEX。
@@ -867,7 +867,7 @@
 
 ## 145 · 2026-11-18 · fix: 重定位导入改写 deliverables 文件引用路径 + repair（ADR-0017 补充）
 - 现象：Windows→Linux 导入的 `zmediakit-repair` 会话中，消息下方「在工作区中查看」报「找不到路径」，会话进入错误态。
-- 根因：`deliverables/presented` 的 `files[].path` 仍是 `F:\...` 绝对路径；DSH `present.open` 用 `workspaceFiles.stat(workspaceRoot=session.cwd, file.path)` 解析，旧路径不在新工作区。`tool/result` 的 `meta.cwd`（100 处）同样指向源 cwd。
+- 根因：`deliverables/presented` 的 `files[].path` 仍是 `F:\\...` 绝对路径；DSH `present.open` 用 `workspaceFiles.stat(workspaceRoot=session.cwd, file.path)` 解析，旧路径不在新工作区。`tool/result` 的 `meta.cwd`（100 处）同样指向源 cwd。
 - 修复：
   - `rewriteSessionFileReferences()`：重定位导入时把交付文件路径转工作区相对 POSIX 路径、`meta.cwd` 映射到目标 cwd；历史正文不改；
   - `import-pack` 在 header/状态事件改写后调用，written 记录 `fileRefsRewritten`；
@@ -883,11 +883,26 @@
 - 当前会话：repair 追加 2 处，备份 `...bak-2026-11-18T05-29-29-954Z`；debug 副本重启后 composer 恢复默认输入框（可用）。
 - 测试：新增 normalize 单测、跨平台导入集成、CLI repair（含 auto 预设）；**226 项全绿**。
 - 待用户：重启真实 DSH web / 重开会话验证。
+
 ## 147 · 2026-11-18 · chore: 版本 0.2.2 发布准备
-- 版本  .2.1 →  .2.2（包含 devlog 145/146：deliverables 文件引用重定位 + epair、权限预设归一化）。
-- 校验：226 项测试（217 pass + 9 个 POSIX 用例预期 skip）；
-pm pack --dry-run 40 文件 / 168 KB。
-- 待发布：
-pm login 后执行 
-pm publish --access public；打 tag 0.2.2 并推送。
+- 版本 0.2.1 → 0.2.2（包含 devlog 145/146：deliverables 文件引用重定位 + repair、权限预设归一化）。
+- 校验：226 项测试（217 pass + 9 个 POSIX 用例预期 skip）；npm pack --dry-run 40 文件 / 168 KB。
+- 待发布：npm login 后执行 npm publish --access public；打 tag v0.2.2 并推送。
 - 发布手册已同步到 docs/RELEASE.md。
+
+## 148 · 2026-11-23 · feat: 宿主跨版本维护脚本与基线快照
+- 背景：DSH 桌面版走 nightly 自动更新，本机宿主已 0.2.2-rc.2 → 0.2.2-rc.5；插件依赖跨版本不稳定契约（Cordis 服务、会话格式、数据布局、Client 运行时、加载方言），此前无检出-修复-回归闭环。
+- 新增 `scripts/compat/`：`freeze-baseline.mjs`（冻结基线签名）、`check-upstream.mjs`（基线 vs 目标 diff，退出码 0=无变化/1=有变化/2=错误）、`probe-host.mjs`（定位本机 dsh CLI 与版本）、`lib/tar.mjs`（手写 ustar 解析：pax/GNU longname/prefix）、`lib/registry.mjs`（fetch+sha512 integrity 校验+semver range 解析）、`config.mjs`（WATCH_PACKAGES 14 契约包 + 契约文件过滤：package.json 与 lib/src，排除 dist/map/min）。
+- 基线 `docs/compat/baseline/0.2.2-rc.2.json`：14 契约包 / 433 契约文件 sha256；不复制第三方源码（体积/许可证）。
+- 演练：check-upstream 检出 rc.5 → 11 包版本变化、24 文件变化、0 增 0 删（含 dsh-session-format/index.js、dsh-session-persistence-jsonl/worker.cjs、dsh-workspace/index.js、dsh-attachment-local/index.js、dsh-home-paths/index.js、dsh-client-ui-cordis/client.js、dsh-client-ui-chat/client.js）。
+- 测试：`tests/compat/` **25 项全过**（网络用例由 `DSH_COMPAT_NETWORK=1` 门控，两者各跑一遍）。
+- 完全权限复核（2026-11-23 同日）：`git fetch` 云端 0/0 确认最新；全量 `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs" "tests/compat/**/*.test.mjs"` → **251 项：241 pass / 0 fail / 10 skip**（9 个 POSIX 权限用例 + 1 个网络门控，均为预期）；`probe-host` 实测输出本机宿主 `0.2.2-rc.5`。
+- Windows 修复：`probe-host` 执行 `.cmd` 必须经 `cmd.exe /d /c` 分参包装（直接 spawnSync 报 EINVAL；带 `/s` 会破坏含引号路径的解析）；已修并实测。
+
+## 149 · 2026-11-23 · docs: 跨版本维护手册与流程接入
+- 新增 `docs/UPSTREAM-COMPAT.md`：五类依赖清单（A Cordis 服务/API、B 方法契约、C 数据文件格式、D Client 运行时、E 打包分发，每项含破坏方式/检出/修复/回归）、检出 runbook D0–D5（每步命令/预期/判据/失败下一步）、修复决策树 §5、回归分层 R1–R6、维护记录模板 §7、边界与风险 §8、首次建立记录附录 A。
+- ADR-0018（DECISIONS.md）：基线=已验证版本 0.2.2-rc.2；npm tarball + GitHub 按需对照（app.asar 不可读，不作基准）；手动 runbook；修复策略决策树；回归分层。
+- TASKS.md 新增 M10：T10.1–T10.3 ✅（清单/基线、脚本/测试、runbook/ADR）；T10.4–T10.6 待办（对 rc.5 正式检出 D0–D5 → 回归 R1–R4 → freeze 升基线 + 校订 engines/RELEASE）。
+- AGENTS.md：§2 导航表加 `docs/UPSTREAM-COMPAT.md`（宿主升级/用户报升级后异常时必读）；§4 新增宿主跨版本维护纪律（检出→修复→回归→升基线；新增 DSH 依赖同步更新清单与 WATCH_PACKAGES）。
+- INDEX.md：当前状态/下一步更新（宿主已 0.2.2-rc.5，基线仍 rc.2）；文档地图加手册入口。
+- 修复：devlog 147 条目历史写入含 NUL 字节（文件被判为二进制），本次按上下文恢复原文（0.2.1→0.2.2、npm pack、npm publish、v0.2.2）并保持编号不变。
