@@ -1,11 +1,11 @@
 # 文档索引
 
-## 当前状态（2026-11-23）
+## 当前状态（2026-11-24）
 
-- 阶段：**SPEC v1.7**；TASKS M0–M9 全部 ✅，**M10 进行中**：对 DSH 0.2.2-rc.5 的正式检出完成（**五类契约全部兼容，无需修复**，报告 [compat/reports/detect-0.2.2-rc.5.md](compat/reports/detect-0.2.2-rc.5.md)），回归 R1–R4 全过，基线已升级到 0.2.2-rc.5，发布 0.2.3 准备就绪。
-- 下一步：T10.8 发布 0.2.3（`npm login && npm publish` + `git tag v0.2.3` + push，需用户凭据；手册见 `docs/RELEASE.md`）。
-- 未决项：已导入会话的 repair 已在本机执行（备份保留）；dsh-market 收录 PR 仍待提交。
-- 最近变更：见 `DEVLOG.md` 150。
+- 阶段：**SPEC v1.7**；TASKS **M0–M10 全部 ✅**：宿主跨版本维护闭环建立并完成首个正式检出（**0.2.2-rc.5 五类契约全部兼容**，报告 [compat/reports/detect-0.2.2-rc.5.md](compat/reports/detect-0.2.2-rc.5.md)），npm **0.2.3 已发布并验证通过**（安装/启动/CLI 往返，DEVLOG 151）。
+- 下一步：无阻塞项。宿主更新时按 `docs/UPSTREAM-COMPAT.md` 触发检出-修复-回归流程；可选收尾：dsh-market 收录 PR。
+- 未决项：已导入会话的 repair 已在本机执行（备份保留）；dsh-market 收录 PR 仍待提交；origin 缺 v0.2.2 tag（本地有）。
+- 最近变更：见 `DEVLOG.md` 151。
 
 ## 文档地图
 

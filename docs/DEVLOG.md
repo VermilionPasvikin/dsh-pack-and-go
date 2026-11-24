@@ -920,3 +920,20 @@
 - 基线升级（T10.6）：`docs/compat/baseline/0.2.2-rc.5.json`（14 包/433 文件），旧基线保留。
 - 发布准备（T10.7）：package.json 0.2.2→**0.2.3**；README 兼容性行、RELEASE.md（0.2.3）、DESIGN §4 复验注记、TASKS（T10.4–T10.7 ✅，T10.8 待用户凭据）、INDEX、UPSTREAM-COMPAT 附录 A。
 - 待用户：`npm login && npm publish --access public`；`git tag -a v0.2.3 -m "dsh-pack-and-go 0.2.3" && git push origin main && git push origin v0.2.3`。
+
+---
+
+## 151. npm 0.2.3 发布验证（2026-11-24）
+
+- 背景：用户完成发布（`npm publish` + `git tag v0.2.3` + push），按 RELEASE.md §3 对 npm 渠道做一条命令安装验证（一次性 DSH_HOME，未触碰真实 `~/.dsh`）。
+- npm 元数据：`npm view dsh-pack-and-go` → version=0.2.3、dist-tags.latest=0.2.3、engines.dsh `>=0.2.0 <0.3.0`、repository 正确（dsh-market 关联依赖）。官方 registry 独立 curl 复核一致。
+- GitHub 核对（git 直连被本机网络 reset，用 API）：origin/main=66ef20e=本地 HEAD；v0.2.3 tag 在 origin。
+- 安装验证：一次性 home `%TEMP%\dsh-verify-023-*`（带 `.dsh-e2e-marker`）；`dsh verify3-web --from-default-profile web --dump-config` 建 web 模板 profile，`dsh plugin --profile verify3-web add dsh-pack-and-go@0.2.3` 安装成功（package.json deps `+ dsh-pack-and-go 0.2.3`，bundles=[dsh-base, dsh-web-app, dsh-pack-and-go]）。
+- 启动验证（SELFTEST 环境变量 + `--no-open --port 0`）：
+  - `command registered: mover`、`apply() reached`、`exec route registered: /api/mover/exec`、web 服务正常启动；
+  - 空 home SELFTEST `{"workspaces":0,"sessions":0}`（预期）；加入 1 个会话后 SELFTEST `{"ungrouped":1,"totals":{"sessions":1,"bytes":189}}` —— 发布包插件在 rc.5 宿主上正确读出会话。
+- CLI 往返（发布包自带的 `src/cli/index.js`）：export `已导出 1 个对话…（846 字节）` → import 到全新 home `已导入 1 个对话、跳过 0 个已存在；workspace.json 已更新` → 会话文件 189 字节恢复、workspace.json（unit v2）重新写入。
+- 两个值得记录的现象（均不影响发布结论）：
+  1. 裸包名 `dsh plugin add dsh-pack-and-go`（不带版本）在刚发布窗口内解析到 0.2.2（pnpm add 行为：npm view/pnpm view/metadata 缓存均为 latest=0.2.3，显式 `@0.2.3` 一切正常；判定为 pnpm 侧解析行为，建议下周复查一次，若仍 0.2.2 再深挖）。
+  2. `dsh <name>-web --from-default-profile web` 创建的是名为 `<name>-web` 的 profile（含 dsh-web-app 层）；`plugin --profile <name> add` 会装进自动创建的 base-only profile `<name>` → boot 报 `pending (waiting for service: workspaceRegistry)`。**必须把插件装到 `<name>-web`**。此坑第二次踩到 → 已把明确的 profile 创建/安装命令与命名警告写进 UPSTREAM-COMPAT.md D4 步骤（原手册只引用 README/RELEASE.md，不够无歧义）。
+- 结论：npm 0.2.3 发布验证通过（元数据/安装/启动/服务注入/CLI 往返）。历史遗留：origin 缺少 v0.2.2 tag（本地有），如需可 `git push origin v0.2.2`。

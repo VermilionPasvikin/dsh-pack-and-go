@@ -190,10 +190,23 @@ DSH 升级（尤其 nightly 渠道自动更新）可能破坏这些契约，且�
 ### D4 · 运行时探针（真实 DSH 进程）
 
 > 用一次性 `DSH_HOME` 起独立 DSH 实例（**绝不使用真实 `~/.dsh`**），加载本插件并执行自检。
-> 探针需要插件已通过 `dsh plugin add` 安装到该一次性 home 的 profile（见项目 README/RELEASE.md
-> 的安装验证步骤；也可用 `dsh --profile verify` 模板）。
 
-- 命令（Windows 桌面版 CLI 为例，路径按 `probe-host` 输出调整）：
+- 前置：建 profile 并安装插件（一次性 home 内；安装本仓库为 `file:.`，发布后验证用 npm 包名）：
+
+  ```bash
+  export DSH_HOME="<临时目录，带 .dsh-e2e-marker>"
+  "F:\dsh\resources\runtime\cli\bin\dsh.cmd" probe-web --from-default-profile web --dump-config
+  "F:\dsh\resources\runtime\cli\bin\dsh.cmd" plugin --profile probe-web add file:.
+  ```
+
+  ⚠️ **profile 命名陷阱（必读）**：`dsh <名字>-web --from-default-profile web` 创建的是名为
+  `<名字>-web` 的 profile（bundles 含 `dsh-web-app` → workspace 服务才存在）；而
+  `plugin --profile <名字> add` 会把插件装进**自动创建的 base-only profile `<名字>`**
+  （只有 `dsh-base` + 插件）→ boot 报
+  `dsh-pack-and-go: pending (waiting for service: workspaceRegistry)`。
+  插件必须装到 `<名字>-web`，boot 也必须用 `--profile <名字>-web`。
+
+- 探针命令（Windows 桌面版 CLI 为例，路径按 `probe-host` 输出调整）：
 
   ```bash
   export DSH_HOME="<临时目录，带 .dsh-e2e-marker>"
@@ -201,7 +214,7 @@ DSH 升级（尤其 nightly 渠道自动更新）可能破坏这些契约，且�
   export DSH_PACK_AND_GO_SELFTEST_LIST=1       # 列表自检（类 A/B 服务契约）
   export DSH_PACK_AND_GO_SELFTEST_REBUILD=1    # 会话重建自检（类 C-1）
   export DSH_PACK_AND_GO_SELFTEST_CMD=1        # 命令链路自检（类 A-3）
-  "F:\dsh\resources\runtime\cli\bin\dsh.cmd" --profile verify --no-open --port 0 --host 127.0.0.1
+  "F:\dsh\resources\runtime\cli\bin\dsh.cmd" --profile probe-web --no-open --port 0 --host 127.0.0.1
   ```
 
 - 预期与判据（对照日志行）：
