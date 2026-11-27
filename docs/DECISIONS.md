@@ -716,3 +716,82 @@ ADR-0020（路径安全）、审查清单 P1-1/P1-2。
 
 **关联**：ADR-0013（目标目录）、ADR-0014、ADR-0016（权限位）、SPEC FR-9/FR-10、DEVLOG 152、
 审查清单 P1-3/P1-4/P2-13。
+
+## ADR-0021 · 长任务异步化、真实进度与取消（2026-11-27，Accepted）
+
+**背景**
+
+- 代码审查 P2-6：`src/core/progress.js` 的进度协议只有定义与再导出（`src/core/index.js:20`），
+  host/CLI/client 零引用；`EXPORT_STAGES`/`IMPORT_STAGES` 也无生产消费者。FR-5/FR-11 要求的
+  「总进度条 + 已用时间 + 取消」从未接线。
+- 2026-11-11 用户曾决定不做取消与精确进度（T9.2/T9.4）。2026-11-27 的 CODE REVIEW 全项修复
+  目标（goal-22bc7db4）明确包含 P2-6，故本节覆盖前述决定；旧任务行保留为历史并标注被本 ADR 取代。
+- 现有 exec 路由（ADR-0011）是同步请求：1 GB 包的扫描/打包远超单次 fetch 的合理时长，
+  长任务塞进同一个响应会超时、无法显示进度、也无法取消。
+
+**选项**
+
+- A. 长任务仍走同步 `/api/mover/exec`：实现最省，但大包不可用（超时、无进度、无法取消）。
+- B. 流式响应（SSE/ReadableStream）：进度实时，但 DSH 的 `connection.fetch.register` 只承诺
+  普通请求/响应语义，流式解析依赖未验证的运行时行为，跨版本风险高。
+- C. Host 侧任务注册表 + 客户端轮询：请求短、语义简单、与现有 exec 路由同构，牺牲 500ms 级实时性。
+
+**决定**（用户目标明确要求后实施）
+
+1. 新增 `src/host/task-registry.js`：内存注册表，`createTaskRegistry({ ttlMs = 30 分钟, now })`
+   导出 `start({ kind, title, run })`、`poll(taskId, cursor)`、`cancel(taskId)`、`list()`、`dispose()`。
+   - 任务状态：`running` / `success` / `error` / `cancelled`；`frames[]` 单调追加，
+     `poll(taskId, cursor)` 返回 `{ status, frames: frames.slice(cursor), nextCursor, result?, error? }`。
+   - 每个任务一个 `AbortController`；`cancel()` 置 `cancelled` 并 `abort(reason)`。
+   - 超过 TTL 的已完成任务被清理（`dispose()` 清空定时器）。
+2. exec 路由新增三个 action（仍是 `/api/mover/exec` 单一入口）：
+   - `task.start`：`{ kind: 'export'|'import', args }` → `{ taskId }`，立即返回；
+   - `task.poll`：`{ taskId, cursor }` → `{ status, frames, nextCursor, result?, error? }`；
+   - `task.cancel`：`{ taskId }` → `{ cancelled: boolean }`。
+   `list`/`find`/`size`/`inspect` 维持同步（毫秒级）。
+3. 命令层进度：`exportAllSessions`/`exportWorkspacesOnly`/`importPack` 接受
+   `options.onProgress(event)` 与 `options.signal`；事件用 `createProgressEvent`，
+   stage 取 `EXPORT_STAGES`/`IMPORT_STAGES`，字段固定 `done/total/bytesDone/bytesTotal/message`。
+4. 客户端：预计 >2 s 的操作（导出、导入）改走 task 通道；500 ms 轮询（首帧 ≤300 ms 显示），
+   进度条 + 已用时间 + 取消按钮；取消后提示「已取消，已完成的原子提交保留」。
+5. 取消语义：尽力而为。原子提交保证「进行中的单元不留半成品」，已提交的会话/工作区不删除；
+   导入取消后用户可立即重试（规划四步判据保证幂等）。
+6. CLI 维持同步执行（非交互场景），不接取消；`--json` 输出最终结果。
+
+**后果**
+
+- 大包导出/导入不再阻塞界面，进度与取消可用；代价是 500 ms 轮询与 30 分钟内存状态。
+- 任务注册表是 Host 进程内存态：DSH 重启后任务丢失（客户端提示重新发起）。
+- 需要单测：注册表生命周期/游标/取消/TTL；路由三 action；命令层 onProgress 调用次数与阶段。
+- FR-5/FR-11 的「取消」重新生效；T9.2/T9.4 标记为「被 ADR-0021 取代」。
+
+**关联**：ADR-0011（exec 路由）、SPEC FR-5/FR-11、DEVLOG 160、审查清单 P2-6。
+
+## ADR-0022 · 预览真实性：机器名、真实落点与附件冲突（2026-11-27，Accepted）
+
+**背景**
+
+- 代码审查 P2-7：`inspectPack` 的预览与真实导入不同构——
+  `src/host/commands.js:195/:487` 的 `buildManifest` 未写 `machineName`（FR-7 要求来源机器名）；
+  `workspaceConflicts` 用 `sourcePath` 比较（跨平台恒空，`:717–725`）；附件冲突硬编码 `[]`；
+  预览目标路径不带 ` (1)` 后缀（`:691–696`），与 `planImportTargets` 的真实落点不一致。
+
+**决定**
+
+1. manifest 增加可选字段 `machineName`（`os.hostname()`，可含用户可读名），导出选项
+   `--no-machine-name` 关闭；`parseManifest` 对缺失字段保持兼容（schemaVersion 不变）。
+2. 预览的冲突与目标路径一律来自 `planImportTargets`（与真实导入同一函数）：返回
+   `targets[]`（含 `path/action/reason`）与 `conflicts[]`；不再用 `sourcePath` 推导冲突。
+3. 附件冲突：检查目标会话目录是否已存在相同 sha256 的对象（`attachments/v1/objects/<hex2>/<sha256>`
+   与 `file-objects`），存在则记 `attachments.conflicts[]`（共用/覆盖说明），数量与大小随预览返回。
+4. 预览返回 `machineName`、`sourceDshVersion`、`sourcePlatform`（已有字段保持）。
+5. 客户端：`overwrite` 策略时先展示二次确认（列出将被覆盖的会话 id/标题与工作区路径），
+   确认后才发起导入。
+6. 兼容性：`machineName` 为可选新增字段，旧包预览显示「未知」；不改变包格式版本。
+
+**后果**
+
+- 预览与真实导入同源，P2-7 的四条偏差消失；客户端多一次确认点击。
+- 需要单测：manifest 含/不含 machineName、预览 targets 与导入一致、附件冲突检测、幂等预览。
+
+**关联**：ADR-0019（planImportTargets）、SPEC FR-7、DEVLOG 161、审查清单 P2-7。

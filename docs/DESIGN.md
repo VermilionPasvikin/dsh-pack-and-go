@@ -174,9 +174,10 @@ tests/
 
 - `sidebar.panellist` + `main`（key `mover`）+ `settings.section` 兜底
 
-### 进度协议（T2.3）
+### 进度协议（T2.3；v1.9 改为任务注册表 + 轮询，ADR-0021）
 
-Host 通过流式 Remote 推送单帧 JSON：
+帧结构不变（`src/core/progress.js` 构造与校验）；v1.9 起由 Host 任务注册表持有帧序列，
+客户端通过 `task.poll` 增量读取（500 ms 轮询，首帧 ≤300 ms）。帧 JSON：
 
 ```json
 {
@@ -208,6 +209,18 @@ Host 通过流式 Remote 推送单帧 JSON：
   与压缩/解压大小；`readZip` 复用中央目录结果再解压。`maxTotalBytes` 默认 4 GiB，超出抛
   `E_PACK_TOO_LARGE`。
 
+### 长任务注册表（ADR-0021，v1.9）
+
+- `src/host/task-registry.js`：`createTaskRegistry({ ttlMs = 30 * 60_000, now })()` 返回
+  `{ start, poll, cancel, list, dispose }`；进程内存态，DSH 重启即丢失（客户端提示重新发起）。
+- `start({ kind: 'export'|'import', title, run })` → `{ taskId }`；`run({ onProgress, signal })`
+  在后台执行，`onProgress` 写的帧追加到该任务。
+- `poll(taskId, cursor)` → `{ status, frames, nextCursor, result?, error? }`；游标单调，重复 poll 幂等。
+- `cancel(taskId)` → `{ cancelled }`；置 `cancelled` 并 `abort()`，命令层在检查点抛
+  `MoverError(ERROR_CODES.TASK_CANCELLED)`（已原子提交的单元保留）。
+- exec 路由：`task.start` / `task.poll` / `task.cancel`（同一 `/api/mover/exec` 入口，ADR-0011）。
+  预计 >2 s 的 `export`/`import` 走任务通道；短操作（`list/find/size/inspect`）仍同步。
+
 ## 4.1 会话日志改写策略（ADR-0007 / ADR-0017）
 
 - **header 改写**：只解压首帧、改 `cwd`/`id`/`parentSession`，其余帧字节原样拼接；
@@ -231,7 +244,7 @@ Host 通过流式 Remote 推送单帧 JSON：
 ## 7. 未决
 
 - CLI 入口阶段与命名（ADR-0004，已实现，保留作历史）。
-- UI 进度协议细节（帧结构、节流频率）——随 B 组一起待定。
+- UI 进度协议细节（帧结构、节流频率）：v1.9 已定（ADR-0021，500 ms 轮询），保留作历史。
 - zstd 帧扫描在损坏帧上的错误恢复边界。
-- 流式进度与取消（审查 B 组）：与 T9.2/T9.4「用户决定不做」冲突，待用户解除后另立 ADR。
+- 流式进度与取消：~~与 T9.2/T9.4「用户决定不做」冲突，待用户解除后另立 ADR~~ → 已由 ADR-0021 落地（任务注册表 + 轮询）。
 - D 组流式解压（1 GB 包峰值内存 ≤300 MB）待 0.4 评估；本版只做中央目录预检与总量上限。

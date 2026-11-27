@@ -1235,3 +1235,30 @@ T9.2/T9.4「用户决定不做」冲突，等用户明确解除后再立里程�
   `dsh-pack-and-go-0.3.0.tgz`（41 文件 / 176,911 字节）→ 新建一次性 home 的 `t118b-web`
   profile → `dsh plugin --profile t118b-web add <tgz>` → `+ dsh-pack-and-go 0.3.0`（pnpm 539ms）
   → boot 输出与 `file:` 通道一致（命令注册、apply、selftest、exec 路由）。
+
+## 160 · 2026-11-27 · 代码审查剩余项方案落地：ADR-0021/ADR-0022、SPEC v1.9、TASKS M12/M13
+
+**背景**：CODE REVIEW 清单中 P2-6（进度/取消，B 组）与 P2-7/P2-9/P2-10/P2-11/P2-12（C/D 组剩余）
+尚未修复；P2-6 与 2026-11-11 的 T9.2/T9.4「用户决定不做」冲突。2026-11-27 的全项修复目标明确
+要求完成这两组，因此先落方案再实现。
+
+**决策与文档**
+- `docs/DECISIONS.md` 追加 **ADR-0021**（长任务异步化、真实进度与取消）：Host 任务注册表
+  `src/host/task-registry.js`（start/poll/cancel/list/dispose、游标、TTL 30 min、AbortController）；
+  exec 路由新增 `task.start`/`task.poll`/`task.cancel`；命令层 `onProgress`/`signal`；客户端
+  500 ms 轮询（首帧 ≤300 ms）；取消尽力而为、已原子提交单元保留；CLI 维持同步。明确取代
+  T9.2/T9.4 旧决定。
+- **ADR-0022**（预览真实性）：manifest 可选 `machineName`（默认写、`--no-machine-name` 关闭）；
+  预览目标路径与冲突一律来自 `planImportTargets`；附件冲突按目标已有 sha256 对象检测；
+  覆盖策略客户端二次确认；包格式版本不变。
+- `docs/SPEC.md` → **v1.9**：新增 v1.9 变更摘要；FR-5/FR-11 恢复进度与取消（阶段常量、
+  ≤300 ms 首帧、≤500 ms 刷新、取消可重试）；FR-7 补机器名与附件冲突、预览与导入同源；
+  NFR-3 改为「任务注册表 + 500 ms 轮询」并说明为何不用流式响应；新增 NFR-6.6（长任务与
+  宿主重启）；v1.8 的「明确不做」条目标注被 ADR-0021 取代。
+- `docs/DESIGN.md`：§4 进度协议改为任务注册表说明，新增「长任务注册表（ADR-0021）」接口小节；
+  §7 未决两条标注已落地。
+- `docs/TASKS.md`：里程碑表加 M12（0.3.1 进度取消）/M13（0.3.2 预览与清理）；新增任务表
+  T12.1–T12.5、T13.1–T13.6；§3 改为 M11 ✅ / M12 进行中；阻塞行注明 T9.2/T9.4 已被 ADR-0021 取代。
+- `docs/INDEX.md`：SPEC v1.9、M12 进行中、下一步 M12→M13、未决项更新。
+
+**状态**：方案落地完成；下一步 T12.1（任务注册表实现）。
