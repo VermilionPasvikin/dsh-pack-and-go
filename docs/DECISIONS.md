@@ -619,3 +619,100 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
   （TASKS.md M10）。
 - 边界：探针依赖真实 dsh CLI；网络用例由 `DSH_COMPAT_NETWORK=1` 门控；CI 自动化留待需要时再议。
 - 关联：`AGENTS.md` §2/§4、`docs/TASKS.md` M10、`docs/RELEASE.md`（验证版本随基线更新）。
+
+## ADR-0019 · 导入规划先行与原子提交（2026-11-27，Accepted）
+
+**背景**
+
+- 代码审查（14 条问题逐条复核，清单见 `docs/DEVLOG.md` 152）确认导入链路有三处结构性
+  问题：`src/host/commands.js:899` 先 `importSessionsToDisk` 落盘、`commands.js:903–917`
+  才校验覆盖对象（同 id 会话 cwd 未知时拒绝覆盖为时已晚）；`commands.js:851–878` 边循环边
+  `stat`+`readdir` 决定工作区落点，同一包内两个同名工作区在第一次写盘后即被第二次判定为
+  「已存在空目录」而复用合并；中途失败会留下半成品（会话写了一半、工作区目录已建但未登记）。
+- ADR-0014 决策 9（DEVLOG 120，2026-11-11）为「会话全跳过的导入留下空目录」引入 D3 兜底：
+  存在 + 空 + 未登记 → 直接复用。该动机仍然成立（避免二次导入误加 ` (1)` 后迁移覆盖回滚），
+  缺少的维度是「本次导入已分配但尚未写文件」。
+- 预览（FR-7）用 `inspectPack` 自行推导目标路径，与真实导入（`importPack`）两套逻辑，
+  已出现预览不带 ` (1)` 的偏差（`commands.js:691–696`）。
+
+**选项**
+- A. 保持逐条写入，事后补校验与清理（改动小，但仍是部分写入，失败后半成品与回滚难以保证）。
+- B. 先规划（纯函数算出全部落点与冲突）→ 全量预检 → 暂存写入 → 目录级 rename 提交 →
+  失败清理/回滚；host 与 CLI 共用同一实现。
+
+**决定**（用户批准，2026-11-27）
+
+1. 新增 `src/core/plan-import.js`，导出纯函数
+   `planImportTargets({ manifest, targetRoot, platform, registeredPathKeys, exists, existsNonEmpty, reserved })` →
+   `{ targets: [{ workspaceKey, title, path, action: 'create'|'reuse'|'rename', reason, conversions }], conflicts: [...] }`。
+   纯函数不碰文件系统（`exists`/`existsNonEmpty` 由调用方注入），可完整单测。
+2. **目标目录判定四步**（替代现有边循环判断）：
+   1. 包内工作区路径已在目标端登记（`registeredPathKeys` 命中）→ 复用（不重复登记、不合并文件）；
+   2. 同一导入内该路径已分配（`reserved` 命中）→ `标题 (n)`，n 从 1 递增并跳过已存在；
+   3. 路径存在 + 空目录 + 未登记 → 复用（保留 ADR-0014 决策 9 的 D3 兜底）；
+   4. 路径存在 + 非空 + 未登记 → `标题 (n)`。
+3. **原子提交**：会话先写 `<DSH_HOME>/sessions/<projKey>/.staging-<uuid>/<id>/`（与目标同一
+   文件系统），全部成功后再目录级 `rename` 到 `<id>/`；工作区写 `<target>.import-tmp-<uuid>/`
+   再 `rename` 到最终路径；失败时删除全部暂存目录，并按 `createBackupTransaction` 回滚已覆盖
+   的会话与工作区文件。
+4. `importPack` 顺序固定为：读包 → 结构与版本校验 → `planImportTargets` → 全部 fatal 预检
+   （冲突/大小写/越界/超限）→ 写盘（暂存 + rename）→ 登记与归组。
+5. 预览（FR-7）直接消费 `planImportTargets` 的结果，保证预览路径 = 真实落点；CLI 复用同一
+   规划与提交实现（`src/core/apply-import.js`），删除 CLI 内自行读写 `storages/workspace.json`
+   的第二套实现（P2-12 的一部分）。
+
+**后果**
+- 中途 kill 或异常不再产生半成品；重复导入幂等（已登记路径复用、已存在会话按策略跳过/覆盖）。
+- 预览与真实落点一致；CLI 与 host 行为一致。
+- 新增必需单元测试：四步判据各分支、A/a 与 a?/a* 同时存在、同名工作区两次导入、中途失败回滚。
+- SPEC FR-8/FR-11 与 DESIGN §3.1 同步改写；包格式不变。
+
+**关联**：ADR-0013（目标目录必填）、ADR-0014（决策 3/9）、DEVLOG 100/120/659、
+ADR-0020（路径安全）、审查清单 P1-1/P1-2。
+
+## ADR-0020 · 导入路径安全与跨平台转换闭环（2026-11-27，Accepted）
+
+**背景**
+
+- FR-9 承诺导入侧对跨平台风险提供可预览、可撤销的处理，但实现只在导出侧做检测：
+  `src/core/workspaces.js:95–103` 只净化相对路径的最后一段，目录段在 `workspaces.js:84–88`
+  直接 `path.join` 使用；`detectCaseCollisions` 仅在导出预检 `src/core/preflight.js:227` 调用；
+  覆盖前只 `stat` 不备份（`backup.js` 只备份会话）；`src/core/scan.js:105–122` 对符号链接只
+  判断 `isFile()` 就打包，目标可在工作区之外。
+- 导入侧因此可能出现：Windows 目标写入含 `?*:"<>|` 的名字报 `EINVAL`/`TypeError`；A/a 两个
+  文件在大小写不敏感文件系统上互相覆盖；覆盖写丢失用户文件且无法恢复；越界符号链接把工作区
+  外文件打进包。
+
+**选项**
+- A. 交给 DSH/文件系统报错并中止（体验差，与 FR-9 冲突）。
+- B. 导出侧直接拒绝（会破坏已能成功导出的包，历史兼容性差）。
+- C. 导入侧闭环 + 导出侧继续提示不拒绝（保留既有可导出范围，导入时按目标平台安全转换）。
+
+**决定**（用户批准，2026-11-27）
+
+1. `src/core/workspaces.js` 新增 `sanitizeRelativePath(relative, platform)`：按段净化，返回
+   `{ path, conversions[] }`。规则（platform === 'win32' 启用 Windows 规则）：非法字符
+   `<>:"|?*\` 与 `/` 段内替换为 `_`；保留名（CON/PRN/AUX/NUL/COM1–9/LPT1–9，含带扩展名形式）
+   前缀加 `_`；段尾空格/点去掉；空段跳过；单段长度上限 255 字节，超出截断并记录转换。
+2. 大小写冲突：每个目录维护 `Map<小写名, 实际名>`，同目录第二个同小写名追加 ` (1)`、` (2)`；
+   `conversions[]` 记录 `{ from, to, reason: 'case-collision' }`，供预览与报告。
+3. 路径过长（Windows）：拼出目标绝对路径，超过 240 字符（含工作区根）时缩短文件名不可行则
+   跳过该文件并记 `path-too-long`（报告，不静默）。
+4. 符号链接：导出侧 `scan` 解引用前先 `realpath` 并与工作区根比对，越界记 `symlink-outside`
+   并跳过（不打包）；导入侧沿用 ADR-0013（目标平台不支持链接时解引用为普通文件）。
+5. 覆盖备份：工作区文件覆盖前复制到
+   `<DSH_HOME>/dsh-pack-and-go-backup/<时间戳>/workspaces/<相对路径>`，与会话备份同一根；
+   复制失败则拒绝该文件覆盖并报错（安全优先）。
+6. 预检语义修正：命令入口改为默认执行预检（对齐 ADR-0012 与 SPEC FR-4「开」），
+   `--no-preflight` 显式关闭；`--preflight` 保留为兼容别名。
+7. 转换报告（FR-9 最后一条）由 `planImportTargets` 的 `conversions` 与 `conflicts` 合并生成，
+   随导入结果返回，CLI `--json` 亦输出。
+
+**后果**
+- Windows/macOS 目标导入不再因文件名非法整包失败；大小写冲突不互相覆盖；覆盖可回滚。
+- `conversions` 成为预览与报告的单一数据源，避免两套推导。
+- 导出侧行为不变（不新增拒绝路径），仅增加 `skippedWorkspaces` 报告（P1-4）。
+- 需要单测覆盖：目录段非法名、`CON`、`A/a` 冲突、240 字符长路径、越界链接、覆盖回滚。
+
+**关联**：ADR-0013（目标目录）、ADR-0014、ADR-0016（权限位）、SPEC FR-9/FR-10、DEVLOG 152、
+审查清单 P1-3/P1-4/P2-13。

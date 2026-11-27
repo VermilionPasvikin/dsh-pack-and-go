@@ -38,44 +38,59 @@ tests/
 
 ```
 开始导入
-├─ 输入校验
+├─ 输入校验（v1.8）
 │  ├─ 包路径为空 / 目标目录为空 → 红字报错，不启动
 │  ├─ 包不存在 / 非 zip / manifest 非法 → 红字报错
-│  └─ 通过
-├─ 目标目录
+│  └─ 结构校验通过
+├─ 只读预检（不解压条目内容）
+│  ├─ listZip 读中央目录 → 条目清单、压缩/解压大小、格式版本
+│  ├─ 解压总大小 > 4 GiB → E_PACK_TOO_LARGE（中止，不写盘）
+│  └─ schemaVersion / 会话格式 / 源平台 校验失败 → 中文报错
+├─ 目标目录（v1.8）
 │  ├─ 不存在 → 自动创建（递归）
 │  ├─ 不可写 / 是文件 → 写入失败 → 红字（不回退）
 │  └─ = 包内工作区源路径 → 工作区按路径复用（原地）
-├─ 工作区落点（每个包内 workspace）
-│  ├─ <目标>/<标题> 不存在 → 创建目录 + 登记新工作区
-│  ├─ 已存在（之前导入）→ 复用工作区，不改标题
-│  ├─ 标题与其他工作区重名 → 登记名加「（导入 N）」
-│  └─ 工作区无有效会话写入 → 也登记并还原文件（空工作区保留；结果标注「暂无对话」）
-├─ 会话冲突（每个包内 session）
-│  ├─ 无同 id → 写入 <目标>/<标题>（cwd、状态事件 cwd、deliverables 文件引用、tool meta.cwd、权限预设状态改写）
+├─ 导入规划（planImportTargets，纯函数无 I/O；ADR-0019 §2）
+│  ├─ 工作区落点四步判据
+│  │  ├─ ① 包内路径已在目标端登记 → 复用（不重复登记、不合并文件）
+│  │  ├─ ② 同一导入内已分配过该路径 → <标题> (n)
+│  │  ├─ ③ 存在 + 空 + 未登记 → 复用（ADR-0014 决策 9 D3 兜底）
+│  │  └─ ④ 存在 + 非空 + 未登记 → <标题> (n)
+│  ├─ 会话冲突：同 id 已存在 → 跳过 / 覆盖（含迁移覆盖，ADR-0013）
+│  ├─ 转换（ADR-0020）：逐段净化、大小写冲突、长路径、越界链接 → conversions[]
+│  └─ 全部 fatal 预检通过后才允许写盘
+├─ 文件系统转换（ADR-0020）
+│  ├─ sanitizeRelativePath：路径每一段净化（含目录段）
+│  ├─ 大小写冲突：同目录 Map<小写名, 实际名>，后续加 (n)，记 case-collision
+│  ├─ 路径过长（Windows > 240 字符）→ 跳过 + path-too-long（报告）
+│  ├─ 符号链接：导出侧越界记 symlink-outside 不打包；导入侧按 ADR-0013 解引用
+│  └─ 覆盖前备份工作区文件到 <DSH_HOME>/dsh-pack-and-go-backup/<时间戳>/workspaces/
+├─ 会话恢复（按规划）
+│  ├─ 无同 id → 写入暂存目录
 │  ├─ 同 id + 跳过 → 不写（旧会话保留）
 │  └─ 同 id + 覆盖
-│     ├─ 目标目录 = 现有 cwd → 原地覆盖（恢复）
-│     └─ 目标目录 ≠ 现有 cwd → 迁移覆盖（用户已选 C）
-│        1. 备份并移除旧位置的同 id 会话目录（防重复 id）
-│        2. 写入目标 cwd（包内版本，header.cwd 与 working-directory/change 事件 cwd 改写）
-│        3. 结果提示「已迁移覆盖：<原工作区>/<会话> → <新工作区>/<会话>」
+│     ├─ 目标目录 = 现有 cwd → 原地覆盖（先备份）
+│     └─ 目标目录 ≠ 现有 cwd → 迁移覆盖（备份旧位置 → 写新位置 → 提示）
 ├─ 附件（跟随会话策略）
 │  ├─ 正常 → 写回 <DSH_HOME>/attachments/v1
 │  ├─ 已存在 → 覆盖写；EPERM → warning 不阻断
 │  └─ 会话引用但包内缺失 → warning
-├─ 文件/目录权限（ADR-0016 B1+B2）
+├─ 文件/目录权限（ADR-0016 B1+B2，不变）
 │  ├─ POSIX 目标 + POSIX 源 → 文件按 mode 恢复；目录两阶段（先建后收紧，深→浅）
 │  ├─ win32 源包 → 文件仅恢复 exec 位；目录跳过（Windows mode 是 libuv 合成值）
 │  └─ Windows 目标 → 忽略（ADR-0003）
+├─ 原子提交（v1.8，ADR-0019 §3）
+│  ├─ 会话：<home>/sessions/<projKey>/.staging-<uuid>/<id>/ → rename 为 <id>/
+│  ├─ 工作区：<target>.import-tmp-<uuid>/ → rename 为 <target>/
+│  └─ 任一失败 → 删除全部暂存 + 回滚已覆盖文件 → 报错（无半成品）
 ├─ 登记与归组
 │  ├─ 登记成功 → attach 会话
 │  ├─ cwd 与工作区 path 不匹配 → attach 失败（日志），会话可能进未分组
 │  └─ 激活失败（resolveAgent）→ 日志，不阻断
 └─ 结果
-   ├─ 全部成功 → 绿字（已导入/覆盖/迁移/跳过、附件数、工作区映射）
-   ├─ 部分警告 → 绿字 + 警告数
-   └─ 失败 → 红字（不回退，不自动清理半成品）
+   ├─ 全部成功 → 绿字（已导入/覆盖/迁移/跳过、附件数、工作区映射、转换数）
+   ├─ 部分警告 → 绿字 + 警告数（含 skippedWorkspaces）
+   └─ 失败 → 红字（原因 + 影响 + 下一步；已无半成品）
 ```
 
 ## 3.2 导出行为决策树（当前实现，2026-11-11）
@@ -180,6 +195,19 @@ Host 通过流式 Remote 推送单帧 JSON：
 - 校验与构造：`src/core/progress.js` 的 `createProgressEvent()`；百分比用 `progressPercent()`（`success` 恒为 100）。
 - 错误帧携带 `describeError()` 的结果，Client 直接展示中文，不再二次翻译。
 
+### 导入规划与提交（ADR-0019 / ADR-0020，v1.8）
+
+- `planImportTargets({ manifest, targetRoot, platform, registeredPathKeys, exists, existsNonEmpty })`
+  ——**纯函数，无 I/O**；返回 `{ targets: [{ workspaceKey, title, path, action, reason, conversions }], conflicts, conversions }`。
+  四步判据见 ADR-0019 §2；`exists`/`existsNonEmpty` 由调用方注入（host 用 fs，单测用内存表）。
+- `applyImport({ plan, pack, home, backupRoot })`——暂存写入 + 目录级 rename 提交；失败删除暂存并按
+  `createBackupTransaction` 回滚已覆盖文件。**host 命令与 CLI 共用本函数**（不再各自一套实现）。
+- `sanitizeRelativePath(relative, platform)`——逐段净化，返回 `{ path, conversions[] }`；
+  大小写冲突在同一目录内用 `Map<小写名, 实际名>` 处理；`detectCaseCollisions` 保留用于导出预检。
+- zip 读取：`readCentralDirectory(buffer)` 只解析中央目录（不解压）；`listZip` 用它给出条目清单
+  与压缩/解压大小；`readZip` 复用中央目录结果再解压。`maxTotalBytes` 默认 4 GiB，超出抛
+  `E_PACK_TOO_LARGE`。
+
 ## 4.1 会话日志改写策略（ADR-0007 / ADR-0017）
 
 - **header 改写**：只解压首帧、改 `cwd`/`id`/`parentSession`，其余帧字节原样拼接；
@@ -205,3 +233,5 @@ Host 通过流式 Remote 推送单帧 JSON：
 - CLI 入口阶段与命名（ADR-0004）。
 - UI 进度协议细节（帧结构、节流频率）。
 - zstd 帧扫描在损坏帧上的错误恢复边界。
+- 流式进度与取消（审查 B 组）：与 T9.2/T9.4「用户决定不做」冲突，待用户解除后另立 ADR。
+- D 组流式解压（1 GB 包峰值内存 ≤300 MB）待 0.4 评估；本版只做中央目录预检与总量上限。
