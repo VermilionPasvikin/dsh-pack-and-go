@@ -1222,3 +1222,12 @@ git push origin v0.3.0
 
 **状态**：M11 全部完成（T11.1–T11.8 ✅）；0.3.0 就绪待发布。B 组（真实进度/取消）仍与
 T9.2/T9.4「用户决定不做」冲突，等用户明确解除后再立里程碑。
+
+**发布前真实宿主验证（一次性 DSH_HOME，未动真实 `~/.dsh`）**：
+- `dsh t118-web --from-default-profile web --dump-config` 创建 profile `t118-web`
+  （bundles = `@deepseek-ai/dsh-base` + `@deepseek-ai/dsh-web-app`），`--dump-config` 含
+  `- id: dsh-pack-and-go`；
+- `dsh plugin --profile t118-web add file:<repo>` → `+ dsh-pack-and-go@file:F:/...（Done in 630ms, pnpm v11.28.5）`；
+- boot（`DSH_PACK_AND_GO_SELFTEST=1 DSH_PACK_AND_GO_SELFTEST_LIST=1 DSH_PACK_AND_GO_SELFTEST_CMD=1`，
+  `--no-open --port 0`）输出符合预期：`command registered: mover`、`connection.fetch not ready; retrying exec route registration`（随后成功）、`apply() reached`、`DSH-PACK-AND-GO-SELFTEST {"workspaces":0,"ungrouped":0,"totals":{...0}}`、`DSH-PACK-AND-GO-LIST no-session-controller`、web 起于 `127.0.0.1:50992`、`exec route registered: /api/mover/exec`。
+  证据目录：`C:\tmp\dsh-t118-9z4i`（含 `.dsh-e2e-marker`）。
