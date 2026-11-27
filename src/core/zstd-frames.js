@@ -152,6 +152,34 @@ export function scanFrames(buffer) {
 }
 
 /**
+ * 扫描可能被截断的缓冲：只返回**完整**的帧，遇到不完整帧即停止。
+ * 供「只读文件头部」类性能优化使用（P2-9）。
+ * @param {Buffer} buffer
+ * @returns {{ frames: ReadonlyArray<{ start: number, end: number, length: number, checksum: boolean }>, completeBytes: number }}
+ */
+export function scanFramesPartial(buffer) {
+  if (!Buffer.isBuffer(buffer)) {
+    throw frameError('scanFramesPartial 需要 Buffer 输入', { reason: 'not-buffer' })
+  }
+  const frames = []
+  let offset = 0
+  while (offset < buffer.length) {
+    let frame
+    try {
+      frame = readFrameLength(buffer, offset)
+    } catch {
+      break
+    }
+    if (frame.length <= 0) break
+    const end = offset + frame.length
+    if (end > buffer.length) break
+    frames.push(Object.freeze({ start: offset, end, length: frame.length, checksum: frame.checksum }))
+    offset = end
+  }
+  return { frames, completeBytes: offset }
+}
+
+/**
  * 读取指定帧是否带内容校验和（T1.6 重压首帧时保持与原文件一致）。
  * @param {Buffer} buffer
  * @param {{ start: number }} frame

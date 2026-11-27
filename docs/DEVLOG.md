@@ -1371,3 +1371,27 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 - `node --check` 通过（`src/host/commands.js`、`src/cli/index.js`、`src/client/client.js`）。
 
 **状态**：T13.1、T13.2 完成；下一步 T13.3（标题读取性能）→ T13.4 → T13.5 → T13.6。
+
+## 164 · 2026-11-27 · 标题读取性能（T13.3 / P2-9）
+
+**实现**
+- `src/core/zstd-frames.js` 新增 `scanFramesPartial(buffer)` → `{ frames, completeBytes }`：
+  只返回**完整**帧，遇到截断帧即停止（供只读头部使用）。
+- `src/host/catalog.js` 新增 `TITLE_READ_BYTES = 256 * 1024` 与
+  `readTitleFromFile(logPath, {maxBytes})`：用 `open` + `read` 只读文件头部，
+  `scanFramesPartial` 取完整帧后逐帧 `decodeSessionEvents`（单帧失败即停止），
+  再交给 `titleFromEvents`（rename 取最后一次、否则首条用户消息前 24 字）。
+- `loadCatalog` 的标题兜底从「`readFile` 整文件 + 全量解压」改为 `readTitleFromFile`。
+  语义仍是尽力而为：头部内没有可用信息时保留 `fallbackTitle`。
+- 取舍：头部读取可能看不到位于文件后段的 rename（会话被重命名后标题可能短暂显示旧值），
+  但正常会话的 rename 在开头几帧内；`sessionQuery.readTitleSnapshots` 仍是首选来源。
+
+**验证**
+- `tests/unit/catalog.test.mjs` 新增 2 例：
+  ① 造 300+ 帧、尾部帧为非法 JSON 的会话文件：`decodeSessionEvents(readFileSync(path))` 抛错，
+  而 `readTitleFromFile(path, {maxBytes: 4096})` 返回头部首条用户消息（证明未全量解压）；
+  ② `sessionQuery` 缺失时 `loadCatalog` 用头部 rename 得到 `Final Name`。
+- `catalog.test.mjs` 11 项全过；全量 unit 266 / 258 / 0 / 8。
+- `node --check` 通过（`src/core/zstd-frames.js`、`src/host/catalog.js`）。
+
+**状态**：T13.3 完成；下一步 T13.4（尺寸估算 loading + 调试残留门控）。

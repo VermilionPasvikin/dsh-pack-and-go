@@ -5,9 +5,16 @@ import {
   assembleCatalog,
   loadCatalog,
   fallbackTitle,
+  readTitleFromFile,
   titleFromEvents,
 } from '../../src/host/catalog.js'
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
+import { decodeSessionEvents } from '../../src/core/attachments.js'
+import { readFileSync } from 'node:fs'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import zlib from 'node:zlib'
 
 function makeServices() {
   return {
@@ -130,4 +137,65 @@ test('titleFromEvents：没有 rename 时用首条用户消息前 24 字', () =>
     { type: 'user/message', data: { content: [{ type: 'text', text: '第二句' }] } },
   ]
   assert.equal(titleFromEvents(events), '第一句')
+})
+
+test('readTitleFromFile 只读头部：尾部非法 JSON 不影响标题（P2-9）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-catalog-'))
+  try {
+    const header = { type: 'session', version: 4, id: 's1', createdAt: 1, cwd: '/p' }
+    const userMessage = {
+      type: 'user/message',
+      seq: 0,
+      data: { content: [{ type: 'text', text: 'Hello world' }] },
+    }
+    const filler = { type: 'turn/start', seq: 1, data: { note: 'x'.repeat(200) } }
+    const frames = [
+      zlib.zstdCompressSync(Buffer.from(JSON.stringify(header) + '\n' + JSON.stringify(userMessage) + '\n')),
+    ]
+    for (let i = 0; i < 300; i += 1) {
+      frames.push(zlib.zstdCompressSync(Buffer.from(JSON.stringify(filler) + '\n')))
+    }
+    // 尾部一帧是非法 JSON：全量解析会抛错，头部读取应当成功
+    frames.push(zlib.zstdCompressSync(Buffer.from('not-json-tail\n')))
+    const logPath = join(dir, 'session.v4.jsonl.zstd')
+    await writeFile(logPath, Buffer.concat(frames))
+
+    assert.throws(() => decodeSessionEvents(readFileSync(logPath)))
+
+    const title = await readTitleFromFile(logPath, { maxBytes: 4096 })
+    assert.equal(title, 'Hello world')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('loadCatalog 在 sessionQuery 缺失时用头部读取标题（P2-9）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-catalog-'))
+  try {
+    const header = { type: 'session', version: 4, id: 's1', createdAt: 1, cwd: '/p' }
+    const rename = { type: 'session/rename', seq: 1, data: { title: 'Final Name' } }
+    const logPath = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(
+      logPath,
+      zlib.zstdCompressSync(Buffer.from(JSON.stringify(header) + '\n' + JSON.stringify(rename) + '\n')),
+    )
+    const catalog = await loadCatalog({
+      workspaceRegistry: {
+        list: () => [{ id: 'w1', path: '/p', title: 'P', sessionIds: ['s1'] }],
+      },
+      sessionPersistence: {
+        list: async () => [
+          {
+            header: { id: 's1', cwd: '/p', createdAt: 1 },
+            sizeBytes: 10,
+            location: { kind: 'jsonl', path: logPath },
+          },
+        ],
+      },
+      platform: 'linux',
+    })
+    assert.equal(catalog.workspaces[0].sessions[0].title, 'Final Name')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })

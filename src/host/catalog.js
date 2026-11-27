@@ -9,9 +9,10 @@
  * `assembleCatalog` 是纯函数，可在任意平台单测。
  */
 
-import { readFile } from 'node:fs/promises'
+import { open } from 'node:fs/promises'
 
 import { decodeSessionEvents } from '../core/attachments.js'
+import { scanFramesPartial } from '../core/zstd-frames.js'
 import { ERROR_CODES, MoverError } from '../core/errors.js'
 
 /**
@@ -50,6 +51,45 @@ export function titleFromEvents(events) {
  * @param {Record<string, unknown>} [details]
  * @returns {MoverError}
  */
+/** 标题兜底读取的头部字节上限（P2-9：不整文件解压）。 */
+export const TITLE_READ_BYTES = 256 * 1024
+
+/**
+ * 只读会话文件头部，提取标题（P2-9）。
+ *
+ * 语义是「尽力而为的兜底」：头部内出现过的 rename 取最后一次；没有 rename 时取首条
+ * 用户消息前 24 字；头部内没有可用信息时返回 undefined（调用方保留 fallbackTitle）。
+ * @param {string} logPath
+ * @param {{ maxBytes?: number }} [options]
+ * @returns {Promise<string | undefined>}
+ */
+export async function readTitleFromFile(logPath, options = {}) {
+  const maxBytes = options.maxBytes ?? TITLE_READ_BYTES
+  const handle = await open(logPath, 'r')
+  try {
+    const buffer = Buffer.alloc(Math.max(1, maxBytes))
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0)
+    if (bytesRead === 0) return undefined
+    const head = buffer.subarray(0, bytesRead)
+    const { frames, completeBytes } = scanFramesPartial(head)
+    if (frames.length === 0) return undefined
+    const events = []
+    for (const frame of frames) {
+      try {
+        const decoded = decodeSessionEvents(head.subarray(frame.start, frame.end))
+        for (const event of decoded) events.push(event)
+      } catch {
+        // 截断帧 / 非 JSONL 内容：头部读取到此为止（尽力而为）
+        break
+      }
+    }
+    void completeBytes
+    return titleFromEvents(events)
+  } finally {
+    await handle.close()
+  }
+}
+
 function catalogError(message, details = {}) {
   return new MoverError(ERROR_CODES.CATALOG_INVALID, message, details)
 }
@@ -187,8 +227,7 @@ export async function loadCatalog(services) {
     const logPath = snapshot.location?.path
     if (typeof logPath !== 'string') continue
     try {
-      const buffer = await readFile(logPath)
-      const title = titleFromEvents(decodeSessionEvents(buffer))
+      const title = await readTitleFromFile(logPath)
       if (typeof title === 'string' && title.length > 0) titles.set(id, title)
     } catch {
       // 会话不可读时保留 fallbackTitle
