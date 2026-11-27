@@ -201,8 +201,11 @@ tests/
 - `planImportTargets({ manifest, targetRoot, platform, registeredPathKeys, exists, existsNonEmpty })`
   ——**纯函数，无 I/O**；返回 `{ targets: [{ workspaceKey, title, path, action, reason, conversions }], conflicts, conversions }`。
   四步判据见 ADR-0019 §2；`exists`/`existsNonEmpty` 由调用方注入（host 用 fs，单测用内存表）。
-- `applyImport({ plan, pack, home, backupRoot })`——暂存写入 + 目录级 rename 提交；失败删除暂存并按
-  `createBackupTransaction` 回滚已覆盖文件。**host 命令与 CLI 共用本函数**（不再各自一套实现）。
+- `applyImport({ buffer, sessionRoot, targetRoot, backupRoot, ... })`——暂存写入 + 目录级 rename 提交；
+  失败删除暂存，已覆盖文件在覆盖前备份到 `<backupRoot>/<时间戳>/workspaces/...`。**host 命令与 CLI
+  共用本函数**（不再各自一套实现，ADR-0023）。
+- `resolveWorkspaceTitle({ title, targetPath, existingPathKeys, existingTitles })`——Host 与 CLI 共用的
+  工作区标题消歧（`（导入 N）`，ADR-0023）。
 - `sanitizeRelativePath(relative, platform)`——逐段净化，返回 `{ path, conversions[] }`；
   大小写冲突在同一目录内用 `Map<小写名, 实际名>` 处理；`detectCaseCollisions` 保留用于导出预检。
 - zip 读取：`readCentralDirectory(buffer)` 只解析中央目录（不解压）；`listZip` 用它给出条目清单

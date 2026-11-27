@@ -22,6 +22,7 @@ const WINDOWS_RESERVED = new Set(WINDOWS_RESERVED_NAMES)
 
 /** Windows 文件名单段中的非法字符。 */
 const WINDOWS_INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001f]/
+const WINDOWS_INVALID_CHARS_GLOBAL = /[<>:"/\\|?*\u0000-\u001f]/g
 
 /** 风险类型（只追加）。 */
 export const RISK_KINDS = Object.freeze([
@@ -51,7 +52,7 @@ function preflightError(message, details = {}) {
  * @returns {string}
  */
 export function sanitizeWindowsName(name) {
-  let sanitized = name.replace(WINDOWS_INVALID_CHARS, '_').replace(/[. ]+$/g, '')
+  let sanitized = name.replace(WINDOWS_INVALID_CHARS_GLOBAL, '_').replace(/[. ]+$/g, '')
   if (sanitized.length === 0) sanitized = '_'
   const base = sanitized.split('.')[0].toUpperCase()
   if (WINDOWS_RESERVED.has(base)) sanitized = `_${sanitized}`

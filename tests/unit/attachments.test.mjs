@@ -12,7 +12,6 @@ import {
   fileReferencePath,
   packAttachmentPath,
   extractAttachmentRefs,
-  stageAttachments,
   restoreAttachments,
   PACK_ATTACHMENTS_ROOT,
 } from '../../src/core/attachments.js'
@@ -112,11 +111,10 @@ test('从会话事件提取附件引用并去重', () => {
   assert.equal(file.name, 'a.txt')
 })
 
-test('stage 与 restore 附件往返', async () => {
+test('restore 附件往返（按包内路径写回）', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-attach-'))
   try {
     const sourceRoot = join(dir, 'src-attachments')
-    const outputRoot = join(dir, 'pack')
     const targetRoot = join(dir, 'dst-attachments')
 
     const imagePath = imageObjectPath(sourceRoot, IMAGE_ID)
@@ -131,23 +129,23 @@ test('stage 与 restore 附件往返', async () => {
     await mkdir(dirname(referencePath), { recursive: true })
     await writeFile(referencePath, Buffer.from('file-bytes'))
 
-    const refs = extractAttachmentRefs(makeSessionWithAttachments())
-    const staged = await stageAttachments({ refs, attachmentsRoot: sourceRoot, outputRoot })
-    assert.equal(staged.warnings.length, 0)
-    assert.ok(staged.entries.some((entry) => entry.packPath.includes('objects')))
-    assert.ok(staged.entries.some((entry) => entry.packPath.includes('file-objects')))
-    assert.ok(staged.entries.some((entry) => entry.packPath.includes('files/')))
-    assert.ok(staged.entries.every((entry) => entry.size > 0))
-
-    const entries = []
-    for (const entry of staged.entries) {
-      entries.push({
-        packPath: entry.packPath,
-        data: await readFile(join(outputRoot, entry.packPath)),
-      })
-    }
+    const entries = [
+      {
+        packPath: packAttachmentPath('image', IMAGE_ID),
+        data: await readFile(imagePath),
+      },
+      {
+        packPath: packAttachmentPath('file-object', FILE_ID),
+        data: await readFile(objectPath),
+      },
+      {
+        packPath: packAttachmentPath('file-reference', FILE_ID, 'a.txt'),
+        data: await readFile(referencePath),
+      },
+    ]
     const restored = await restoreAttachments({ entries, attachmentsRoot: targetRoot })
     assert.equal(restored.restored, entries.length)
+    assert.equal(restored.warnings.length, 0)
 
     assert.equal((await readFile(imageObjectPath(targetRoot, IMAGE_ID))).toString(), 'img-bytes')
     assert.equal((await readFile(fileObjectPath(targetRoot, FILE_ID))).toString(), 'file-bytes')
@@ -155,22 +153,6 @@ test('stage 与 restore 附件往返', async () => {
       (await readFile(fileReferencePath(targetRoot, FILE_ID, 'a.txt'))).toString(),
       'file-bytes',
     )
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
-
-test('附件缺失时记录 warning 而不抛错', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-attach-'))
-  try {
-    const staged = await stageAttachments({
-      refs: [{ attachmentId: IMAGE_ID, kind: 'image' }],
-      attachmentsRoot: join(dir, 'missing'),
-      outputRoot: join(dir, 'pack'),
-    })
-    assert.equal(staged.entries.length, 0)
-    assert.equal(staged.warnings.length, 1)
-    assert.match(staged.warnings[0], /sha256:/)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

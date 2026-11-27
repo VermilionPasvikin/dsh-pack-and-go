@@ -7,7 +7,7 @@ import { isAbsolute, join } from 'node:path'
 
 import { createZip } from '../../src/core/zip-writer.js'
 import { importSessionsToDisk } from '../../src/core/import-pack.js'
-import { buildPathMap } from '../../src/core/path-map.js'
+import { safeDirName } from '../../src/core/path-map.js'
 import { restoreWorkspaceFiles } from '../../src/core/workspaces.js'
 import { preflightWorkspace } from '../../src/core/preflight.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -86,12 +86,8 @@ test('Windows 源 → POSIX 目标：cwd 改写为合法绝对路径且目录一
   try {
     const targetRoot = join(dir, 'target')
     const sessionRoot = join(dir, 'sessions')
-    const pathMap = buildPathMap({
-      sourcePlatform: 'win32',
-      targetPlatform: 'linux',
-      targetRoot,
-      workspaces: [{ key: 'ws-1', title: 'Proj', sourcePath: 'F:\\Proj' }],
-    })
+    // 目标路径由 planImportTargets（safeDirName）决定；这里直接构造等价映射。
+    const pathMap = { byKey: { 'ws-1': join(targetRoot, safeDirName('Proj', 'linux')) } }
     const pack = makePack({
       sessionId: 'session-xplat',
       cwd: 'F:\\Proj',

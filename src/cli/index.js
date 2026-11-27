@@ -33,6 +33,7 @@ import {
   restoreAttachments,
   safeDirName,
   scanFrames,
+  resolveWorkspaceTitle,
 } from '../core/index.js'
 import { scanExistingSessionIds } from '../host/commands.js'
 
@@ -224,11 +225,18 @@ async function updateWorkspaceRegistry(home, manifest, pathMap, writtenSessions)
     const targetPath = pathMap.byKey[workspace.key]
     let id = Object.keys(tables).find((key) => tables[key].path === targetPath)
     if (!id) {
+      // 与 Host 的 registerWorkspaces 规则一致（T13.5）。
+      const resolved = resolveWorkspaceTitle({
+        title: workspace.title,
+        targetPath,
+        existingPathKeys: Object.values(tables).map((entry) => entry.path),
+        existingTitles: Object.values(tables).map((entry) => entry.title),
+      })
       id = randomUUID()
       const now = new Date().toISOString()
       tables[id] = {
         path: targetPath,
-        title: workspace.title,
+        title: resolved.title,
         sessionIds: [],
         createdAt: now,
         updatedAt: now,

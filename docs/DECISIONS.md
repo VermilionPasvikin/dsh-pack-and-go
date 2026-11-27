@@ -653,8 +653,9 @@ body: { "action": "list" | "export" | "import" | "inspect" | "find" | "size", "a
    4. 路径存在 + 非空 + 未登记 → `标题 (n)`。
 3. **原子提交**：会话先写 `<DSH_HOME>/sessions/<projKey>/.staging-<uuid>/<id>/`（与目标同一
    文件系统），全部成功后再目录级 `rename` 到 `<id>/`；工作区写 `<target>.import-tmp-<uuid>/`
-   再 `rename` 到最终路径；失败时删除全部暂存目录，并按 `createBackupTransaction` 回滚已覆盖
-   的会话与工作区文件。
+   再 `rename` 到最终路径；失败时删除全部暂存目录。已覆盖的会话/工作区文件在覆盖前复制到
+   `<DSH_HOME>/dsh-pack-and-go-backup/<时间戳>/`（可追溯恢复）；已原子提交的单元保留
+   （取消/失败语义见 ADR-0021）。
 4. `importPack` 顺序固定为：读包 → 结构与版本校验 → `planImportTargets` → 全部 fatal 预检
    （冲突/大小写/越界/超限）→ 写盘（暂存 + rename）→ 登记与归组。
 5. 预览（FR-7）直接消费 `planImportTargets` 的结果，保证预览路径 = 真实落点；CLI 复用同一
@@ -795,3 +796,26 @@ ADR-0020（路径安全）、审查清单 P1-1/P1-2。
 - 需要单测：manifest 含/不含 machineName、预览 targets 与导入一致、附件冲突检测、幂等预览。
 
 **关联**：ADR-0019（planImportTargets）、SPEC FR-7、DEVLOG 161、审查清单 P2-7。
+
+## ADR-0023 实现口径收敛：删除未接线实现、统一工作区标题规则（2026-11-27）
+
+**背景**：T13.5 清理代码审查中的死代码（P2-12）时发现三处「只有定义 + 测试」的实现，
+以及 Host 与 CLI 两条路径对「工作区标题重名」的规则不一致。
+
+**决策**
+
+1. **删除** `buildPathMap`、`mapCwdForWorkspace`（`src/core/path-map.js`）：目标路径生成已由
+   `planImportTargets`（ADR-0019）与 `safeDirName` 承担，旧实现没有任何生产调用方。
+2. **删除** `stageAttachments`（`src/core/attachments.js`）：附件导出改为「按引用按需读包内条目」
+   （`readZipEntry`），不再复制到暂存目录；`restoreAttachments` 保留。
+3. **删除** `src/core/backup.js`（`createBackupTransaction`）：覆盖备份由
+   `restoreWorkspaceFiles` 的逐文件复制与 `commitStagedDirectory` 的旧目录整体移入备份承担，
+   不再维护第三套回滚事务；ADR-0019 §3 的表述已同步为「原子单元 + 可追溯备份」。
+4. **统一标题规则**：新增 `src/core/workspace-title.js` 的 `resolveWorkspaceTitle`，
+   Host 的 `registerWorkspaces` 与 CLI 的离线 `workspace.json` 写入共用（路径已登记不改名；
+   新路径 + 标题冲突追加 `（导入 N）`）。
+5. **修正净化缺陷**：`safeDirName` 与 `sanitizeWindowsName` 的正则缺少 `g`，导致一个名字里
+   只有第一个非法字符被替换（`a:b*c` → `a_b*c`）；替换使用全局正则，检测保留非全局版。
+
+**后果**：公共 API 更小、无零引用导出；Host 与 CLI 的重名行为一致；含多个非法字符的文件名
+在 Windows 目标上可正常落盘。

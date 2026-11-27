@@ -160,60 +160,6 @@ export function extractAttachmentRefs(buffer) {
 }
 
 /**
- * 把附件从本机存储复制到包输出目录。
- * @param {{
- *   refs: Array<{ attachmentId: string, kind: 'image'|'file', name?: string }>,
- *   attachmentsRoot: string,
- *   outputRoot: string
- * }} input
- * @returns {Promise<{ entries: Array<{ packPath: string, size: number }>, warnings: string[] }>}
- */
-export async function stageAttachments(input) {
-  const { refs, attachmentsRoot, outputRoot } = input
-  const entries = []
-  const warnings = []
-
-  for (const ref of refs) {
-    try {
-      if (ref.kind === 'image') {
-        const source = imageObjectPath(attachmentsRoot, ref.attachmentId)
-        const packPath = packAttachmentPath('image', ref.attachmentId)
-        const info = await stat(source)
-        await mkdir(dirname(join(outputRoot, packPath)), { recursive: true })
-        await copyFile(source, join(outputRoot, packPath))
-        entries.push({ packPath, size: info.size })
-      } else {
-        const objectSource = fileObjectPath(attachmentsRoot, ref.attachmentId)
-        const objectPackPath = packAttachmentPath('file-object', ref.attachmentId)
-        const objectInfo = await stat(objectSource)
-        await mkdir(dirname(join(outputRoot, objectPackPath)), { recursive: true })
-        await copyFile(objectSource, join(outputRoot, objectPackPath))
-        entries.push({ packPath: objectPackPath, size: objectInfo.size })
-
-        if (typeof ref.name === 'string' && ref.name.length > 0) {
-          const referenceSource = fileReferencePath(attachmentsRoot, ref.attachmentId, ref.name)
-          const referencePackPath = packAttachmentPath(
-            'file-reference',
-            ref.attachmentId,
-            ref.name,
-          )
-          const referenceInfo = await stat(referenceSource)
-          await mkdir(dirname(join(outputRoot, referencePackPath)), { recursive: true })
-          await copyFile(referenceSource, join(outputRoot, referencePackPath))
-          entries.push({ packPath: referencePackPath, size: referenceInfo.size })
-        }
-      }
-    } catch (error) {
-      warnings.push(
-        `附件缺失或不可读: ${ref.attachmentId}（${error instanceof Error ? error.message : String(error)}）`,
-      )
-    }
-  }
-
-  return { entries, warnings }
-}
-
-/**
  * 把包内附件写回本机存储。
  * @param {{
  *   entries: Array<{ packPath: string, data: Buffer }>,

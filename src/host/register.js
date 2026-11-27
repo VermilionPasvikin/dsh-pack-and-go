@@ -6,6 +6,7 @@
  */
 
 import { ERROR_CODES, MoverError } from '../core/errors.js'
+import { resolveWorkspaceTitle } from '../core/workspace-title.js'
 
 /**
  * @param {string} message
@@ -46,15 +47,15 @@ export async function registerWorkspaces(input) {
 
   for (const workspace of workspaces) {
     try {
-      const pathKey = String(workspace.targetPath).toLowerCase()
-      let finalTitle = workspace.title
-      // 新路径 + 重名时追加「（导入 N）」，避免出现两个同名工作区。
-      if (!existingByPath.has(pathKey) && existingTitles.has(finalTitle)) {
-        let suffix = 1
-        while (existingTitles.has(`${workspace.title}（导入 ${suffix}）`)) suffix += 1
-        finalTitle = `${workspace.title}（导入 ${suffix}）`
-        existingTitles.add(finalTitle)
-      }
+      // 规则与 CLI 共用（T13.5 / core/workspace-title.js）。
+      const resolved = resolveWorkspaceTitle({
+        title: workspace.title,
+        targetPath: workspace.targetPath,
+        existingPathKeys: existingByPath,
+        existingTitles,
+      })
+      const finalTitle = resolved.title
+      if (resolved.renamed) existingTitles.add(finalTitle)
       const entity = await workspaceRegistry.create(workspace.targetPath, finalTitle)
       existingByPath.add(String(entity.path ?? workspace.targetPath).toLowerCase())
       existingTitles.add(entity.title)

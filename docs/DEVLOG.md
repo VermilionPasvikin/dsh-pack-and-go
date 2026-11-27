@@ -1423,3 +1423,39 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 - 未自动化：进度条与「估算中」文案的视觉呈现（需真机 boot 观察，记入 T13.6 验证项）。
 
 **状态**：T13.4 完成；下一步 T13.5（死代码清理与 CLI/host 统一）。
+
+## 166 · 2026-11-27 · 死代码清理与 CLI/host 统一（T13.5 / P2-12）
+
+**删除的零引用实现（ADR-0023）**
+- `src/core/path-map.js`：删除 `buildPathMap`、`mapCwdForWorkspace`，只保留 `safeDirName`
+  （目标路径生成由 `planImportTargets` / `safeDirName` 承担）。
+- `src/core/attachments.js`：删除 `stageAttachments`（导出改为按引用按需读包内条目）；
+  `restoreAttachments` 与路径辅助函数保留。
+- `src/core/backup.js` 整文件删除（`createBackupTransaction`）：覆盖备份已由
+  `restoreWorkspaceFiles` 的逐文件复制与 `commitStagedDirectory` 的旧目录移入备份承担。
+- 同步移除 `src/core/index.js` 导出、`package.json` check 列表与 `tests/unit/backup.test.mjs`。
+
+**Host 与 CLI 统一（标题规则）**
+- 新增 `src/core/workspace-title.js` 的 `resolveWorkspaceTitle`：目标路径已登记不改名；新路径 +
+  标题冲突追加 `（导入 N）`。Host `registerWorkspaces` 与 CLI `updateWorkspaceRegistry` 均改为调用它。
+
+**顺带修复的真实缺陷**
+- `safeDirName` 与 `sanitizeWindowsName` 的非法字符正则缺少 `g`，一个名字里只有第一个非法字符
+  会被替换（`a:b*c` → `a_b*c`，导入 Windows 目标会失败）。替换改用全局正则，检测保留非全局版
+  （避免 `lastIndex` 状态导致的间歇性误判）。
+
+**测试**
+- 新增 `tests/unit/workspace-title.test.mjs`（5 例：已登记路径、冲突追加、顺延、无冲突、缺参）。
+- `tests/unit/path-map.test.mjs` 重写为只测 `safeDirName`（含多非法字符与结尾点/空格）。
+- `tests/unit/attachments.test.mjs` 的 stage 用例改写为「按包内路径直构条目 → restore 往返」，
+  删除 stage 专属的缺失文件用例；4 项全过。
+- `tests/e2e/cross-platform.test.mjs` 改用 `safeDirName` 直接构造等价 `pathMap`（3 项全过）。
+- 全量：unit 265 / 257 / 0 / 8；e2e 16 / 15 / 0 / 1；`npm run check` 通过。
+- 手测（一次性 HOME，`/tmp/handtest-t135.mjs`）：registry 已有 `Proj`（不同路径），导入一个标题
+  同为 `Proj` 的工作区包 → 新条目标题 `Proj（导入 1）`，与 Host 一致。
+
+**文档**
+- `docs/DECISIONS.md`：ADR-0019 §3 表述改为「原子单元 + 可追溯备份」，新增 ADR-0023。
+- `docs/DESIGN.md`：§4 `applyImport` 签名与备份语义、`resolveWorkspaceTitle` 说明。
+
+**状态**：T13.5 完成；下一步 T13.6（0.3.2 回归与发布准备）。
