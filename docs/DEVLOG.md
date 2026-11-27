@@ -1231,3 +1231,7 @@ T9.2/T9.4「用户决定不做」冲突，等用户明确解除后再立里程�
 - boot（`DSH_PACK_AND_GO_SELFTEST=1 DSH_PACK_AND_GO_SELFTEST_LIST=1 DSH_PACK_AND_GO_SELFTEST_CMD=1`，
   `--no-open --port 0`）输出符合预期：`command registered: mover`、`connection.fetch not ready; retrying exec route registration`（随后成功）、`apply() reached`、`DSH-PACK-AND-GO-SELFTEST {"workspaces":0,"ungrouped":0,"totals":{...0}}`、`DSH-PACK-AND-GO-LIST no-session-controller`、web 起于 `127.0.0.1:50992`、`exec route registered: /api/mover/exec`。
   证据目录：`C:\tmp\dsh-t118-9z4i`（含 `.dsh-e2e-marker`）。
+- tgz 通道同样验证（发布后 npm 用户拿到的就是这个包）：`npm pack --pack-destination <TEMP>` →
+  `dsh-pack-and-go-0.3.0.tgz`（41 文件 / 176,911 字节）→ 新建一次性 home 的 `t118b-web`
+  profile → `dsh plugin --profile t118b-web add <tgz>` → `+ dsh-pack-and-go 0.3.0`（pnpm 539ms）
+  → boot 输出与 `file:` 通道一致（命令注册、apply、selftest、exec 路由）。
