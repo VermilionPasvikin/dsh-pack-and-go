@@ -1459,3 +1459,36 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 - `docs/DESIGN.md`：§4 `applyImport` 签名与备份语义、`resolveWorkspaceTitle` 说明。
 
 **状态**：T13.5 完成；下一步 T13.6（0.3.2 回归与发布准备）。
+
+## 167 · 2026-11-27 · 0.3.2 回归与发布准备（T13.6）
+
+**版本与材料**
+- `package.json` `0.3.1` → `0.3.2`。
+- `README.md`：tests 徽章 `272 passing`；新增「0.3.2 行为变更」段（预览与导入同源、`machineName`
+  默认写入、诊断日志默认关闭、尺寸估算 loading、标题只读头部）。
+- `docs/RELEASE.md` → 0.3.2：标题与 §0.1 主题改为「预览与界面清理（ADR-0022 / ADR-0023）」，
+  保留 0.3.1 / 0.3.0 历史主题段；版本行、unpublish/deprecate、tag 全部改 0.3.2。
+- `docs/INDEX.md`：阶段改「M0–M13 全部实现完成，0.3.2 待发布」；未决项与最近变更同步。
+- `docs/TASKS.md`：T13.6 ✅、里程碑表 M13 ✅、§3 当前里程碑改「M0–M13 全部 ✅」并补 T13.1–T13.6
+  进度行。
+
+**验证**
+- 全量两遍：`node --test --experimental-test-isolation=none "tests/unit/**/*.test.mjs"` →
+  265 项 / 257 通过 / 0 失败 / 8 跳过；`"tests/e2e/**/*.test.mjs"` → 16 / 15 / 0 / 1；
+  合计 **281 项 / 272 通过 / 0 失败 / 9 跳过**（两遍一致）。
+- `npm run check` 通过；`npm pack --dry-run`：`dsh-pack-and-go-0.3.2.tgz`，**43 文件**，
+  packed 187.6 kB / unpacked 467.2 kB，shasum `213a4d116531943bfc61425eea288e07f3b70e0f`。
+- 真实宿主 boot（一次性 HOME `C:\Users\15349\AppData\Local\Temp\dsh-t136-1795777971`，未动真实 `~/.dsh`）：
+  `dsh t136-web --from-default-profile web --dump-config` 建 profile →
+  `plugin --profile t136-web add "file:F:\PersonalProjects\新建文件夹 (1)"`（`Done in 574ms using pnpm v11.28.5`）→
+  boot 输出 `command registered: mover`、`apply() reached`、
+  `DSH-PACK-AND-GO-SELFTEST {"workspaces":0,"ungrouped":0,"totals":{...0}}`、
+  `exec route registered: /api/mover/exec`，无 pending / 未激活。
+
+**已知限制（不阻塞发布）**
+- 进度条、估算 loading、覆盖二次确认、预览列表等 UI 观感未自动化，需真机点开确认（本轮 boot 验证
+  只覆盖加载与命令/exec 注册）。
+- `scan.test.mjs`「1 万文件 < 2s」与 `zip-stream.test.mjs` 清理竞态为偶发波动（后者已在 DEVLOG 156
+  修复等待 close；前者受机器负载影响），两遍全量均为 0 失败。
+
+**状态**：M0–M13 全部 ✅；0.3.2 待发布（命令见 `docs/RELEASE.md` §2–§4）。

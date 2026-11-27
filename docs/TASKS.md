@@ -30,7 +30,7 @@
 | M10 | 宿主跨版本维护闭环（ADR-0018） | DSH 更新时检出-修复-回归的流程、脚本、基线与首个正式检出 | M0–M9 | 检出报告 + 回归证据；基线随验证版本升级 | ✅ |
 | M11 | 代码审查修复：可信导入（0.3.0） | 导入原子性与目标判定四步判据、路径安全闭环、解析与内存上限、语义修正（ADR-0019/ADR-0020） | M0–M10 | 全量测试绿 + CLI E2E；0.3.0 发布准备就绪 | ✅ |
 | M12 | 代码审查修复：真实进度与取消（0.3.1） | 任务注册表、exec task.*、命令层进度与取消、客户端进度条与取消 | M11 | 长任务可进度可取消；单测与手测证据；全量绿 | ✅ |
-| M13 | 代码审查修复：预览与界面清理（0.3.2） | machineName、预览真实落点与附件冲突、标题读取性能、尺寸估算、调试残留清理、死代码（ADR-0022） | M11 | P2-7/P2-9/P2-10/P2-11/P2-12 全部有证据；全量绿 | ⬜ |
+| M13 | 代码审查修复：预览与界面清理（0.3.2） | machineName、预览真实落点与附件冲突、标题读取性能、尺寸估算、调试残留清理、死代码（ADR-0022） | M11 | P2-7/P2-9/P2-10/P2-11/P2-12 全部有证据；全量绿 | ✅ |
 
 ## 2. 任务清单
 
@@ -219,11 +219,11 @@
 | T13.3 | 标题读取性能：只读会话文件头部帧提取标题（不整文件解压）；缓存策略 | M12 | 单测：大文件标题读取不触发全量解压；列表耗时目标 | ✅ 2026-11-27（devlog 164） |
 | T13.4 | 尺寸估算：loading 态、依赖数组补全、错误可见；调试残留清理（`DSH_PACK_AND_GO_DEBUG` 门控 console/log 文件、去掉 BUILD_TAG 展示、selftest 不进生产 bundle 或显式门控、repairGrouping 轮询收敛） | M12 | 单测/手测：默认无调试输出与日志文件；debug 开启可见 | ✅ 2026-11-27（devlog 165） |
 | T13.5 | 死代码清理：`buildPathMap`/`mapCwdForWorkspace`/`stageAttachments` 或删除或接线、`createBackupTransaction` 接线、CLI registry 写入与 host 统一；`npm run check` 通过 | M12 | 无零引用导出；CLI 与 host 行为一致；全量绿 | ✅ 2026-11-27（devlog 166） |
-| T13.6 | 回归与 0.3.2 发布准备：全量测试、DEVLOG、版本与 README/RELEASE/INDEX | T13.5 | 全绿；`npm pack --dry-run` 正确 | ⬜ |
+| T13.6 | 回归与 0.3.2 发布准备：全量测试、DEVLOG、版本与 README/RELEASE/INDEX | T13.5 | 全绿；`npm pack --dry-run` 正确 | ✅ 2026-11-27（devlog 167） |
 
 ## 3. 当前进度
 
-- 当前里程碑：**M12 全部 ✅（0.3.1 就绪待发布）**；下一步 **M13**（0.3.2 预览与清理，ADR-0022）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
+- 当前里程碑：**M0–M13 全部 ✅**；0.3.0 / 0.3.1 / 0.3.2 均已就绪，0.3.2 待发布（发布命令见 `docs/RELEASE.md`）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
 - 2026-11-27：**T11.1 完成**——代码审查（AgentCompare 版本 B）14 条问题逐条复核全部成立，方案经用户批准后落地 ADR-0019/ADR-0020、SPEC v1.8、DESIGN §3.1/§4 与本节任务表（详见 DEVLOG 152）。
 - 2026-11-27：**T11.2 完成**——`zip-reader` 拆出只读中央目录层，`listZip` 不再解压、`compressedSize` 为真实值，新增 `readZipEntry` 与 4 GiB 解压总量上限（`E_PACK_TOO_LARGE`），`inspectPack` 只解压 manifest；单测 14/14、unit 215/207、e2e 16/15（详见 DEVLOG 153）。
 - 2026-11-27：**T11.3 完成**——新增纯函数 `planImportTargets`（四步判据 + ` (n)` 顺延 + 标题净化 + 冲突报告），`plan-import` 单测 18/18、unit 224/216（详见 DEVLOG 154）。
@@ -239,6 +239,11 @@
 - 2026-11-18 完成 **T9.8**：重定位导入改写 deliverables 文件引用路径 + `repair` 命令；全量 223 项通过。
 - 2026-11-18 完成 **T9.9**：导入/repair 归一化 auto 权限预设（workspace-write）；全量 226 项通过。
 - 2026-11-23 完成 **T10.1–T10.7**：宿主跨版本维护闭环建立（脚本/基线/runbook/ADR-0018）→ 对 0.2.2-rc.5 正式检出（五类契约全部兼容，报告 `docs/compat/reports/detect-0.2.2-rc.5.md`）→ 回归 R1–R4 全过 → 基线升级 0.2.2-rc.5 → 发布 0.2.3 准备就绪。
-- 待办：M11 按 T11.2 → T11.8 顺序推进（任务来源见本节表格）。后续宿主更新维护动作按 `docs/UPSTREAM-COMPAT.md` 触发。
+- 2026-11-27：**T13.1/T13.2 完成**——manifest 可选 `machineName`（`--no-machine-name` 关闭）、预览目标与冲突来自 `planImportTargets`、附件对象冲突检测、客户端覆盖二次确认；commands 单测 24/23、全量 280/271（DEVLOG 163）。
+- 2026-11-27：**T13.3 完成**——`scanFramesPartial` + `readTitleFromFile`（只读 256 KB 头部帧），`loadCatalog` 不再整文件解压；catalog 单测 11/11、全量 266/258（DEVLOG 164）。
+- 2026-11-27：**T13.4 完成**——尺寸估算 loading 与依赖补全、诊断行与 `mover-debug.log` 由 `DSH_PACK_AND_GO_DEBUG` 门控、启动修复轮询降频；commands 25/24、全量 267/259（DEVLOG 165）。
+- 2026-11-27：**T13.5 完成**——删除零引用实现（`buildPathMap`/`mapCwdForWorkspace`/`stageAttachments`/`createBackupTransaction`），新增 `resolveWorkspaceTitle` 统一 Host/CLI 标题规则，修复净化正则缺 `g` 的真实缺陷；全量 265/257、e2e 16/15、手测 PASS（DEVLOG 166）。
+- 2026-11-27：**T13.6 完成**——0.3.2 版本与发布材料就绪（README/RELEASE/INDEX/TASKS），全量 281/272 两连、`npm pack` 43 文件、真实宿主 boot 通过（DEVLOG 167）。
+- 待办：无（M0–M13 全部完成）。后续宿主更新维护动作按 `docs/UPSTREAM-COMPAT.md` 触发。
 - 阻塞/暂缓：T9.2 取消功能、T9.4 精确进度原为「用户决定不做」（2026-11-11），**已由 ADR-0021 取代**（2026-11-27 CODE REVIEW 全项修复目标）；无其余阻塞。
 - 2026-11-27：**T11.5 完成**——新增 `apply-import` 原语（暂存目录 + 目录级 rename + 失败清理 + 覆盖回滚）与 `applyImport` 共用流水线，host/CLI 统一走「规划 → 预检 → 原子写盘」，覆盖未知会话改为写盘前失败，工作区文件覆盖纳入备份；顺带修复 zip-stream 清理竞态（P2-14 ②）；unit+e2e 254/245/0/9 连跑三次全绿，CLI 手测 11/11（详见 DEVLOG 156）。

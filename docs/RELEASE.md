@@ -1,27 +1,34 @@
-# 发布手册（0.3.1）
+# 发布手册（0.3.2）
 
 > 目标：用户一条命令安装（GitHub / npm），并在 [dsh-market](https://github.com/dsh-market/dsh-market) 里一键安装。
 
-## 0.1 本次发布（0.3.1）要点
+## 0.1 本次发布（0.3.2）要点
 
-- 主题：长任务真实进度与取消（ADR-0021 / P2-6）。导出/导入改为后台任务
-  （`task.start` → `task.poll` 500 ms 轮询 → 终态），界面显示阶段进度条与「取消」按钮；
-  取消为尽力而为，已原子提交的单元保留，可直接重试。
-- 兼容性不变：DSH `>=0.2.0 <0.3.0`，包格式仍 v1；老宿主（无 `task.*`）自动回退直连 exec 与命令通道。
+- 主题：**预览与界面清理**（代码审查 P2-7 / P2-9 / P2-10 / P2-11 / P2-12，ADR-0022 / ADR-0023）。
+  预览目标路径与冲突与真实导入同源（`planImportTargets`）、来源机器名（`machineName`，可
+  `--no-machine-name` 关闭）、附件对象冲突检测、覆盖二次确认；会话标题只读文件头部帧（不再整文件
+  解压）；尺寸估算增加「正在估算」状态与依赖补全；诊断输出与 `mover-debug.log` 由
+  `DSH_PACK_AND_GO_DEBUG=1` 门控、启动修复轮询降频；删除零引用实现并统一 Host/CLI 标题规则。
+- 兼容性不变：DSH `>=0.2.0 <0.3.0`，包格式仍 v1（`manifest.source.machineName` 为可选字段，
+  旧包与新包互通）。
+
+- 主题：长任务真实进度与取消（0.3.1 / ADR-0021 / P2-6）：`task.start` → `task.poll` 500 ms 轮询 →
+  终态，界面显示阶段进度条与「取消」按钮；取消尽力而为，已原子提交单元保留。
 
 - 主题：**可信导入**（代码审查 P1/P2 修复，ADR-0019/ADR-0020）。同名工作区不再静默合并；
   导入先规划再写盘（暂存 + 目录级 rename + 覆盖备份）；目录段路径净化与大小写冲突改名；
   导出扫描失败可见；`listZip` 只读中央目录、4 GiB 总量上限；导出预检默认执行；
   符号链接越界跳过；exec 请求体 32 MiB 上限。
 - 兼容性不变：DSH `>=0.2.0 <0.3.0`，包格式仍 v1（`manifest.json` 未变），0.2.x 导出的包可直接导入。
-- 差异清单：`docs/DEVLOG.md` 160–162（0.3.1：长任务进度与取消）；验收：全量测试 277 项 / 268 通过 / 0 失败 / 9 跳过。
+- 差异清单：`docs/DEVLOG.md` 163–167（0.3.2：预览、标题性能、界面清理）；0.3.1 见 160–162；
+  验收：全量测试 281 项 / 272 通过 / 0 失败 / 9 跳过。
 
 ## 0. 前置条件
 
 - Node.js ≥ 22.15；DSH `>=0.2.0 <0.3.0`（当前验证：DSH 0.2.2-rc.5；检出报告 `docs/compat/reports/detect-0.2.2-rc.5.md`，基线 `docs/compat/baseline/0.2.2-rc.5.json`）
 - npm 已登录且能发布 `dsh-pack-and-go`（当前未占用）：`npm whoami`
 - GitHub 已登录（提 dsh-market 收录 PR 用）：`gh auth status`
-- 版本号在 `package.json`：`0.3.1`；`engines.dsh` 已声明
+- 版本号在 `package.json`：`0.3.2`；`engines.dsh` 已声明
 
 ## 1. 本地校验
 
@@ -41,7 +48,7 @@ npm view dsh-pack-and-go version repository
 ```
 
 - `repository` 必须指回 GitHub 仓库，dsh-market 才会把 npm 包和收录条目关联起来（下载量统计依赖它）。
-- 失败回滚：72 小时内可 `npm unpublish dsh-pack-and-go@0.3.1 --force`；超过则用 `npm deprecate dsh-pack-and-go@0.3.1 "..."`。
+- 失败回滚：72 小时内可 `npm unpublish dsh-pack-and-go@0.3.2 --force`；超过则用 `npm deprecate dsh-pack-and-go@0.3.2 "..."`。
 - npm 可能先创建 `0.0.0-stage` 占位版本（staged publishing），正式版本通常在半分钟内上线；若 `npm view` 仍只看到占位，稍等重查，**不要重复 publish**（会报 `cannot publish over the previously published versions`）。
 
 ## 3. 一条命令安装验证
@@ -70,9 +77,9 @@ DSH_HOME=$TMP dsh --profile verify --no-open --port 0 --host 127.0.0.1
 ## 4. 打 tag 与推送
 
 ```bash
-git tag -a v0.3.1 -m "dsh-pack-and-go 0.3.1"
+git tag -a v0.3.2 -m "dsh-pack-and-go 0.3.2"
 git push origin main
-git push origin v0.3.1
+git push origin v0.3.2
 ```
 
 ## 5. 提交 dsh-market 收录

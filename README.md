@@ -3,7 +3,7 @@
 > **打包就走。** 把 DSH 的「对话 + 工作区」装进一个 `.dshpack` 文件，换台电脑（或换个平台）继续用。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
-[![tests](https://img.shields.io/badge/tests-258%20passing-brightgreen.svg)](./tests)
+[![tests](https://img.shields.io/badge/tests-272%20passing-brightgreen.svg)](./tests)
 [![spec](https://img.shields.io/badge/spec-v1.9-informational.svg)](./docs/SPEC.md)
 
 ---
@@ -81,6 +81,8 @@ dsh plugin --profile <profile> add ./dsh-pack-and-go-0.2.1.tgz
 也可以在 DSH 插件管理页添加本地路径，或直接输入 npm / GitHub 坐标。安装后侧边栏出现「**迁移对话或工作区**」入口。
 
 > 兼容性：DSH `>=0.2.0 <0.3.0`（当前 0.2.2-rc.5 已验证，2026-11-23 检出报告见 `docs/compat/reports/detect-0.2.2-rc.5.md`）；Node.js ≥ 22.15。
+>
+> 0.3.2 行为变更（ADR-0022 / ADR-0023）：预览的目标路径与冲突与真实导入一致；`manifest.source.machineName` 默认写入（`--no-machine-name` 关闭）；诊断日志默认关闭（`DSH_PACK_AND_GO_DEBUG=1` 开启）；尺寸估算显示「正在估算」；会话标题只读文件头部（不再整文件解压）。
 >
 > 0.3.0 行为变更（ADR-0019 / ADR-0020）：同名工作区不再静默合并；导入前完成全部预检（未知覆盖提前报错）；工作区文件覆盖前备份；目录段路径净化与大小写冲突改名；Windows 超过 240 字符的路径跳过并报告。
 
