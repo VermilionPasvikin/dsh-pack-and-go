@@ -18,6 +18,7 @@ import {
   measureWorkspaces,
   inspectPack,
 } from '../../src/host/commands.js'
+import { buildManifest, buildPackToFile } from '../../src/core/export-pack.js'
 import { readZip } from '../../src/core/zip-reader.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
 
@@ -580,6 +581,129 @@ test('命令入口默认执行导出预检，--no-preflight 才跳过（P2-8 / D
     })
     assert.equal(withoutPreflight.kind, 'success')
     assert.ok(!/预检 \d+ 项/.test(withoutPreflight.text))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('inspect 预览展示来源机器名；旧包显示空（ADR-0022 / T13.1）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const out = join(dir, 'out.dshpack')
+    await exportAllSessions(deps, out)
+    const fresh = JSON.parse((await inspectPack(deps, out)).text)
+    assert.equal(typeof fresh.machineName, 'string')
+    assert.ok(fresh.machineName.length > 0)
+
+    // 旧包：manifest 未写 machineName（保持旧语义）
+    const legacyManifest = buildManifest({
+      platform: 'linux',
+      dshVersion: 'legacy',
+      mode: 'sessions',
+      sessions: [
+        {
+          id: 's1',
+          cwd: '/p',
+          messageCount: 0,
+          sizeBytes: bytes.length,
+          path: 'sessions/s1/session.v4.jsonl.zstd',
+        },
+      ],
+    })
+    const legacyOut = join(dir, 'legacy.dshpack')
+    await buildPackToFile({
+      plan: { items: [{ path: 'sessions/s1/session.v4.jsonl.zstd' }] },
+      sourcePaths: { 'sessions/s1/session.v4.jsonl.zstd': sessionFile },
+      manifest: legacyManifest,
+      outputPath: legacyOut,
+    })
+    const legacy = JSON.parse((await inspectPack(deps, legacyOut)).text)
+    assert.equal(legacy.machineName, null)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('inspect 预览目标与真实导入同源（P2-7 / T13.2）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const sourceFile = join(dir, 'x.txt')
+    await writeFile(sourceFile, 'demo')
+    const manifest = buildManifest({
+      platform: 'linux',
+      dshVersion: 'test',
+      mode: 'workspaces',
+      workspaces: [
+        {
+          key: 'w1',
+          title: 'Proj',
+          sourcePath: '/src/Proj',
+          sourcePlatform: 'linux',
+          fileCount: 1,
+          sizeBytes: 4,
+          root: 'workspaces/w1',
+        },
+      ],
+    })
+    const packPath = join(dir, 'ws.dshpack')
+    await buildPackToFile({
+      plan: { items: [{ path: 'workspaces/w1/files/x.txt' }] },
+      sourcePaths: { 'workspaces/w1/files/x.txt': sourceFile },
+      manifest,
+      outputPath: packPath,
+    })
+
+    const targetRoot = join(dir, 'target')
+    await mkdir(join(targetRoot, 'Proj'), { recursive: true })
+    await writeFile(join(targetRoot, 'Proj', 'existing.txt'), 'old')
+
+    const preview = JSON.parse((await inspectPack(deps, packPath, targetRoot)).text)
+    assert.equal(preview.targetRoot, targetRoot)
+    assert.equal(preview.previewTargets.length, 1)
+    assert.equal(preview.previewTargets[0].action, 'rename')
+    assert.ok(preview.previewTargets[0].path.endsWith('Proj (1)'))
+    assert.equal(preview.conflicts.workspaces, 1)
+
+    const imported = await importPack(deps, packPath, targetRoot, {})
+    assert.equal(imported.kind, 'success')
+    assert.ok(existsSync(join(targetRoot, 'Proj (1)', 'x.txt')))
+    assert.equal(await readFile(join(targetRoot, 'Proj', 'existing.txt'), 'utf8'), 'old')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('inspect 预览统计目标已存在的附件对象（P2-7 / ADR-0022）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const digest = 'a'.repeat(64)
+    const manifest = buildManifest({
+      platform: 'linux',
+      dshVersion: 'test',
+      mode: 'sessions',
+      sessions: [],
+      attachments: [{ id: `sha256:${digest}`, sizeBytes: 1 }],
+    })
+    const packPath = join(dir, 'att.dshpack')
+    await buildPackToFile({ plan: { items: [] }, manifest, outputPath: packPath, sourcePaths: {} })
+    const objectDir = join(deps.dshHome, 'attachments', 'v1', 'objects', digest.slice(0, 2))
+    await mkdir(objectDir, { recursive: true })
+    await writeFile(join(objectDir, digest), 'x')
+    const preview = JSON.parse((await inspectPack(deps, packPath)).text)
+    assert.equal(preview.conflicts.attachments, 1)
+    assert.equal(preview.conflictDetails.attachments[0].kind, 'existing-object')
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

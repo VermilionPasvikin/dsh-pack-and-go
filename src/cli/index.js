@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { access, copyFile, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { hostname } from 'node:os'
 import { parseArgs } from 'node:util'
 import zlib from 'node:zlib'
 
@@ -50,6 +51,7 @@ const USAGE = `dsh-pack-and-go <命令> [选项]
   --sessions <ids>   export 只导出指定会话（逗号分隔）
   --workspace <目录> export 只导出工作区（可重复）
   --strict           export 时任一工作区无法读取即中止
+  --no-machine-name  export 时不写入来源机器名（manifest.source.machineName）
   --session <id>     repair 只修复指定会话（可选）
   --dry-run          repair 只报告不写入
   -h, --help         显示帮助
@@ -144,7 +146,10 @@ async function cmdExport(options) {
       { platform: process.platform, dshVersion: 'cli' },
       options.out,
       options.workspace,
-      { strict: options.strict === true },
+      {
+        strict: options.strict === true,
+        machineName: options['no-machine-name'] === true ? false : undefined,
+      },
     )
     if (result.kind !== 'success') fail(result.text)
     console.log(result.text)
@@ -167,6 +172,7 @@ async function cmdExport(options) {
   const manifest = buildManifest({
     platform: process.platform,
     dshVersion: 'cli',
+    machineName: options['no-machine-name'] === true ? undefined : hostname(),
     mode: 'sessions',
     sessions: picked.map((session) => ({
       id: session.id,
@@ -428,6 +434,7 @@ async function main() {
         session: { type: 'string' },
         'dry-run': { type: 'boolean' },
         strict: { type: 'boolean' },
+        'no-machine-name': { type: 'boolean' },
         workspace: { type: 'string', multiple: true },
         overwrite: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },

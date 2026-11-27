@@ -1339,3 +1339,35 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
   `[dsh-pack-and-go] exec route registered: /api/mover/exec`，无 pending / 未激活条目。
 
 **状态**：T12.5 完成（M12 全部 ✅）；0.3.1 就绪待发布。下一步 M13（T13.1–T13.6）。
+
+## 163 · 2026-11-27 · 预览真实落点与来源机器名（T13.1 / T13.2）
+
+**T13.1 manifest `machineName`（ADR-0022）**
+- `src/host/commands.js`：新增 `resolveMachineName(options)`（`machineName === false` 不写；
+  字符串则 trim 后使用；否则 `os.hostname()`），`exportWorkspacesOnly` 与 `exportAllSessions`
+  的 `buildManifest` 均传入。
+- `src/cli/index.js`：新增 `--no-machine-name`（`parseArgs` 选项 + USAGE），`cmdExport` 两个分支
+  （`--workspace` 与对话导出）按开关写/不写 `source.machineName`。
+- `inspectPack` 返回 `machineName`（旧包为 `null`）；客户端预览行显示
+  「来源机器：<name>」，未知时显示「未知」/`unknown`。
+
+**T13.2 预览与导入同源（ADR-0019 / ADR-0022）**
+- `inspectPack` 的 `previewTargetByKey` 自算逻辑删除，改由
+  `planImportTargets({manifest, targetRoot, platform, registeredPathKeys, exists, existsNonEmpty})`
+  产出 `previewTargets`（含 `path`/`action`/`reason`），与导入调用同一实现。
+- 工作区冲突不再按 `sourcePath` 匹配（跨平台恒空的缺陷），改为 targets 中
+  `action !== 'create'` 的条目；同时返回 `workspaceConversions`（`conflicts`）。
+- 附件冲突按目标 `<DSH_HOME>/attachments/v1/{objects,file-objects}/<hex2>/<digest>` 已存在对象检测，
+  返回 `{id, kind:'existing-object'}`。
+- 客户端预览新增「目标位置（预览与导入一致）」块（前 5 条，标注 新建/复用/改名）；
+  覆盖策略下存在对话冲突时，首次点击「开始导入」只提示确认（「再次点击确认覆盖」），
+  第二次点击才执行；重新预览会重置确认状态。
+
+**验证**
+- `tests/unit/commands.test.mjs` 新增 3 例：机器名（新包有值 / 旧包 `null`）、
+  预览目标与真实导入同源（`Proj` 已存在非空 → `Proj (1)`，导入后旧目录内容不变）、
+  附件已存在对象计数 → `commands.test.mjs` 24 项 / 23 通过 / 0 失败 / 1 跳过。
+- 全量：unit 264 / 256 通过 / 0 失败 / 8 跳过；e2e 16 / 15 / 0 / 1（合计 280 / 271 / 0 / 9）。
+- `node --check` 通过（`src/host/commands.js`、`src/cli/index.js`、`src/client/client.js`）。
+
+**状态**：T13.1、T13.2 完成；下一步 T13.3（标题读取性能）→ T13.4 → T13.5 → T13.6。

@@ -57,6 +57,12 @@ window.__ModuleLoader__.load({
         attachments: '包含附件（图片 / 文件）',
         preview: '预览',
         previewTitle: '迁移包预览',
+        previewMachine: (name) => `来源机器：${name}`,
+        machineUnknown: '未知',
+        previewTargetsTitle: '目标位置（预览与导入一致）',
+        previewTargetAction: (action) =>
+          ({ create: '新建', reuse: '复用', rename: '改名' })[action] ?? action,
+        confirmOverwritePrompt: '目标已存在数据：再次点击「开始导入」确认覆盖（旧文件会自动备份）。',
         previewCounts: (sessions, workspaces, attachments) =>
           `对话 ${sessions} · 工作区 ${workspaces} · 附件 ${attachments}`,
         previewConflicts: (n) => `与当前数据冲突 ${n} 项（导入时按所选策略处理）`,
@@ -142,6 +148,13 @@ window.__ModuleLoader__.load({
         attachments: 'Include attachments (images / files)',
         preview: 'Preview',
         previewTitle: 'Package preview',
+        previewMachine: (name) => `Source machine: ${name}`,
+        machineUnknown: 'unknown',
+        previewTargetsTitle: 'Targets (preview matches import)',
+        previewTargetAction: (action) =>
+          ({ create: 'create', reuse: 'reuse', rename: 'rename' })[action] ?? action,
+        confirmOverwritePrompt:
+          'Target already has data: click "Start import" again to confirm overwrite (old files are backed up).',
         previewCounts: (sessions, workspaces, attachments) =>
           `${sessions} conversations · ${workspaces} workspaces · ${attachments} attachments`,
         previewConflicts: (n) => `${n} conflicts with current data (handled by the selected policy)`,
@@ -461,6 +474,7 @@ window.__ModuleLoader__.load({
       const [exportName, setExportName] = useState('')
       const [preview, setPreview] = useState(null)
       const [importConflictMode, setImportConflictMode] = useState('skip')
+      const [overwriteConfirmed, setOverwriteConfirmed] = useState(false)
       const [needsRestartHint, setNeedsRestartHint] = useState(false)
       const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
       const dragRef = useRef(null)
@@ -1130,6 +1144,7 @@ window.__ModuleLoader__.load({
             text = commandResult.text
           }
           setPreview(JSON.parse(text))
+          setOverwriteConfirmed(false)
         } catch (previewError) {
           setError(previewError instanceof Error ? previewError.message : String(previewError))
         }
@@ -1155,6 +1170,15 @@ window.__ModuleLoader__.load({
           setError(t.importNeedsTarget)
           return
         }
+        const hasOverwriteConflicts =
+          importConflictMode === 'overwrite' &&
+          (preview?.conflictDetails?.sessions?.length ?? 0) > 0
+        if (hasOverwriteConflicts && !overwriteConfirmed) {
+          setOverwriteConfirmed(true)
+          setMessage(t.confirmOverwritePrompt)
+          return
+        }
+        if (overwriteConfirmed) setOverwriteConfirmed(false)
         const message = await runMoverAction(
           'import',
           {
@@ -1852,7 +1876,7 @@ window.__ModuleLoader__.load({
                 h(
                   'div',
                   { style: { color: THEME.textMuted, marginTop: 2 } },
-                  `${preview.source?.platform ?? '-'} · DSH ${preview.source?.dshVersion ?? '-'} · ${formatBytes(preview.packBytes ?? 0)}`,
+                  `${preview.source?.platform ?? '-'} · DSH ${preview.source?.dshVersion ?? '-'} · ${formatBytes(preview.packBytes ?? 0)} · ${t.previewMachine(preview.machineName ?? t.machineUnknown)}`,
                 ),
                 h(
                   'div',
@@ -1863,6 +1887,20 @@ window.__ModuleLoader__.load({
                     preview.attachments ?? 0,
                   ),
                 ),
+                preview.previewTargets && preview.previewTargets.length > 0
+                  ? h(
+                      'div',
+                      { style: { color: THEME.textMuted, marginTop: 4 } },
+                      h('div', null, t.previewTargetsTitle),
+                      ...preview.previewTargets.slice(0, 5).map((item) =>
+                        h(
+                          'div',
+                          { key: item.workspaceKey, style: { marginTop: 2 } },
+                          `${item.title} → ${item.path}（${t.previewTargetAction(item.action)}）`,
+                        ),
+                      ),
+                    )
+                  : null,
                 (() => {
                   const conflictSessions = preview.conflictDetails?.sessions ?? []
                   const conflictWorkspaces = preview.conflictDetails?.workspaces ?? []

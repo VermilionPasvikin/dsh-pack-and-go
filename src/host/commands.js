@@ -11,8 +11,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, readdir, realpath, stat, writeFile } from 'node:fs/promises'
-import { appendFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { appendFileSync, existsSync, readdirSync } from 'node:fs'
+import { homedir, hostname } from 'node:os'
 import { basename, dirname, isAbsolute, join } from 'node:path'
 import zlib from 'node:zlib'
 
@@ -28,8 +28,10 @@ import {
   applyImport,
   listZip,
   packAttachmentPath,
+  parseAttachmentId,
   parseManifest,
   planExport,
+  planImportTargets,
   preflightWorkspace,
   readZipEntry,
   restoreAttachments,
@@ -127,7 +129,7 @@ export async function resolveExportTarget(targetPath, name) {
  * @param {object} deps
  * @param {string} targetPath
  * @param {string[]} workspacePaths
- * @param {{ strict?: boolean }} [options] strict=true 时任一工作区无法读取即中止（P1-4）
+ * @param {{ strict?: boolean, machineName?: string|false }} [options] strict=true 时任一工作区无法读取即中止（P1-4）；machineName=false 时不写来源机器名（ADR-0022）
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
 export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, options = {}) {
@@ -237,6 +239,7 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
     const manifest = buildManifest({
       platform,
       dshVersion: deps.dshVersion ?? 'unknown',
+      machineName: resolveMachineName(options),
       mode: 'workspaces',
       sessions: [],
       workspaces,
@@ -309,6 +312,19 @@ function describeSkips(skipped) {
  * 进度失败不影响主流程；取消通过抛出 `E_TASK_CANCELLED` 中止。
  * @param {Record<string, any>} options
  */
+/**
+ * 解析要写入 manifest.source 的来源机器名（ADR-0022）。
+ * @param {{ machineName?: string|false }} [options]
+ * @returns {string|undefined} false 时不写（保持旧包语义）
+ */
+function resolveMachineName(options) {
+  if (options?.machineName === false) return undefined
+  if (typeof options?.machineName === 'string' && options.machineName.trim().length > 0) {
+    return options.machineName.trim()
+  }
+  return hostname()
+}
+
 function progressContext(options = {}) {
   const taskId =
     typeof options.taskId === 'string' && options.taskId.length > 0 ? options.taskId : 'adhoc'
@@ -598,6 +614,7 @@ export async function exportAllSessions(
     const manifest = buildManifest({
       platform,
       dshVersion: deps.dshVersion ?? 'unknown',
+      machineName: resolveMachineName(options),
       mode: includeFiles ? 'sessions+workspaces' : 'sessions',
       sessions: sessions.map((session) => ({
         id: session.id,
@@ -794,36 +811,47 @@ export async function inspectPack(deps, packPath, targetRoot) {
     } catch {
       // 目标 home 不可读时冲突视为空
     }
-    let workspacePaths = new Set()
+    let registeredPathKeys = new Set()
     try {
-      workspacePaths = new Set(
+      registeredPathKeys = new Set(
         deps.workspaceRegistry.list().map((workspace) => normalizePathKey(workspace.path)),
       )
     } catch {
       // 同上
     }
 
-    // 给定目标目录时可预判「迁移覆盖」。
     const target =
       typeof targetRoot === 'string' && targetRoot.trim().length > 0
         ? targetRoot.trim()
         : undefined
-    const previewTargetByKey = {}
-    if (target) {
-      for (const workspace of manifest.workspaces) {
-        previewTargetByKey[workspace.key] = join(
-          target,
-          safeDirName(workspace.title, platform),
-        )
-      }
-    }
+    // ADR-0019 / ADR-0022：预览与导入同源——目标路径与冲突都由 planImportTargets 计算。
+    const previewPlan = target
+      ? planImportTargets({
+          manifest,
+          targetRoot: target,
+          platform,
+          registeredPathKeys: [...registeredPathKeys],
+          exists: (candidate) => existsSync(candidate),
+          existsNonEmpty: (candidate) => {
+            try {
+              return readdirSync(candidate).length > 0
+            } catch {
+              return true
+            }
+          },
+        })
+      : null
+    const targetsByKey = new Map(
+      (previewPlan?.targets ?? []).map((item) => [item.workspaceKey, item]),
+    )
 
     const sessionConflicts = []
     for (const session of manifest.sessions) {
       const currentCwd = existingCwdById.get(session.id)
       if (currentCwd === undefined) continue
-      const targetCwd =
-        session.workspaceKey !== undefined ? previewTargetByKey[session.workspaceKey] : undefined
+      const targetEntry =
+        session.workspaceKey !== undefined ? targetsByKey.get(session.workspaceKey) : undefined
+      const targetCwd = targetEntry?.path
       const migrate =
         typeof targetCwd === 'string' &&
         normalizePathKey(targetCwd) !== normalizePathKey(currentCwd)
@@ -835,16 +863,34 @@ export async function inspectPack(deps, packPath, targetRoot) {
         kind: migrate ? 'migrate-overwrite' : 'overwrite-in-place',
       })
     }
-    const workspaceConflicts = manifest.workspaces
-      .filter((workspace) => workspacePaths.has(normalizePathKey(workspace.sourcePath)))
-      .map((workspace) => ({
-        key: workspace.key,
-        title: workspace.title,
-        sourcePath: workspace.sourcePath,
-        kind: 'same-path-reuse',
+    // 工作区冲突直接来自 planImportTargets（与导入同源，P2-7）。
+    const workspaceConflicts = (previewPlan?.targets ?? [])
+      .filter((entry) => entry.action !== 'create')
+      .map((entry) => ({
+        key: entry.workspaceKey,
+        title: entry.title,
+        action: entry.action,
+        reason: entry.reason,
+        targetPath: entry.path,
       }))
-    // 附件是内容寻址：同 id 即同内容，覆盖无副作用，不计为冲突。
+    const workspaceConversions = previewPlan?.conflicts ?? []
+    // 附件是内容寻址：目标已存在的对象不算覆盖风险，只报告数量（ADR-0022）。
+    const attachmentsRoot = join(resolveDshHome(deps), 'attachments', 'v1')
     const attachmentConflicts = []
+    for (const attachment of manifest.attachments) {
+      try {
+        const { digest } = parseAttachmentId(attachment.id)
+        const candidates = [
+          join(attachmentsRoot, 'objects', digest.slice(0, 2), digest),
+          join(attachmentsRoot, 'file-objects', digest.slice(0, 2), digest),
+        ]
+        if (candidates.some((candidate) => existsSync(candidate))) {
+          attachmentConflicts.push({ id: attachment.id, kind: 'existing-object' })
+        }
+      } catch {
+        // 非法附件 id 留给导入阶段报错
+      }
+    }
 
     return {
       kind: 'success',
@@ -852,15 +898,19 @@ export async function inspectPack(deps, packPath, targetRoot) {
         packBytes: buffer.length,
         createdAt: manifest.createdAt,
         source: manifest.source,
+        machineName: manifest.source.machineName ?? null,
         mode: manifest.mode,
         sessions: manifest.sessions.length,
         workspaces: manifest.workspaces.length,
         attachments: manifest.attachments.length,
+        targetRoot: target ?? null,
+        previewTargets: previewPlan?.targets ?? [],
         conflicts: {
           sessions: sessionConflicts.length,
           workspaces: workspaceConflicts.length,
           attachments: attachmentConflicts.length,
         },
+        workspaceConversions,
         conflictDetails: {
           sessions: sessionConflicts,
           workspaces: workspaceConflicts,
