@@ -140,6 +140,7 @@ DSH_PACK_AND_GO_SELFTEST=1 timeout 90 dsh ci-web --no-open --port 0
 > 2026-11-12 Linux 专项明细见 DEVLOG 134/136（一次性 `DSH_HOME`）；macOS 全量执行明细与证据见 §6（DEVLOG 140）。
 
 ## 6. 执行记录
+- 2026-11-27（GitHub Actions 首轮，run 45991534361，commit 5338b2e）：`cross-platform` 全绿——`test (ubuntu-latest)`、`test (macos-latest)`、`test (windows-latest)`、`host-boot (ubuntu)` 均 success；三平台 `npm run check` + unit + e2e 0 失败，ubuntu 上 `@deepseek-ai/dsh@0.2.2-rc.5` 真实宿主 boot 探针（`command registered: mover`、`exec route registered: /api/mover/exec`、`DSH-PACK-AND-GO-SELFTEST`）通过且无 pending。证据：Actions run 页面 + `host-boot-logs` 工件。
 
 - 每轮执行：日期、平台、执行方式、结果（通过/失败+证据）；失败汇总后修复。
 - 2026-11-11（Windows），单测 195 项通过；CDP 覆盖 E-06/E-09/E-11/I-10/I-11/I-19/I-23/P-08（用户确认）。

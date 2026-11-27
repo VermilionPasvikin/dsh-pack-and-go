@@ -1520,3 +1520,28 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 - `docs/TASKS.md` 新增 M14 与 T14.1（本轮）/T14.2（首轮结果核对）/T14.3（两平台绿后发布）。
 
 **状态**：workflow 已提交待推送触发；下一步核对首轮三平台结果（T14.2），全绿后才发布 0.3.2。
+
+## 169 · 2026-11-27 · CI 首轮全绿与 0.3.2 发布闸门证据（T14.2）
+
+**CI 首轮结果（GitHub Actions run 45991534361，commit 5338b2e）**
+
+| Job | 结论 |
+|---|---|
+| `test (ubuntu-latest)` | success（check + unit + e2e 全通过） |
+| `test (macos-latest)` | success |
+| `test (windows-latest)` | success |
+| `host-boot (ubuntu)` | success（command registered: mover / exec route registered / SELFTEST 输出齐全，无 pending） |
+
+首轮无需修复；三个平台的差异只在 skip 数量（Windows skip POSIX-only 用例），无失败项。
+
+**本地复核（Windows，同一提交）**：`npm run check` 通过；unit 265 项 / 257 通过 / 0 失败 / 8 跳过；
+e2e 16 项 / 15 通过 / 0 失败 / 1 跳过（合计 281 / 272 / 0 / 9），与 CI 结论一致。
+
+**顺带修复**：`package.json` 的 `check` 列表漏了新文件——补 `src/host/exec-route.js`、
+`src/host/task-registry.js`、`tests/unit/task-registry.test.mjs`、`tests/unit/exec-route.test.mjs`
+（check 条目 52 → 56）。CI 的「语法检查」步骤下次将覆盖它们。
+
+**npm 登录状态**：`npm whoami` → `E401 Unauthorized`（本机当前未登录），因此 `npm publish` 需要先登录；
+发布命令见 `docs/RELEASE.md` §2。tag 与 push 由同一轮执行。
+
+**状态**：T14.1/T14.2 ✅；T14.3（发布 0.3.2）待 npm 登录后执行。

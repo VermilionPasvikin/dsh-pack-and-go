@@ -222,7 +222,7 @@
 | T13.5 | 死代码清理：`buildPathMap`/`mapCwdForWorkspace`/`stageAttachments` 或删除或接线、`createBackupTransaction` 接线、CLI registry 写入与 host 统一；`npm run check` 通过 | M12 | 无零引用导出；CLI 与 host 行为一致；全量绿 | ✅ 2026-11-27（devlog 166） |
 | T13.6 | 回归与 0.3.2 发布准备：全量测试、DEVLOG、版本与 README/RELEASE/INDEX | T13.5 | 全绿；`npm pack --dry-run` 正确 | ✅ 2026-11-27（devlog 167） |
 | T14.1 | 新增 `.github/workflows/cross-platform.yml`：三平台纯 Node 测试 + Linux 真实宿主 boot | T13.6 | workflow 在 GitHub 上跑通；YAML 有效 | ✅ 2026-11-27（devlog 168） |
-| T14.2 | 三平台 CI 首轮结果核对，修复跨平台失败（若有） | T14.1 | 三平台 0 失败；boot 探针全绿 | ⬜ |
+| T14.2 | 三平台 CI 首轮结果核对，修复跨平台失败（若有） | T14.1 | 三平台 0 失败；boot 探针全绿 | ✅ 2026-11-27（devlog 169，首轮全绿无需修复） |
 | T14.3 | 两平台测试完成后发布 0.3.2（npm publish + tag + push） | T14.2 | npm 上 0.3.2 可安装；tag 已推 | ⬜ |
 
 ## 3. 当前进度
