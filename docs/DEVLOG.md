@@ -1039,3 +1039,30 @@ DEVLOG 659 记 CLI 对齐决策 2/5/7/9 时补了同名 `(1)` 但未移植 D3。
   与代码审查时记录的波动一致，非本次改动引入。
 
 **状态**：T11.3 完成；下一步 T11.4（`sanitizeRelativePath` 全段净化与大小写冲突）。
+
+## 155. T11.4：路径安全闭环（ADR-0020）
+
+**日期**：2026-11-27
+**范围**：`src/core/workspaces.js`、`tests/unit/workspaces.test.mjs`
+
+1. `workspaces.js` 新增导出 `sanitizeRelativePath(relative, platform)`：按段净化（win32
+   非法字符替换为 `_`、段尾空格/点去除、保留名加 `_` 前缀、单段超 255 字节按 UTF-8
+   字节截断且不切坏多字节字符），返回 `{ path, conversions }`；目录段与文件段走同一实现。
+2. 大小写冲突注册表：win32/darwin 目标按「目录小写键」记录已占用的小写文件名，同目录
+   重名（含仅大小写不同）在扩展名前追加 ` (n)`（`report.txt` → `report (1).txt`），记
+   `kind: 'case-collision'`，不再互相覆盖（ADR-0020 §2）。
+3. Windows 全路径超 240 字符的条目跳过并记 `kind: 'path-too-long'` + warning，不静默
+   （ADR-0020 §3）。
+4. `restoreWorkspaceFiles` 改造：目录/文件条目统一先净化再落盘，保持既有行为
+   （`targetPlatform: 'linux'` 时 conversions 为空；`a?b.txt` → `a_b.txt`）。
+5. `tests/unit/workspaces.test.mjs` 新增 5 个用例：净化纯函数（含 255 字节 CJK 截断）、
+   目录段净化、win32 大小写冲突、darwin 大小写冲突、240 长路径跳过。
+
+**验证**：
+- `node --test tests/unit/workspaces.test.mjs`：18 项 / 11 通过 / 0 失败 / 7 跳过（POSIX 用例在 Windows 上跳过）。
+- `node --test "tests/unit/**/*.test.mjs"`：229 / 221 / 0 失败 / 8 跳过。第一遍
+  `zip-stream.test.mjs:112` 清理竞态偶发失败，第二遍全绿——P2-14 ② 既有问题，留 T11.7/D6。
+- `node --test "tests/e2e/**/*.test.mjs"`：16 / 15 / 0 失败 / 1 跳过。
+
+**状态**：T11.4 完成；下一步 T11.5（原子提交：暂存目录 + 目录级 rename + 覆盖备份，
+host/CLI 共用 `apply-import`）。

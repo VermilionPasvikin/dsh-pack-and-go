@@ -4,7 +4,7 @@ import { chmod, mkdtemp, rm, readFile, stat, mkdir, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { restoreWorkspaceFiles } from '../../src/core/workspaces.js'
+import { restoreWorkspaceFiles, sanitizeRelativePath } from '../../src/core/workspaces.js'
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
 
 function entry(packPath, data = '') {
@@ -284,6 +284,124 @@ test('Windows 目标忽略目录权限（ADR-0003）', async () => {
       sourcePlatform: 'linux',
     })
     assert.equal(result.modes.dirsApplied, 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+// ---- ADR-0020 路径安全闭环 ----
+
+test('sanitizeRelativePath 逐段净化（ADR-0020 §1）', () => {
+  // linux 不做任何改名。
+  const linux = sanitizeRelativePath('dir/a?b.txt', 'linux')
+  assert.equal(linux.path, 'dir/a?b.txt')
+  assert.deepEqual(linux.conversions, [])
+
+  // win32 段内非法字符替换为 `_`，且目录段同样处理。
+  const win = sanitizeRelativePath('dir?x/a?b.txt', 'win32')
+  assert.equal(win.path, 'dir_x/a_b.txt')
+  assert.deepEqual(
+    win.conversions.map((item) => item.to),
+    ['dir_x', 'a_b.txt'],
+  )
+
+  // 保留名加前缀（含扩展名形式）。
+  assert.equal(sanitizeRelativePath('CON.txt', 'win32').path, '_CON.txt')
+  assert.equal(sanitizeRelativePath('sub/NUL', 'win32').path, 'sub/_NUL')
+
+  // 段尾空格/点去掉。
+  assert.equal(sanitizeRelativePath('a. /b ', 'win32').path, 'a/b')
+
+  // 空段与 `..` 被丢弃（防越界）。
+  assert.equal(sanitizeRelativePath('a//../b', 'linux').path, 'a/b')
+
+  // 单段超过 255 字节截断，且不切坏多字节字符。
+  const long = `${'x'.repeat(300)}.txt`
+  const truncated = sanitizeRelativePath(long, 'linux')
+  assert.ok(Buffer.byteLength(truncated.path, 'utf8') <= 255)
+  assert.equal(truncated.conversions.length, 1)
+  const cjk = sanitizeRelativePath(`${'中'.repeat(100)}.txt`, 'linux')
+  assert.ok(Buffer.byteLength(cjk.path, 'utf8') <= 255)
+  assert.ok(!cjk.path.includes('\uFFFD'), '截断不得切坏 UTF-8 序列')
+})
+
+test('Windows 目标对目录段做净化并保持层级（ADR-0020 §1）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        entry('workspaces/w1/files/dir?x/', ''),
+        entry('workspaces/w1/files/dir?x/a?b.txt', 'data'),
+      ],
+      pathMap,
+      targetPlatform: 'win32',
+    })
+    assert.equal(result.dirs.length, 1)
+    assert.equal(await readFile(join(dir, 'p1', 'dir_x', 'a_b.txt'), 'utf8'), 'data')
+    assert.equal(result.conversions.length, 2)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('大小写不敏感目标上同名文件不再互相覆盖（ADR-0020 §2）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        entry('workspaces/w1/files/Report.txt', 'first'),
+        entry('workspaces/w1/files/report.txt', 'second'),
+      ],
+      pathMap,
+      targetPlatform: 'win32',
+    })
+    assert.equal(result.written.length, 2)
+    assert.equal(await readFile(join(dir, 'p1', 'Report.txt'), 'utf8'), 'first')
+    assert.equal(await readFile(join(dir, 'p1', 'report (1).txt'), 'utf8'), 'second')
+    assert.equal(result.conversions.length, 1)
+    assert.equal(result.conversions[0].kind, 'case-collision')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('darwin 目标同样处理大小写冲突（ADR-0020 §2）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const result = await restoreWorkspaceFiles({
+      entries: [
+        entry('workspaces/w1/files/A/a.txt', 'a'),
+        entry('workspaces/w1/files/a/a.txt', 'b'),
+      ],
+      pathMap,
+      targetPlatform: 'darwin',
+    })
+    // 第二个文件写入小写目录下的同名文件时同样追加序号，避免覆盖。
+    assert.equal(result.written.length, 2)
+    assert.equal(result.conversions.length, 1)
+    assert.equal(result.conversions[0].kind, 'case-collision')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('Windows 目标路径过长时跳过并记录（ADR-0020 §3）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-ws-'))
+  try {
+    const pathMap = { byKey: { w1: join(dir, 'p1') } }
+    const longName = `${'x'.repeat(230)}.txt`
+    const result = await restoreWorkspaceFiles({
+      entries: [entry(`workspaces/w1/files/${longName}`, 'data')],
+      pathMap,
+      targetPlatform: 'win32',
+    })
+    assert.equal(result.written.length, 0)
+    assert.equal(result.conversions.length, 1)
+    assert.equal(result.conversions[0].kind, 'path-too-long')
+    assert.equal(result.warnings.length, 1)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
