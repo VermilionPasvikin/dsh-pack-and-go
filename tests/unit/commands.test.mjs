@@ -480,3 +480,72 @@ test(
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('导出时无法读取的工作区被列出而不是静默跳过（P1-4）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const missing = join(dir, 'missing-workspace')
+    // cwd 指向不存在的目录：scanWorkspace 会抛 SCAN_INVALID（P1-4 的典型场景：
+    // 来源机器上的工作区路径在本机不存在）。
+    deps.sessionPersistence.list = async () => [
+      {
+        header: { id: 's1', cwd: missing, createdAt: 1 },
+        sizeBytes: bytes.length,
+        location: { kind: 'jsonl', path: sessionFile },
+      },
+    ]
+
+    const out = join(dir, 'ok.dshpack')
+    const result = await exportAllSessions(deps, out, [], true, {})
+    assert.equal(result.kind, 'success')
+    assert.match(result.text, /1 个工作区无法读取已跳过/)
+    assert.ok(result.text.includes(missing))
+    const { entries } = readZip(await readFile(out))
+    const manifestEntry = entries.find((entry) => entry.name === 'manifest.json')
+    const manifest = JSON.parse(manifestEntry.data.toString('utf8'))
+    assert.equal(manifest.workspaces.length, 0)
+    assert.equal(manifest.sessions.length, 1)
+
+    // --strict：中止导出且不产出包文件
+    const strictOut = join(dir, 'strict.dshpack')
+    const strict = await exportAllSessions(deps, strictOut, [], true, { strict: true })
+    assert.equal(strict.kind, 'error')
+    assert.match(strict.text, /导出中止（--strict）/)
+    assert.ok(strict.text.includes(missing))
+    assert.equal(existsSync(strictOut), false)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('仅导出工作区：显式指定的不存在目录报错且不产出包（P1-4）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const good = join(dir, 'good-workspace')
+    await mkdir(good, { recursive: true })
+    await writeFile(join(good, 'a.txt'), 'a')
+
+    const okOut = join(dir, 'ws.dshpack')
+    const ok = await exportWorkspacesOnly(deps, okOut, [good], {})
+    assert.equal(ok.kind, 'success')
+    assert.match(ok.text, /已导出 1 个工作区/)
+    assert.ok(!ok.text.includes('无法读取已跳过'))
+
+    const missing = join(dir, 'missing-workspace')
+    const errOut = join(dir, 'ws-missing.dshpack')
+    const err = await exportWorkspacesOnly(deps, errOut, [missing], {})
+    assert.equal(err.kind, 'error')
+    assert.match(err.text, /工作区目录不存在/)
+    assert.equal(existsSync(errOut), false)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

@@ -1114,3 +1114,35 @@ host/CLI 共用 `apply-import`）。
   `Report (1)` 两条。
 
 **状态**：T11.5 完成；下一步 T11.6（导出扫描失败可见：`skippedWorkspaces[]` + 文案 + `--strict`，P1-4）。
+
+## 157 · 2026-11-27 · 导出扫描失败可见与被跳过工作区报告（T11.6 / P1-4）
+
+**范围**：审查清单 P1-4「工作区扫描失败静默吞」。导出时某个工作区目录不可读（来源机器路径
+不存在、权限不足、盘已卸载）过去只 `console.log` 一行，用户看到的仍是「已导出 N 个对话」，
+包里悄悄少了文件——这是「看起来成功其实缺数据」的典型静默失败。
+
+**改动**：
+1. `src/host/commands.js` 新增私有 `describeSkips(skipped)`：把 `{ path, reason }` 列表压成
+   一行文案，剥掉 `无法读取工作区:` 前缀，reason 与 path 相同时只输出路径。
+2. `exportAllSessions`（对话导出，`includeFiles` 分支）：扫描失败不再只写日志，收集进
+   `skippedWorkspaces[]`；`options.strict === true` 时在写附件前 `errorResult('导出中止（--strict）：…')`；
+   成功文案追加 `；N 个工作区无法读取已跳过：<清单>`。
+3. `exportWorkspacesOnly`（只导出工作区）：`scanWorkspace` 失败改为 `continue` 并记录；全部失败时
+   报 `没有可导出的工作区（全部无法读取）`；`--strict` 时中止；成功文案同样追加跳过清单。
+4. `src/cli/index.js`：新增 `--workspace <目录>`（可重复，导出工作区）与 `--strict`（隐藏风险
+   不再静默），USAGE 与 `parseArgs` 同步；`cmdExport` 把 `strict` 透传给 `exportWorkspacesOnly`。
+
+**验证**：
+- `node --test tests/unit/commands.test.mjs`：20 项 / 19 通过 / 0 失败 / 1 跳过；
+- `npm run check`：通过；
+- 全量 `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"` 连续两次：
+  256 项 / 247 通过 / 0 失败 / 9 跳过；
+- 手测（一次性 `%TEMP%\dsh-pack-and-go-e2e-t116-*`，CLI）10 项全部通过：工作区导出成功且文案含
+  「已导出 1 个工作区（2 个文件）」；指定不存在目录 exit 1 + `工作区目录不存在：<path>` 且不产包；
+  `--strict` 对正常目录无影响；`--help` 含两个新选项；包内 manifest + 3 个 workspaces 条目。
+
+**未覆盖**：`exportWorkspacesOnly` 的「目录存在但不可读」分支在 Windows 上无法稳定构造
+（需要 ACL），仅靠代码走查与 `exportAllSessions` 的同类用例保证；已在 T11.6 说明。
+
+**状态**：T11.6 完成；下一步 T11.7（D 组杂项：预检默认开关、标题读取提前停止、尺寸估算 loading、
+死代码清理、符号链接越界、zip 边缘 bug、exec body 上限）。

@@ -123,9 +123,10 @@ export async function resolveExportTarget(targetPath, name) {
  * @param {object} deps
  * @param {string} targetPath
  * @param {string[]} workspacePaths
+ * @param {{ strict?: boolean }} [options] strict=true 时任一工作区无法读取即中止（P1-4）
  * @returns {Promise<{ kind: 'success'|'error', text: string }>}
  */
-export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
+export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, options = {}) {
   if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
     return errorResult('请填写保存位置。')
   }
@@ -141,6 +142,8 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
     const planItems = []
     const sourcePaths = {}
     const extraEntries = []
+    // P1-4：扫描失败不静默——逐条记录并在结果里报告（--strict 时直接中止）。
+    const skippedWorkspaces = []
     let dereferencedLinks = 0
     let skippedLinks = 0
     for (const [index, rawPath] of paths.entries()) {
@@ -161,7 +164,16 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
         // 无法 realpath 时保留原路径
       }
       const key = `ws-${index + 1}`
-      const scan = await scanWorkspace(canonical, {})
+      let scan
+      try {
+        scan = await scanWorkspace(canonical, {})
+      } catch (scanError) {
+        skippedWorkspaces.push({
+          path: canonical,
+          reason: scanError instanceof Error ? scanError.message : String(scanError),
+        })
+        continue
+      }
       dereferencedLinks += scan.entries.filter((entry) => entry.dereferenced === true).length
       skippedLinks += scan.excluded.filter((entry) =>
         String(entry.reason ?? '').startsWith('symlink-'),
@@ -192,6 +204,16 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
         root: `workspaces/${key}/files`,
       })
     }
+    if (skippedWorkspaces.length > 0 && options.strict === true) {
+      return errorResult(
+        `导出中止（--strict）：${skippedWorkspaces.length} 个工作区无法读取：${describeSkips(skippedWorkspaces)}`,
+      )
+    }
+    if (workspaces.length === 0) {
+      return errorResult(
+        `没有可导出的工作区（全部无法读取）：${describeSkips(skippedWorkspaces)}`,
+      )
+    }
     const manifest = buildManifest({
       platform,
       dshVersion: deps.dshVersion ?? 'unknown',
@@ -209,11 +231,15 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths) {
       extraEntries,
       readme: 'dsh-pack-and-go 工作区迁移包（不含对话）\n',
     })
+    const skippedNote =
+      skippedWorkspaces.length > 0
+        ? `；${skippedWorkspaces.length} 个工作区无法读取已跳过：${describeSkips(skippedWorkspaces)}`
+        : ''
     return {
       kind: 'success',
       text: `已导出 ${workspaces.length} 个工作区（${planItems.length} 个文件）到 ${resolvedTarget}（${written.bytes} 字节）${
         dereferencedLinks > 0 ? `；解引用 ${dereferencedLinks} 个符号链接` : ''
-      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}。`,
+      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${skippedNote}。`,
     }
   } catch (error) {
     return errorResult(
@@ -238,6 +264,20 @@ function resolveDshHome(deps) {
  */
 function errorResult(text) {
   return { kind: 'error', text }
+}
+
+/**
+ * 把无法读取的工作区列表压成一行文案（P1-4）。
+ * @param {Array<{ path: string, reason: string }>} skipped
+ * @returns {string}
+ */
+function describeSkips(skipped) {
+  return skipped
+    .map((item) => {
+      const reason = item.reason.replace(/^无法读取工作区:\s*/, '').trim()
+      return reason === item.path ? item.path : `${item.path}（${reason}）`
+    })
+    .join('；')
 }
 
 /**
@@ -370,6 +410,8 @@ export async function exportAllSessions(
     const workspaceKeyByCwd = new Map()
     const scannedCwds = []
     const extraEntries = []
+    // P1-4：工作区扫描失败逐条记录（不再只写日志），结果与 --strict 都据此处理。
+    const skippedWorkspaces = []
     let dereferencedLinks = 0
     let skippedLinks = 0
     if (includeFiles) {
@@ -420,15 +462,18 @@ export async function exportAllSessions(
             })
           }
         } catch (scanError) {
-          console.log(
-            '[dsh-pack-and-go] workspace scan skipped',
-            cwd,
-            scanError instanceof Error ? scanError.message : String(scanError),
-          )
+          const reason = scanError instanceof Error ? scanError.message : String(scanError)
+          skippedWorkspaces.push({ path: cwd, reason })
+          console.log('[dsh-pack-and-go] workspace scan skipped', cwd, reason)
         }
       }
     }
 
+    if (options.strict === true && skippedWorkspaces.length > 0) {
+      return errorResult(
+        `导出中止（--strict）：${skippedWorkspaces.length} 个工作区无法读取：${describeSkips(skippedWorkspaces)}`,
+      )
+    }
     const attachments = []
     if (options.attachments === true) {
       const attachmentsRoot = join(resolveDshHome(deps), 'attachments', 'v1')
@@ -538,6 +583,10 @@ export async function exportAllSessions(
     const fileNote = includeFiles
       ? `，含 ${workspaces.length} 个工作区（${plan.counts.files} 个文件）`
       : ''
+    const skippedNote =
+      skippedWorkspaces.length > 0
+        ? `；${skippedWorkspaces.length} 个工作区无法读取已跳过：${describeSkips(skippedWorkspaces)}`
+        : ''
     let preflightNote = ''
     // ADR-0012：预检默认执行、不可关闭（调用方传 preflight:false 时才跳过）。
     if (options.preflight !== false) {
@@ -556,7 +605,7 @@ export async function exportAllSessions(
       kind: 'success',
       text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）${
         dereferencedLinks > 0 ? `；解引用 ${dereferencedLinks} 个符号链接` : ''
-      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${preflightNote}`,
+      }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${skippedNote}${preflightNote}`,
     }
   } catch (error) {
     return errorResult(

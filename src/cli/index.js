@@ -48,6 +48,8 @@ const USAGE = `dsh-pack-and-go <命令> [选项]
   --pack <文件>      import 的迁移包（必填）
   --target <目录>    import 的目标目录（必填，不会回退默认目录）
   --sessions <ids>   export 只导出指定会话（逗号分隔）
+  --workspace <目录> export 只导出工作区（可重复）
+  --strict           export 时任一工作区无法读取即中止
   --session <id>     repair 只修复指定会话（可选）
   --dry-run          repair 只报告不写入
   -h, --help         显示帮助
@@ -142,6 +144,7 @@ async function cmdExport(options) {
       { platform: process.platform, dshVersion: 'cli' },
       options.out,
       options.workspace,
+      { strict: options.strict === true },
     )
     if (result.kind !== 'success') fail(result.text)
     console.log(result.text)
@@ -424,6 +427,7 @@ async function main() {
         sessions: { type: 'string' },
         session: { type: 'string' },
         'dry-run': { type: 'boolean' },
+        strict: { type: 'boolean' },
         workspace: { type: 'string', multiple: true },
         overwrite: { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
