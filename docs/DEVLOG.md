@@ -977,3 +977,34 @@ DEVLOG 659 记 CLI 对齐决策 2/5/7/9 时补了同名 `(1)` 但未移植 D3。
 「用户决定不做」冲突，本里程碑不实施；待用户明确解除后另立里程碑与 ADR。
 
 **状态**：T11.1 完成（文档层）；下一步 T11.2（zip-reader 中央目录解析与 listZip 真元数据）。
+
+## 153 · 2026-11-27 T11.2：zip-reader 中央目录解析（P1-5）
+
+**背景**：代码审查 P1-5——`readZip` 一次性读入并解压全部条目；`listZip` 名义上只列清单，
+实际直接调 `readZip`（全量解压），且把 `compressedSize` 填成解压后大小；包级没有解压总量
+上限（单条 1 GiB 上限挡不住多条累计）。而清单预览与导入规划都只需要元数据。
+
+**改动**：
+1. `src/core/zip-reader.js` 拆成两层：
+   - `readCentralDirectory(buffer, {maxEntryBytes, maxTotalBytes})`：只解析 EOCD 与 central
+     directory，返回条目元数据（name/method/crc/compressedSize/uncompressedSize/
+     externalAttributes/localOffset/mode），全程不解压；累计解压量超过 `MAX_TOTAL_BYTES`
+     （4 GiB，SPEC NFR-6.5）抛 `E_PACK_TOO_LARGE`。
+   - `readZip` 复用中央目录，逐条经内部 `readEntryContent` 解压并校验（local header 签名、
+     大小、CRC）；新增 `readZipEntry(buffer, name, options)` 只解压指定条目。
+   - `listZip` 改走中央目录：`size` = 声明解压大小，`compressedSize` = 真实压缩后大小。
+2. `src/core/errors.js` 新增 `E_PACK_TOO_LARGE`（title「迁移包解压后过大」，next 指引缩小导出范围）。
+3. `src/host/commands.js` 的 `inspectPack` 改用 `listZip` 找 `manifest.json` + `readZipEntry`
+   只解压该条目，其余条目不再进入内存。
+4. `tests/unit/zip-reader.test.mjs` 新增 5 个用例：deflate 数据损坏时清单仍可读（证明不解压）、
+   中央目录元数据、`readZipEntry` 隔离损坏条目、解压总量上限、单条解压上限。
+
+**验证**：
+- `node --test tests/unit/zip-reader.test.mjs`：14/14 通过。修一处重写引入的转义回归：
+  `assertSafeEntryName` 的反斜杠检查被误写成「两个连续反斜杠」，现恢复为单个 `\`
+  （与 P2-14 ③ 的实测一致）。
+- `node --test "tests/unit/**/*.test.mjs"`：215 项 / 207 通过 / 0 失败 / 8 跳过
+  （比基线多 5 项；此前偶发的 zip-stream 清理竞态本次通过）。
+- `node --test "tests/e2e/**/*.test.mjs"`：16 项 / 15 通过 / 0 失败 / 1 跳过。
+
+**状态**：T11.2 完成；下一步 T11.3（`plan-import.js` 四步判据纯函数）。

@@ -26,11 +26,13 @@ import {
   fileReferencePath,
   imageObjectPath,
   importSessionsToDisk,
+  listZip,
   packAttachmentPath,
   parseManifest,
   planExport,
   preflightWorkspace,
   readZip,
+  readZipEntry,
   restoreAttachments,
   restoreWorkspaceFiles,
   safeDirName,
@@ -645,10 +647,11 @@ export async function inspectPack(deps, packPath, targetRoot) {
   }
   try {
     const buffer = await readFile(packPath)
-    const { entries } = readZip(buffer)
-    const manifestEntry = entries.find((entry) => entry.name === 'manifest.json')
-    if (!manifestEntry) return errorResult('迁移包缺少 manifest.json')
-    const manifest = parseManifest(manifestEntry.data.toString('utf8'))
+    // 预览只解压 manifest.json（NFR-6.5：其余条目只读元数据，不解压）。
+    if (!listZip(buffer).some((entry) => entry.name === 'manifest.json')) {
+      return errorResult('迁移包缺少 manifest.json')
+    }
+    const manifest = parseManifest(readZipEntry(buffer, 'manifest.json').data.toString('utf8'))
     const platform = deps.platform ?? process.platform
 
     const existingCwdById = new Map()

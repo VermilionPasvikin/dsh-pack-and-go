@@ -33,6 +33,7 @@ export const ERROR_CODES = Object.freeze({
   PREFLIGHT_INVALID: 'E_PREFLIGHT_INVALID',
   SCAN_INVALID: 'E_SCAN_INVALID',
   PACK_INVALID: 'E_PACK_INVALID',
+  PACK_TOO_LARGE: 'E_PACK_TOO_LARGE',
   PLAN_INVALID: 'E_PLAN_INVALID',
   PROGRESS_INVALID: 'E_PROGRESS_INVALID',
   CATALOG_INVALID: 'E_CATALOG_INVALID',
@@ -83,6 +84,10 @@ export const ERROR_MESSAGES = Object.freeze({
   E_PACK_INVALID: {
     title: '迁移包损坏或被篡改',
     next: '请重新拷贝文件；若仍失败，请让来源方重新导出',
+  },
+  E_PACK_TOO_LARGE: {
+    title: '迁移包解压后过大',
+    next: '请让来源方缩小导出范围（少选工作区或排除大目录）后重新导出',
   },
   E_PLAN_INVALID: {
     title: '打包/导入计划无效',
