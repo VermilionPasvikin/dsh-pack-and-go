@@ -1146,3 +1146,45 @@ host/CLI 共用 `apply-import`）。
 
 **状态**：T11.6 完成；下一步 T11.7（D 组杂项：预检默认开关、标题读取提前停止、尺寸估算 loading、
 死代码清理、符号链接越界、zip 边缘 bug、exec body 上限）。
+
+## 158 · 2026-11-27 · D 组杂项：预检默认、符号链接越界、五处边缘 bug（T11.7 / D1、D5、D6）
+
+**范围**：审查清单 D 组。D1 预检语义自相矛盾（P2-8）；D5 符号链接解引用越界（P2-13）；
+D6 五处边缘 bug（P2-14）。B/D2/D3/D4 中不属本任务的项（进度与取消、标题读取性能、
+尺寸估算 loading、死代码清理）留到后续里程碑。
+
+**改动**：
+1. **D1 预检默认执行**（`src/host/commands.js`）：命令入口从 `args.includes('--preflight')`
+   （默认 false，与 ADR-0012「默认执行不可关闭」相反）改为 `!args.includes('--no-preflight')`；
+   flags 集合与 `USAGE` 同步（`--no-preflight` 成为显式退出开关）。`exportAllSessions` 内部
+   仍保持 `options.preflight !== false` 语义，两条路径一致。
+2. **D5 符号链接越界**（`src/core/scan.js`）：新增 `rootReal = await realpath(root)` 与
+   `isInsideRoot(rootReal, targetReal)`；文件链接解引用前先 `realpath`，目标不在工作区内时
+   记 `symlink-outside` 并跳过（不再把工作区外文件打进包）。工作区内的链接行为不变。
+3. **D6① 中央目录时间戳**（`src/core/zip-writer.js`）：`central.push` 带上 `time/date`，
+   中央目录 header 写真实 MS-DOS 时间（此前固定 0，部分工具显示 1979/12/31）。
+4. **D6② zip-stream 失败清理竞态**：已在 DEVLOG 156 随 T11.5 修复（等 `close` 再 `rm`），
+   本任务复核无回归。
+5. **D6③ 非法条目名中文错误**（`src/core/zip-writer.js`）：`assertEntryName` 从英文
+   `TypeError` 改为 `MoverError(PACK_INVALID)` 中文消息，分别指出「条目名为空」「不能是绝对
+   路径」「包含反斜杠」「包含上级目录（..）」，并把条目名带进消息便于定位。
+6. **D6④ 标题取最后一次 rename**（`src/host/catalog.js`）：`titleFromEvents` 不再在首条
+   用户消息后 `break`；改为遍历全部事件，`renameTitle`（最后一次 rename）优先于
+   `firstUserTitle`（首条用户消息前 24 字）。
+7. **D6⑤ exec 请求体上限**（`src/host/exec-route.js`）：`MAX_BODY_BYTES = 32 MiB`；先查
+   `content-length` 声明（超限直接 413，不读取正文），再对实际文本长度复核（防 chunked 绕过）。
+
+**验证**：
+- 新增/更新单测：`tests/unit/zip-writer.test.mjs`（中文错误码 + 中央目录时间与 local 一致且非 0）、
+  `tests/unit/scan.test.mjs`（越界链接 `symlink-outside`、工作区内链接不误伤）、
+  `tests/unit/catalog.test.mjs`（rename 优先、多次 rename 取最后、无 rename 用首条消息）、
+  新建 `tests/unit/exec-route.test.mjs`（未知 action 400、list 200、超大正文 413、声明
+  Content-Length 过大直接 413）、`tests/unit/commands.test.mjs`（命令入口默认预检、
+  `--no-preflight` 跳过）；`tests/e2e/security.test.mjs` 断言随中文错误更新。
+- `npm run check`：通过；全量 `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"`
+  连续三次：**267 项 / 258 通过 / 0 失败 / 9 跳过**。
+- 手测（一次性 `%TEMP%\dsh-pack-and-go-e2e-t117-*`）5 项全部通过：工作区含指向外部的文件链接
+  时导出成功、文案含「跳过 1 个符号链接」、包内不含越界链接、包内含工作区内文件、真实包中央
+  目录时间非 0。
+
+**状态**：T11.7 完成；下一步 T11.8（回归 + 0.3.0 发布准备）。

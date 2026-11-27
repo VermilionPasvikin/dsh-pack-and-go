@@ -158,3 +158,53 @@ test('1 万文件扫描 < 2s', async () => {
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+
+test('指向工作区外的文件链接不解引用（P2-13 / symlink-outside）', async () => {
+  const outside = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-outside-'))
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-inside-'))
+  try {
+    await writeFile(join(outside, 'secret.txt'), 'top-secret')
+    let linked = false
+    try {
+      await symlink(join(outside, 'secret.txt'), join(dir, 'escape.txt'), 'file')
+      linked = true
+    } catch {
+      // Windows 未开启开发者模式时无法创建链接，跳过断言
+    }
+    if (!linked) return
+    const result = await scanWorkspace(dir, {})
+    assert.ok(!result.entries.some((entry) => entry.relPath === 'escape.txt'))
+    assert.ok(
+      result.excluded.some(
+        (entry) => entry.relPath === 'escape.txt' && entry.reason === 'symlink-outside',
+      ),
+    )
+    assert.equal(result.totalBytes, 0)
+  } finally {
+    await rm(outside, { recursive: true, force: true })
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('工作区内的文件链接仍正常解引用（不误伤）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-inside2-'))
+  try {
+    await writeFile(join(dir, 'real.txt'), 'ok')
+    let linked = false
+    try {
+      await symlink(join(dir, 'real.txt'), join(dir, 'alias.txt'), 'file')
+      linked = true
+    } catch {
+      // 同上
+    }
+    if (!linked) return
+    const result = await scanWorkspace(dir, {})
+    const alias = result.entries.find((entry) => entry.relPath === 'alias.txt')
+    assert.ok(alias)
+    assert.equal(alias.dereferenced, true)
+    assert.ok(!result.excluded.some((entry) => entry.reason === 'symlink-outside'))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

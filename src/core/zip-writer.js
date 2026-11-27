@@ -7,6 +7,8 @@
 
 import { crc32, deflateRawSync } from 'node:zlib'
 
+import { ERROR_CODES, MoverError } from './errors.js'
+
 const LOCAL_FILE_HEADER = 0x04034b50
 const CENTRAL_DIRECTORY_HEADER = 0x02014b50
 const END_OF_CENTRAL_DIRECTORY = 0x06054b50
@@ -71,13 +73,30 @@ function dosDateTime(date) {
  */
 function assertEntryName(name) {
   if (typeof name !== 'string' || name.length === 0) {
-    throw new TypeError('zip entry name must be a non-empty string')
+    throw new MoverError(ERROR_CODES.PACK_INVALID, '导出失败：包内条目名为空', { name })
   }
-  if (name.startsWith('/') || name.includes('\\')) {
-    throw new TypeError(`zip entry name must use forward slashes: ${name}`)
+  // Windows 下相对路径可能带反斜杠（用户目录名里合法），zip 规范只允许正斜杠。
+  // 这里不静默替换，明确报错并指出是哪个文件，避免生成其他工具读不了的包。
+  if (name.startsWith('/')) {
+    throw new MoverError(
+      ERROR_CODES.PACK_INVALID,
+      `导出失败：包内条目名不能是绝对路径：${name}`,
+      { name },
+    )
+  }
+  if (name.includes(String.fromCharCode(92))) {
+    throw new MoverError(
+      ERROR_CODES.PACK_INVALID,
+      `导出失败：文件名包含反斜杠，无法打包：${name}`,
+      { name },
+    )
   }
   if (name.split('/').includes('..')) {
-    throw new TypeError(`zip entry name must not contain '..': ${name}`)
+    throw new MoverError(
+      ERROR_CODES.PACK_INVALID,
+      `导出失败：路径包含上级目录（..），无法打包：${name}`,
+      { name },
+    )
   }
 }
 
@@ -146,6 +165,8 @@ export function createZip(entries) {
       usize: raw.length,
       offset,
       mode,
+      time,
+      date,
     })
     offset += local.length + nameBuf.length + payload.length
   }
@@ -158,8 +179,8 @@ export function createZip(entries) {
     header.writeUInt16LE(VERSION_NEEDED, 6)
     header.writeUInt16LE(FLAG_UTF8, 8)
     header.writeUInt16LE(item.method, 10)
-    header.writeUInt16LE(0, 12) // time（延续 local header 的简化值）
-    header.writeUInt16LE(0, 14) // date
+    header.writeUInt16LE(item.time, 12) // time（与 local header 一致）
+    header.writeUInt16LE(item.date, 14) // date
     header.writeUInt32LE(item.crc, 16)
     header.writeUInt32LE(item.csize, 20)
     header.writeUInt32LE(item.usize, 24)

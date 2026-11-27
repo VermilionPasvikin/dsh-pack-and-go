@@ -119,7 +119,7 @@ test('zip 读取拒绝路径穿越与绝对路径', () => {
   const abs = createZip([{ name: '_abs.txt', data: Buffer.from('x') }])
   assert.throws(() => readZip(replaceAll(abs, '_abs.txt', '/abs.txt')), /绝对路径|absolute/)
 
-  assert.throws(() => createZip([{ name: '/abs.txt', data: Buffer.from('x') }]), /forward/)
+  assert.throws(() => createZip([{ name: '/abs.txt', data: Buffer.from('x') }]), /绝对路径|absolute/)
 })
 
 test('安全名称断言覆盖常见敏感文件', () => {

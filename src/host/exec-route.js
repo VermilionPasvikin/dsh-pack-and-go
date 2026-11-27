@@ -18,6 +18,9 @@ import {
 
 const ACTIONS = new Set(['list', 'find', 'size', 'inspect', 'export', 'import'])
 
+/** 请求体上限（P2-14⑤）：超过即 413，避免超大 JSON 打满内存。 */
+const MAX_BODY_BYTES = 32 * 1024 * 1024
+
 /**
  * @param {object} deps 与命令 handler 相同的依赖
  * @param {{ warn?: (...args: unknown[]) => void }} [logger]
@@ -26,7 +29,16 @@ const ACTIONS = new Set(['list', 'find', 'size', 'inspect', 'export', 'import'])
 export function createExecHandler(deps, logger) {
   return async function handleExec(request) {
     try {
-      const payload = JSON.parse(await request.text())
+      // 先看声明长度（避免无谓读取），再对实际字节数复核（防 chunked 绕过）。
+      const declared = Number(request.headers.get('content-length') ?? '0')
+      if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+        return json({ ok: false, error: `请求体过大（上限 ${MAX_BODY_BYTES} 字节）` }, 413)
+      }
+      const body = await request.text()
+      if (body.length > MAX_BODY_BYTES) {
+        return json({ ok: false, error: `请求体过大（上限 ${MAX_BODY_BYTES} 字节）` }, 413)
+      }
+      const payload = JSON.parse(body)
       const action = payload?.action
       const args = payload?.args ?? {}
       if (!ACTIONS.has(action)) {

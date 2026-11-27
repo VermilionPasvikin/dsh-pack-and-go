@@ -5,6 +5,7 @@ import {
   assembleCatalog,
   loadCatalog,
   fallbackTitle,
+  titleFromEvents,
 } from '../../src/host/catalog.js'
 import { ERROR_CODES, MoverError } from '../../src/core/errors.js'
 
@@ -104,4 +105,29 @@ test('loadCatalog 缺少必要服务时报错', async () => {
     () => loadCatalog({ workspaceRegistry: { list: () => [] } }),
     (error) => error instanceof MoverError && error.code === ERROR_CODES.CATALOG_INVALID,
   )
+})
+
+
+test('titleFromEvents：rename 优先于首条用户消息（P2-14④）', () => {
+  const events = [
+    { type: 'user/message', data: { content: [{ type: 'text', text: '最初的提问' }] } },
+    { type: 'session/rename', data: { title: '正式标题' } },
+  ]
+  assert.equal(titleFromEvents(events), '正式标题')
+})
+
+test('titleFromEvents：多次 rename 取最后一次', () => {
+  const events = [
+    { type: 'session/rename', data: { title: '旧标题' } },
+    { type: 'session/rename', data: { title: '新标题' } },
+  ]
+  assert.equal(titleFromEvents(events), '新标题')
+})
+
+test('titleFromEvents：没有 rename 时用首条用户消息前 24 字', () => {
+  const events = [
+    { type: 'user/message', data: { content: [{ type: 'text', text: '  第一句  ' }] } },
+    { type: 'user/message', data: { content: [{ type: 'text', text: '第二句' }] } },
+  ]
+  assert.equal(titleFromEvents(events), '第一句')
 })

@@ -15,28 +15,34 @@ import { decodeSessionEvents } from '../core/attachments.js'
 import { ERROR_CODES, MoverError } from '../core/errors.js'
 
 /**
- * 从会话事件提取标题（rename 事件或首条用户消息）。
+ * 从会话事件提取标题（rename 事件优先，其次首条用户消息）。
+ *
+ * 语义（对齐 DSH 侧栏）：标题最终跟随最后一次 rename；没有 rename 时用首条用户
+ * 消息前 24 字。这里遍历全部事件（不提前 break），否则「先有用户消息、后有
+ * rename」的会话会一直显示旧标题。
  * @param {object[]} events
  * @returns {string | undefined}
  */
 export function titleFromEvents(events) {
-  let title
+  let renameTitle
+  let firstUserTitle
   for (const event of events) {
     if (event?.type === 'session/rename' && typeof event.data?.title === 'string') {
-      title = event.data.title
+      const title = event.data.title.trim()
+      if (title.length > 0) renameTitle = title
+      continue
     }
-    if (!title && event?.type === 'user/message') {
+    if (firstUserTitle === undefined && event?.type === 'user/message') {
       const content = event.data?.content
       const text = Array.isArray(content)
         ? content.find((part) => part?.type === 'text')?.text
         : undefined
       if (typeof text === 'string' && text.trim().length > 0) {
-        title = text.trim().slice(0, 24)
+        firstUserTitle = text.trim().slice(0, 24)
       }
     }
-    if (title) break
   }
-  return title
+  return renameTitle ?? firstUserTitle
 }
 
 /**

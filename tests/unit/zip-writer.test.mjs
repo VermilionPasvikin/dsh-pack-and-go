@@ -80,11 +80,37 @@ test('EOCD 位于文件末尾', () => {
   assert.equal(zip.readUInt32LE(zip.length - 22), EOCD_SIG)
 })
 
-test('拒绝非法条目名', () => {
-  assert.throws(() => createZip([{ name: '../escape', data: Buffer.alloc(0) }]), /\.\./)
-  assert.throws(() => createZip([{ name: '/absolute', data: Buffer.alloc(0) }]), /forward/)
-  assert.throws(() => createZip([{ name: 'a\\b', data: Buffer.alloc(0) }]), /forward/)
-  assert.throws(() => createZip([{ name: '', data: Buffer.alloc(0) }]), /non-empty/)
+test('拒绝非法条目名（中文错误 + PACK_INVALID）', () => {
+  const bad = (name) => () => createZip([{ name, data: Buffer.alloc(0) }])
+  for (const [name, pattern] of [
+    ['../escape', /上级目录/],
+    ['/absolute', /绝对路径/],
+    ['a' + String.fromCharCode(92) + 'b', /反斜杠/],
+    ['', /为空/],
+  ]) {
+    assert.throws(bad(name), (error) => {
+      assert.equal(error.code, 'E_PACK_INVALID')
+      assert.match(error.message, pattern)
+      return true
+    }, name)
+  }
+})
+
+test('中央目录时间戳与 local header 一致且非 0（P2-14①）', () => {
+  const mtime = new Date(2026, 10, 27, 18, 30, 40)
+  const buffer = createZip([{ name: 'a.txt', data: Buffer.from('x'), mtime }])
+  // local header @10 time / @12 date
+  const localTime = buffer.readUInt16LE(10)
+  const localDate = buffer.readUInt16LE(12)
+  // central directory 紧跟 local 段：找 central 签名
+  const centralOffset = buffer.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]))
+  assert.ok(centralOffset > 0)
+  const centralTime = buffer.readUInt16LE(centralOffset + 12)
+  const centralDate = buffer.readUInt16LE(centralOffset + 14)
+  assert.notEqual(localTime, 0)
+  assert.notEqual(localDate, 0)
+  assert.equal(centralTime, localTime)
+  assert.equal(centralDate, localDate)
 })
 
 test('系统 tar 能列出 zip 内容（环境无 tar 时跳过）', async () => {

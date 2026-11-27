@@ -6,8 +6,8 @@
  * 目录链接与损坏链接跳过并写入 excluded 记录。
  */
 
-import { lstat, readdir, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { lstat, readdir, realpath, stat } from 'node:fs/promises'
+import { isAbsolute, join, relative } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
 
@@ -25,6 +25,17 @@ export const DEFAULT_EXCLUDED_DIRS = Object.freeze([
   'coverage',
   '.cache',
 ])
+
+/**
+ * 判断真实路径是否位于工作区根之内（含根本身）。
+ * @param {string} rootReal 已解析的工作区根
+ * @param {string} targetReal 已解析的链接目标
+ * @returns {boolean}
+ */
+function isInsideRoot(rootReal, targetReal) {
+  const rel = relative(rootReal, targetReal)
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
+}
 
 /**
  * @param {string} message
@@ -75,6 +86,9 @@ export async function scanWorkspace(root, options = {}) {
   }
 
   const { excluded, skipGit } = resolveExclusions(options)
+  // 解引用边界（ADR-0020 §5）：符号链接目标必须仍在工作区根之内，
+  // 否则把工作区外的文件悄悄打进包里（P2-13 / NFR-4）。
+  const rootReal = await realpath(root).catch(() => root)
   const entries = []
   const excludedEntries = []
   let files = 0
@@ -107,6 +121,11 @@ export async function scanWorkspace(root, options = {}) {
         try {
           const targetInfo = await stat(abs)
           if (targetInfo.isFile()) {
+            const targetReal = await realpath(abs).catch(() => undefined)
+            if (targetReal !== undefined && !isInsideRoot(rootReal, targetReal)) {
+              excludedEntries.push({ relPath: rel, reason: 'symlink-outside' })
+              continue
+            }
             entries.push({
               relPath: rel,
               name: child.name,

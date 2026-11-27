@@ -549,3 +549,38 @@ test('仅导出工作区：显式指定的不存在目录报错且不产出包�
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+
+test('命令入口默认执行导出预检，--no-preflight 才跳过（P2-8 / D1）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-cmd-'))
+  try {
+    const bytes = makeSessionBytes()
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    const workspaceDir = join(dir, 'workspace')
+    await mkdir(workspaceDir, { recursive: true })
+    await writeFile(join(workspaceDir, 'a.txt'), 'a')
+    deps.sessionPersistence.list = async () => [
+      {
+        header: { id: 's1', cwd: workspaceDir, createdAt: 1 },
+        sizeBytes: bytes.length,
+        location: { kind: 'jsonl', path: sessionFile },
+      },
+    ]
+
+    const withPreflight = await handleMover(deps, {
+      rawInput: `export ${join(dir, 'a.dshpack')} --files`,
+    })
+    assert.equal(withPreflight.kind, 'success')
+    assert.match(withPreflight.text, /预检 \d+ 项/)
+
+    const withoutPreflight = await handleMover(deps, {
+      rawInput: `export ${join(dir, 'b.dshpack')} --files --no-preflight`,
+    })
+    assert.equal(withoutPreflight.kind, 'success')
+    assert.ok(!/预检 \d+ 项/.test(withoutPreflight.text))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})

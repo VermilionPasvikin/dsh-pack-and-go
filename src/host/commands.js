@@ -40,7 +40,9 @@ import {
 import { loadCatalog } from './catalog.js'
 import { registerWorkspaces } from './register.js'
 
-const USAGE = '用法：mover export <目标> | mover import <迁移包> <目标目录> | mover list'
+const USAGE =
+  '用法：mover export <目标> [--files] [--full] [--no-compress] [--no-preflight] [--exclude a,b] [--attachments] [--name 名称] [--workspace 目录 …] ' +
+  '| mover import <迁移包> <目标目录> [--overwrite] | mover list | mover find <目录> | mover size <目录…> | mover inspect <迁移包>'
 
 function timestamp() {
   const now = new Date()
@@ -1227,7 +1229,9 @@ export async function handleMover(deps, invocation) {
     const noFork = args.includes('--no-fork')
     const full = args.includes('--full')
     const noCompress = args.includes('--no-compress')
-    const preflight = args.includes('--preflight')
+    // ADR-0012：预检默认执行，只有显式 --no-preflight 才跳过（P2-8 修的是
+    // 命令入口此前用 `args.includes('--preflight')` 把默认值翻成了 false）。
+    const preflight = !args.includes('--no-preflight')
     const attachmentMode = args.includes('--attachments')
     const excludeAt = args.indexOf('--exclude')
     const excludedDirs =
@@ -1253,7 +1257,7 @@ export async function handleMover(deps, invocation) {
       '--no-fork',
       '--full',
       '--no-compress',
-      '--preflight',
+      '--no-preflight',
       '--exclude',
       '--attachments',
       '--name',
