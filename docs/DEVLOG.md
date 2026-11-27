@@ -1314,3 +1314,28 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 `workspaceRegistry.create` 时仍会返回「导入失败」文案（属依赖缺省，不是协议缺陷）。
 
 **状态**：T12.1–T12.4 完成；下一步 T12.5（0.3.1 回归与发布材料）。
+
+## 162 · 2026-11-27 · 0.3.1 回归与发布准备（T12.5）
+
+**版本与材料**
+- `package.json`：`0.3.0` → `0.3.1`。
+- `docs/RELEASE.md` → 0.3.1：§0.1 主题改为「长任务真实进度与取消（ADR-0021 / P2-6）」，
+  差异清单改 DEVLOG 160–162，验收数字 277 项 / 268 通过 / 0 失败 / 9 跳过，
+  unpublish/deprecate/tag 命令全部改 0.3.1。
+- `README.md`：spec 徽章 → v1.9。
+- `docs/INDEX.md`：阶段改「M12 进行中（T12.1–T12.4 ✅，T12.5 发布准备）」，下一步 T12.5 → M13，
+  最近变更指向 DEVLOG 161。
+
+**验证**
+- 全量回归：`node --test --experimental-test-isolation=none "tests/unit/**/*.test.mjs"`
+  → 261 项 / 253 通过 / 0 失败 / 8 跳过；`"tests/e2e/**/*.test.mjs"` → 16 项 / 15 通过 /
+  0 失败 / 1 跳过（合计 277 / 268 / 0 / 9）。
+- `npm pack --dry-run`：`dsh-pack-and-go-0.3.1.tgz`，42 个文件，package 183.1 kB /
+  unpacked 461.6 kB，shasum `2cd616a82e7923a0f15f10888f863df6d59ad43b`。
+- 真实宿主 boot（一次性 `DSH_HOME` = `%TEMP%\dsh-t125-2kzgbu`，profile `t125-web`，
+  bundles = base + web-app + dsh-pack-and-go，`plugin add file:` 走 pnpm 11.28.5）：
+  `[dsh-pack-and-go] command registered: mover`、
+  `DSH-PACK-AND-GO-SELFTEST {"workspaces":0,"ungrouped":0,...}`、
+  `[dsh-pack-and-go] exec route registered: /api/mover/exec`，无 pending / 未激活条目。
+
+**状态**：T12.5 完成（M12 全部 ✅）；0.3.1 就绪待发布。下一步 M13（T13.1–T13.6）。

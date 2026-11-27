@@ -4,7 +4,7 @@
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
 [![tests](https://img.shields.io/badge/tests-258%20passing-brightgreen.svg)](./tests)
-[![spec](https://img.shields.io/badge/spec-v1.8-informational.svg)](./docs/SPEC.md)
+[![spec](https://img.shields.io/badge/spec-v1.9-informational.svg)](./docs/SPEC.md)
 
 ---
 
