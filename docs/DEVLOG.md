@@ -1008,3 +1008,34 @@ DEVLOG 659 记 CLI 对齐决策 2/5/7/9 时补了同名 `(1)` 但未移植 D3。
 - `node --test "tests/e2e/**/*.test.mjs"`：16 项 / 15 通过 / 0 失败 / 1 跳过。
 
 **状态**：T11.2 完成；下一步 T11.3（`plan-import.js` 四步判据纯函数）。
+
+## 154 · 2026-11-27 T11.3：`planImportTargets` 四步判据纯函数（P1-1/P1-2）
+
+**背景**：ADR-0019 要求导入先规划、后写盘。原实现（`src/host/commands.js:851–878`）边循环
+边 `stat`/`readdir`，同一包里两个同名工作区在第一次写盘后即被判为「已存在空目录」而复用合并
+（P1-2）；预览（`commands.js:691–696`）另写一套推导，与真实落点不一致（P2-7 的一部分）。
+
+**改动**：
+1. `src/core/plan-import.js` 新增纯函数
+   `planImportTargets({ manifest, targetRoot, platform, registeredPathKeys, reserved, exists, existsNonEmpty })`
+   → `{ targets, byKey, conflicts }`：
+   - 四步判据：已登记 → 复用；本次已分配 → `标题 (n)`；存在 + 空 + 未登记 → 复用（D3 兜底）；
+     存在 + 非空 + 未登记 → `标题 (n)`；不存在 → 新建。
+   - `(n)` 从 1 递增，同时跳过目标端已存在与本次已分配的路径；标题先经 `safeDirName`
+     按目标平台净化。
+   - 不触碰文件系统（`exists` / `existsNonEmpty` 由调用方注入），预览与导入共用同一结果。
+   - `conflicts` 记录 `renamed` 与 `reused-empty-directory`，供预览与转换报告（FR-9）复用。
+2. 新增导出 `WORKSPACE_TARGET_ACTIONS = ['create', 'reuse', 'rename']`。
+3. `tests/unit/plan-import.test.mjs` 新增 9 个用例：全新目录、已登记复用、同包同名加
+   ` (1)`、空目录复用（D3）、非空加 ` (1)`、` (1)` 顺延、标题净化、缺参报错、常量。
+
+**兼容性**：`planImport`（旧会话/工作区策略）未改动；host 与 CLI 在 T11.5 接入
+`planImportTargets` 前仍走旧路径，因此本任务不改变用户可见行为。
+
+**验证**：
+- `node --test tests/unit/plan-import.test.mjs`：18/18 通过。
+- `node --test "tests/unit/**/*.test.mjs"`：224 项 / 216 通过 / 0 失败 / 8 跳过。第一遍
+  `scan.test.mjs:156`「1 万文件扫描 < 2s」性能断言偶发失败（受磁盘影响），第二遍全绿——
+  与代码审查时记录的波动一致，非本次改动引入。
+
+**状态**：T11.3 完成；下一步 T11.4（`sanitizeRelativePath` 全段净化与大小写冲突）。

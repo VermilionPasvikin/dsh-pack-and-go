@@ -4,13 +4,19 @@
  * 默认策略来自 ADR-0006：会话冲突跳过、工作区同路径合并。
  */
 
+import { join } from 'node:path'
+
 import { ERROR_CODES, MoverError } from './errors.js'
+import { safeDirName } from './path-map.js'
 
 /** 会话导入动作。 */
 export const SESSION_ACTIONS = Object.freeze(['import', 'skip', 'overwrite', 'new-id'])
 
 /** 工作区导入动作。 */
 export const WORKSPACE_ACTIONS = Object.freeze(['create', 'merge', 'skip', 'relocate'])
+
+/** 工作区目标落点动作（ADR-0019）。 */
+export const WORKSPACE_TARGET_ACTIONS = Object.freeze(['create', 'reuse', 'rename'])
 
 /** 默认冲突策略（ADR-0006）。 */
 export const DEFAULT_IMPORT_POLICY = Object.freeze({
@@ -173,4 +179,119 @@ export function planImport(input) {
   }
 
   return { sessions, workspaces, conversions, summary }
+}
+
+/**
+ * 为冲突路径生成下一个可用名：`<base> (n)`，n 从 1 递增。
+ * 同时避开本次已分配路径（`reserved`）与目标端已存在路径（`exists`）。
+ * @param {string} basePath
+ * @param {{ reserved: Set<string>, exists: (path: string) => boolean, maxAttempts?: number }} input
+ * @returns {string}
+ */
+function nextFreePath(basePath, input) {
+  const maxAttempts = input.maxAttempts ?? 999
+  for (let n = 1; n <= maxAttempts; n += 1) {
+    const candidate = `${basePath} (${n})`
+    if (!input.reserved.has(normalizePath(candidate)) && !input.exists(candidate)) return candidate
+  }
+  throw planImportError(`无法为 ${basePath} 找到可用的目标目录名`, { basePath })
+}
+
+/**
+ * 规划工作区落点（ADR-0019 四步判据，纯函数）：
+ * 1. 已登记 → 复用；2. 本次已分配 → `标题 (n)`；3. 存在 + 空 + 未登记 → 复用（D3 兜底）；
+ * 4. 存在 + 非空 + 未登记 → `标题 (n)`。
+ *
+ * 不触碰文件系统：`exists` / `existsNonEmpty` 由调用方注入，便于完整单测与预览/导入共用。
+ * @param {{
+ *   manifest: object,
+ *   targetRoot: string,
+ *   platform?: 'win32'|'darwin'|'linux',
+ *   registeredPathKeys?: readonly string[],
+ *   reserved?: readonly string[],
+ *   exists?: (path: string) => boolean,
+ *   existsNonEmpty?: (path: string) => boolean
+ * }} input
+ * @returns {{
+ *   targets: Array<{ workspaceKey: string, title: string, path: string, basePath: string, action: string, reason: string }>,
+ *   byKey: Record<string, string>,
+ *   conflicts: Array<{ key: string, title: string, kind: string, from: string, to: string, reason?: string }>
+ * }}
+ */
+export function planImportTargets(input) {
+  const { manifest } = input
+  if (manifest === null || typeof manifest !== 'object') {
+    throw planImportError('缺少 manifest')
+  }
+  if (typeof input.targetRoot !== 'string' || input.targetRoot.length === 0) {
+    throw planImportError('缺少目标目录 targetRoot', { reason: 'missing-target-root' })
+  }
+  const platform = input.platform ?? process.platform
+  const registered = new Set((input.registeredPathKeys ?? []).map((value) => normalizePath(value)))
+  const reserved = new Set((input.reserved ?? []).map((value) => normalizePath(value)))
+  const exists = typeof input.exists === 'function' ? input.exists : () => false
+  const existsNonEmpty =
+    typeof input.existsNonEmpty === 'function' ? input.existsNonEmpty : (path) => exists(path)
+
+  const targets = []
+  const conflicts = []
+  const byKey = {}
+
+  for (const workspace of manifest.workspaces ?? []) {
+    const basePath = join(input.targetRoot, safeDirName(workspace.title, platform))
+    const baseKey = normalizePath(basePath)
+    let path = basePath
+    let action = 'create'
+    let reason = 'new'
+
+    if (registered.has(baseKey)) {
+      action = 'reuse'
+      reason = 'registered'
+    } else if (reserved.has(baseKey)) {
+      path = nextFreePath(basePath, { reserved, exists })
+      action = 'rename'
+      reason = 'already-allocated-in-this-import'
+    } else if (exists(basePath)) {
+      if (existsNonEmpty(basePath)) {
+        path = nextFreePath(basePath, { reserved, exists })
+        action = 'rename'
+        reason = 'existing-non-empty'
+      } else {
+        action = 'reuse'
+        reason = 'empty-unregistered'
+      }
+    }
+
+    reserved.add(normalizePath(path))
+    targets.push({
+      workspaceKey: workspace.key,
+      title: workspace.title,
+      path,
+      basePath,
+      action,
+      reason,
+    })
+    byKey[workspace.key] = path
+
+    if (action === 'rename') {
+      conflicts.push({
+        key: workspace.key,
+        title: workspace.title,
+        kind: 'renamed',
+        from: basePath,
+        to: path,
+        reason,
+      })
+    } else if (reason === 'empty-unregistered') {
+      conflicts.push({
+        key: workspace.key,
+        title: workspace.title,
+        kind: 'reused-empty-directory',
+        from: basePath,
+        to: path,
+      })
+    }
+  }
+
+  return { targets, byKey, conflicts }
 }
