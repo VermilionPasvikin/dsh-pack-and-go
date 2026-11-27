@@ -1,0 +1,85 @@
+name: cross-platform
+
+# 跨平台版本测试（0.3.2 发布闸门）：
+# 1. test：ubuntu / macos / windows 三平台跑 `npm run check` 与全量测试（unit + e2e）；
+# 2. host-boot：ubuntu 上安装 npm 版 DSH CLI，用一次性 DSH_HOME 安装本插件并启动
+#    SELFTEST 探针，验证宿主契约（命令注册、exec 路由、目录读取）在 Linux 上成立。
+#
+# 本地等价的 Linux 手工步骤见 docs/TEST-CASES.md「跨平台 CI」小节。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.15.0'
+      - name: 语法检查
+        run: npm run check
+      - name: 单元测试
+        run: node --test "tests/unit/**/*.test.mjs"
+      - name: 端到端测试
+        run: node --test "tests/e2e/**/*.test.mjs"
+
+  host-boot:
+    name: host-boot (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: 安装 DSH CLI 与 pnpm
+        run: |
+          npm install -g pnpm@11
+          npm install -g @deepseek-ai/dsh@0.2.2-rc.5
+          dsh --version
+      - name: 一次性 DSH_HOME 安装插件并启动探针
+        run: |
+          set -euo pipefail
+          export DSH_HOME="$(mktemp -d)"
+          printf 'dsh-e2e' > "$DSH_HOME/.dsh-e2e-marker"
+          echo "DSH_HOME=$DSH_HOME"
+          dsh ci-web --from-default-profile web --dump-config > dump.log 2>&1
+          dsh plugin --profile ci-web add "file:$GITHUB_WORKSPACE"
+          set +e
+          DSH_PACK_AND_GO_SELFTEST=1 \
+          DSH_PACK_AND_GO_SELFTEST_LIST=1 \
+          DSH_PACK_AND_GO_SELFTEST_CMD=1 \
+          timeout 90 dsh ci-web --no-open --port 0 > boot.log 2>&1
+          status=$?
+          set -e
+          echo "boot exit code: $status"
+          cat boot.log
+          grep -F '[dsh-pack-and-go] command registered: mover' boot.log
+          grep -F '[dsh-pack-and-go] exec route registered: /api/mover/exec' boot.log
+          grep -F 'DSH-PACK-AND-GO-SELFTEST' boot.log
+          if grep -F 'pending (waiting for service' boot.log; then
+            echo '::error::插件处于 pending（宿主服务契约不满足）'
+            exit 1
+          fi
+      - name: 上传日志
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-boot-logs
+          path: |
+            boot.log
+            dump.log
+          if-no-files-found: ignore

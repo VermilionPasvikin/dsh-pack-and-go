@@ -1492,3 +1492,31 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
   修复等待 close；前者受机器负载影响），两遍全量均为 0 失败。
 
 **状态**：M0–M13 全部 ✅；0.3.2 待发布（命令见 `docs/RELEASE.md` §2–§4）。
+
+## 168 · 2026-11-27 · 跨平台 CI（T14.1 / M14 发布闸门）
+
+**背景**：用户要求「两个平台上做完版本测试了再推 npm 发布」。本机只有 Windows（WSL 未安装、
+无 Docker），因此把跨平台验证放到 GitHub Actions。
+
+**新增 `.github/workflows/cross-platform.yml`**
+- `test` job：matrix `ubuntu-latest` / `macos-latest` / `windows-latest`，Node `22.15.0`，
+  依次 `npm run check`、`node --test "tests/unit/**/*.test.mjs"`、`node --test "tests/e2e/**/*.test.mjs"`。
+- `host-boot` job：`ubuntu-latest` + Node 24，安装 `pnpm@11` 与 `@deepseek-ai/dsh@0.2.2-rc.5`，
+  用一次性 `DSH_HOME`（带 `.dsh-e2e-marker`）建 `ci-web` profile、`plugin add "file:$GITHUB_WORKSPACE"`，
+  再以 `SELFTEST` 环境变量启动 `dsh ci-web --no-open --port 0`，断言日志含
+  `command registered: mover`、`exec route registered: /api/mover/exec`、`DSH-PACK-AND-GO-SELFTEST`，
+  且不含 `pending (waiting for service`；失败上传 `boot.log`/`dump.log` 工件。
+- 触发：push main、PR、手动 dispatch。
+
+**踩坑记录**
+- `node --test tests/unit`（目录参数）在 Node 24 下被当作模块路径报 `Cannot find module`，
+  必须用带引号的 glob（node 自行解析），CI 三平台 shell 一致因此都用引号形式。
+- dsh CLI 的 `bin` 是 `dsh` → `lib/bin.js`，`engines.node >= 24.9.0`，因此 host-boot job 用 Node 24；
+  纯 Node 测试仍按项目要求用 Node 22.15。
+
+**文档**
+- `docs/TEST-CASES.md` 新增 §3.1「跨平台 CI（0.3.2 起的发布闸门）」：job 表、判据、执行方式、
+  Linux 本地等价命令、已知限制（只覆盖 headless 行为）。
+- `docs/TASKS.md` 新增 M14 与 T14.1（本轮）/T14.2（首轮结果核对）/T14.3（两平台绿后发布）。
+
+**状态**：workflow 已提交待推送触发；下一步核对首轮三平台结果（T14.2），全绿后才发布 0.3.2。

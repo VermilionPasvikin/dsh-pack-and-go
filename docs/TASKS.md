@@ -31,6 +31,7 @@
 | M11 | 代码审查修复：可信导入（0.3.0） | 导入原子性与目标判定四步判据、路径安全闭环、解析与内存上限、语义修正（ADR-0019/ADR-0020） | M0–M10 | 全量测试绿 + CLI E2E；0.3.0 发布准备就绪 | ✅ |
 | M12 | 代码审查修复：真实进度与取消（0.3.1） | 任务注册表、exec task.*、命令层进度与取消、客户端进度条与取消 | M11 | 长任务可进度可取消；单测与手测证据；全量绿 | ✅ |
 | M13 | 代码审查修复：预览与界面清理（0.3.2） | machineName、预览真实落点与附件冲突、标题读取性能、尺寸估算、调试残留清理、死代码（ADR-0022） | M11 | P2-7/P2-9/P2-10/P2-11/P2-12 全部有证据；全量绿 | ✅ |
+| M14 | 跨平台验证与 0.3.2 发布闸门 | GitHub Actions：ubuntu/macos/windows 纯 Node 测试 + ubuntu 真实宿主 boot | M13 | 三平台绿 + boot 探针通过后才发布 npm | 🟨 |
 
 ## 2. 任务清单
 
@@ -220,6 +221,9 @@
 | T13.4 | 尺寸估算：loading 态、依赖数组补全、错误可见；调试残留清理（`DSH_PACK_AND_GO_DEBUG` 门控 console/log 文件、去掉 BUILD_TAG 展示、selftest 不进生产 bundle 或显式门控、repairGrouping 轮询收敛） | M12 | 单测/手测：默认无调试输出与日志文件；debug 开启可见 | ✅ 2026-11-27（devlog 165） |
 | T13.5 | 死代码清理：`buildPathMap`/`mapCwdForWorkspace`/`stageAttachments` 或删除或接线、`createBackupTransaction` 接线、CLI registry 写入与 host 统一；`npm run check` 通过 | M12 | 无零引用导出；CLI 与 host 行为一致；全量绿 | ✅ 2026-11-27（devlog 166） |
 | T13.6 | 回归与 0.3.2 发布准备：全量测试、DEVLOG、版本与 README/RELEASE/INDEX | T13.5 | 全绿；`npm pack --dry-run` 正确 | ✅ 2026-11-27（devlog 167） |
+| T14.1 | 新增 `.github/workflows/cross-platform.yml`：三平台纯 Node 测试 + Linux 真实宿主 boot | T13.6 | workflow 在 GitHub 上跑通；YAML 有效 | ✅ 2026-11-27（devlog 168） |
+| T14.2 | 三平台 CI 首轮结果核对，修复跨平台失败（若有） | T14.1 | 三平台 0 失败；boot 探针全绿 | ⬜ |
+| T14.3 | 两平台测试完成后发布 0.3.2（npm publish + tag + push） | T14.2 | npm 上 0.3.2 可安装；tag 已推 | ⬜ |
 
 ## 3. 当前进度
 

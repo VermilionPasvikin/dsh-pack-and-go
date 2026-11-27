@@ -76,6 +76,36 @@
 | P-08 | 主题/语言 | 切换深/浅主题、中/英 | 文案与配色跟随 | 用户人工确认 | 全平台 | ✅ 用户已确认（2026-11-11） |
 | P-09 | 状态事件 cwd（ADR-0017） | Windows 源包含 `working-directory/change`（源根内 + 源根外）→ POSIX 目标导入 | 事件 cwd 映射为目标绝对路径（源根外回落目标根）；同平台字节不变；会话在目标端可完成投影 | 单测 + 集成 | 全平台（模拟） | ✅ 2026-11-12 macOS：单测 + 一次性 DSH_HOME headless 复验（projection 通过） |
 
+### 3.1 跨平台 CI（0.3.2 起的发布闸门）
+
+自动化位置：`.github/workflows/cross-platform.yml`（push main / PR / 手动触发）。
+
+| Job | 平台 | 内容 | 判据 |
+|---|---|---|---|
+| `test` | ubuntu-latest、macos-latest、windows-latest（Node 22.15.0） | `npm run check` + `node --test "tests/unit/**/*.test.mjs"` + `node --test "tests/e2e/**/*.test.mjs"` | 三平台 0 失败（POSIX-only 用例在 Windows 上按既有逻辑 skip 属预期） |
+| `host-boot` | ubuntu-latest（Node 24） | `npm i -g pnpm@11 @deepseek-ai/dsh@0.2.2-rc.5` → 一次性 `DSH_HOME`（带 `.dsh-e2e-marker`）→ `dsh ci-web --from-default-profile web` → `dsh plugin --profile ci-web add "file:\$GITHUB_WORKSPACE"` → `SELFTEST` 探针启动 | 日志含 `command registered: mover`、`exec route registered: /api/mover/exec`、`DSH-PACK-AND-GO-SELFTEST`；且不含 `pending (waiting for service` |
+
+**执行方式**
+
+1. 推送后打开仓库 Actions 页，等待 `cross-platform` 运行结束；
+2. 失败时下载 `host-boot-logs` 工件（含 `boot.log`、`dump.log`），按失败 job 的命令逐条本地复跑；
+3. 三平台全绿 + `host-boot` 通过后，才允许 `npm publish`（见 `docs/RELEASE.md` §2）。
+
+**本地等价命令（Linux）**
+
+```bash
+npm run check
+node --test "tests/unit/**/*.test.mjs"
+node --test "tests/e2e/**/*.test.mjs"
+export DSH_HOME="$(mktemp -d)" && printf 'dsh-e2e' > "$DSH_HOME/.dsh-e2e-marker"
+dsh ci-web --from-default-profile web --dump-config
+dsh plugin --profile ci-web add "file:$PWD"
+DSH_PACK_AND_GO_SELFTEST=1 timeout 90 dsh ci-web --no-open --port 0
+```
+
+**已知限制**：CI 只覆盖 headless 行为（命令注册、exec 路由、目录读取、CLI 往返），
+界面观感（进度条、估算 loading、覆盖二次确认）仍需在真机点开确认。
+
 ## 4. 覆盖矩阵（决策树节点 → 用例）
 
 | 决策树节点 | 用例 |
