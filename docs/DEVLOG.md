@@ -1395,3 +1395,31 @@ T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 
 - `node --check` 通过（`src/core/zstd-frames.js`、`src/host/catalog.js`）。
 
 **状态**：T13.3 完成；下一步 T13.4（尺寸估算 loading + 调试残留门控）。
+
+## 165 · 2026-11-27 · 尺寸估算 loading 与调试残留清理（T13.4 / P2-10、P2-11）
+
+**客户端（`src/client/client.js`）**
+- 新增 `fileBytesLoading` 状态：`/mover size` 请求前置 true，`finally` 复位（用 `cancelled`
+  标志避免卸载后 setState）；`statsText` 在估算中显示 `正在估算项目文件…`／`Estimating project files…`
+  而不是旧值；`includeFiles` 关闭时清空 `workspaceBytes`（避免残留估算）。
+- 估算 effect 依赖补全 `fullMode`、`extraExclude`（此前切换全量/排除项不会重算，P2-10）。
+- 诊断信息（条目计数 · locale · BUILD_TAG）默认不渲染，只有
+  `window.__DSH_PACK_AND_GO_DEBUG__ === true` 时才显示（P2-11）。
+
+**Host（`src/host/commands.js`、`src/host/index.js`）**
+- 新增 `debugEnabled()`（`DSH_PACK_AND_GO_DEBUG === '1'`）：
+  - `handleMover` 入口的 `console.log` 与 `DSH_HOME/mover-debug.log` 追加写入整体门控；
+  - `fork chain added`、`workspace scan skipped`、`attachment missing`、`export written`、
+    `list`、`grouping detached/repaired` 全部改为 debug 时才打印；
+  - 失败路径的 `console.error` 保留（属于真实异常，不是噪声）。
+- `repairGrouping` 启动轮询从「1s × 最多 60 次」改为「5s × 最多 6 次（≈30s）」，
+  命中即停的逻辑不变（P2-11）。
+
+**验证**
+- 新增单测：`handleMover 默认不写 mover-debug.log，DSH_PACK_AND_GO_DEBUG=1 时才写（P2-11）`
+  （关闭时文件不存在；开启后文件存在且含 `args=["list"]`）。
+- `commands.test.mjs` 25 项 / 24 通过 / 1 跳过；全量 unit 267 / 259 / 0 / 8；
+  e2e 16 / 15 / 0 / 1；`npm run check` 通过；`node --check src/client/client.js` 通过。
+- 未自动化：进度条与「估算中」文案的视觉呈现（需真机 boot 观察，记入 T13.6 验证项）。
+
+**状态**：T13.4 完成；下一步 T13.5（死代码清理与 CLI/host 统一）。

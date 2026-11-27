@@ -708,3 +708,35 @@ test('inspect 预览统计目标已存在的附件对象（P2-7 / ADR-0022）', 
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+test('handleMover 默认不写 mover-debug.log，DSH_PACK_AND_GO_DEBUG=1 时才写（P2-11）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-debug-'))
+  const previousHome = process.env.DSH_HOME
+  const previousDebug = process.env.DSH_PACK_AND_GO_DEBUG
+  try {
+    const sessionFile = join(dir, 's1.v4.jsonl.zstd')
+    const bytes = makeSessionBytes()
+    await writeFile(sessionFile, bytes)
+    const deps = await makeDeps(dir, sessionFile, bytes)
+    process.env.DSH_HOME = dir
+    delete process.env.DSH_PACK_AND_GO_DEBUG
+    const logPath = join(dir, 'mover-debug.log')
+
+    const quiet = await handleMover(deps, { rawInput: 'list' })
+    assert.equal(quiet.kind, 'success')
+    assert.equal(existsSync(logPath), false)
+
+    process.env.DSH_PACK_AND_GO_DEBUG = '1'
+    const verbose = await handleMover(deps, { rawInput: 'list' })
+    assert.equal(verbose.kind, 'success')
+    assert.equal(existsSync(logPath), true)
+    const logged = await readFile(logPath, 'utf8')
+    assert.match(logged, /args=\["list"\]/)
+  } finally {
+    if (previousHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previousHome
+    if (previousDebug === undefined) delete process.env.DSH_PACK_AND_GO_DEBUG
+    else process.env.DSH_PACK_AND_GO_DEBUG = previousDebug
+    await rm(dir, { recursive: true, force: true })
+  }
+})

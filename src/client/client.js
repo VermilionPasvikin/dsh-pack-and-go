@@ -18,6 +18,8 @@ window.__ModuleLoader__.load({
 
     let ownerCtx = null
     const BUILD_TAG = 'b2111-0200'
+    // 诊断信息（条目计数/locale/构建标签）只在显式打开调试时渲染（P2-11）。
+    const DEBUG_UI = typeof window !== 'undefined' && window.__DSH_PACK_AND_GO_DEBUG__ === true
 
     /** DSH 主题 token（深色/浅色自动跟随）。 */
     const THEME = {
@@ -45,6 +47,7 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `已选 ${workspaces} 个工作区 · ${sessions} 个对话`,
         fileEstimate: (size) => `含项目文件约 ${size}`,
+        fileEstimateLoading: '正在估算项目文件…',
                 showArchived: '显示已归档',
         ungrouped: '未分组',
         archivedNotice: '已归档会话暂不参与导出（可在 DSH 侧边栏取消归档后再试）。',
@@ -136,6 +139,7 @@ window.__ModuleLoader__.load({
         selectedStats: (workspaces, sessions) =>
           `${workspaces} workspaces · ${sessions} conversations`,
         fileEstimate: (size) => `~${size} with files`,
+        fileEstimateLoading: 'Estimating project files…',
                 showArchived: 'Show archived',
         ungrouped: 'Ungrouped',
         archivedNotice: 'Archived conversations are not exportable yet; unarchive them in DSH first.',
@@ -466,6 +470,7 @@ window.__ModuleLoader__.load({
       const [meta, setMeta] = useState(null)
       const [sizeById, setSizeById] = useState(() => new Map())
       const [workspaceBytes, setWorkspaceBytes] = useState(() => new Map())
+      const [fileBytesLoading, setFileBytesLoading] = useState(false)
       const [showArchived, setShowArchived] = useState(false)
       const [lastExport, setLastExport] = useState(null)
       const [fullMode, setFullMode] = useState(false)
@@ -662,11 +667,18 @@ window.__ModuleLoader__.load({
       const visibleGroups = groups
 
       const statsText = `${t.selectedStats(selectedGroups.length, selected.size)}${
-        includeFiles ? ` · ${t.fileEstimate(formatBytes(sessionBytes + fileBytes))}` : ''
+        includeFiles
+          ? ` · ${fileBytesLoading ? t.fileEstimateLoading : t.fileEstimate(formatBytes(sessionBytes + fileBytes))}`
+          : ''
       }`
 
       useEffect(() => {
-        if (!includeFiles) return
+        // P2-10：关闭项目文件时清空估算，避免残留旧值。
+        if (!includeFiles) {
+          setWorkspaceBytes(new Map())
+          setFileBytesLoading(false)
+          return undefined
+        }
         const remote = getRemote()
         if (!remote || !agentId) return
         const paths = [
@@ -680,7 +692,9 @@ window.__ModuleLoader__.load({
           ),
         ]
         if (paths.length === 0) return
+        let cancelled = false
         const timer = setTimeout(async () => {
+          setFileBytesLoading(true)
           try {
             const line = `/mover size ${paths.map((path) => `"${path}"`).join(' ')}`
             const response = await remote.commands.execute(agentId, line, [])
@@ -693,11 +707,17 @@ window.__ModuleLoader__.load({
               new Map((data.items ?? []).map((item) => [item.path, item.bytes ?? 0])),
             )
           } catch {
-            // 估算失败不影响主流程
+            // 估算失败不影响主流程（保留会话体积估算）
+            if (!cancelled) setWorkspaceBytes(new Map())
+          } finally {
+            if (!cancelled) setFileBytesLoading(false)
           }
         }, 300)
-        return () => clearTimeout(timer)
-      }, [selected, includeFiles, groups, agentId])
+        return () => {
+          cancelled = true
+          clearTimeout(timer)
+        }
+      }, [selected, includeFiles, groups, agentId, fullMode, extraExclude])
 
       function toggleSession(sessionId) {
         setSelected((previous) => {
@@ -2094,11 +2114,13 @@ window.__ModuleLoader__.load({
                 t.archivedNotice,
               )
             : null,
-          h(
-            'div',
-            { style: { padding: '0 12px 8px', fontSize: 10, color: THEME.textMuted, opacity: 0.7 } },
-            `${t.diagnostics(rawItems.length, allSessions.length)} · locale=${localeId} · ${BUILD_TAG}`,
-          ),
+          DEBUG_UI
+            ? h(
+                'div',
+                { style: { padding: '0 12px 8px', fontSize: 10, color: THEME.textMuted, opacity: 0.7 } },
+                `${t.diagnostics(rawItems.length, allSessions.length)} · locale=${localeId} · ${BUILD_TAG}`,
+              )
+            : null,
         )
       }
 

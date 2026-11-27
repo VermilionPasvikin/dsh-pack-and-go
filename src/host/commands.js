@@ -317,6 +317,11 @@ function describeSkips(skipped) {
  * @param {{ machineName?: string|false }} [options]
  * @returns {string|undefined} false 时不写（保持旧包语义）
  */
+/** 诊断日志开关（P2-11）：默认关闭，`DSH_PACK_AND_GO_DEBUG=1` 时打印。 */
+function debugEnabled() {
+  return process.env.DSH_PACK_AND_GO_DEBUG === '1'
+}
+
 function resolveMachineName(options) {
   if (options?.machineName === false) return undefined
   if (typeof options?.machineName === 'string' && options.machineName.trim().length > 0) {
@@ -465,7 +470,7 @@ export async function exportAllSessions(
           }
         }
       }
-      if (added > 0) {
+      if (added > 0 && debugEnabled()) {
         console.log('[dsh-pack-and-go] fork chain added', added, 'sessions')
       }
     }
@@ -539,7 +544,7 @@ export async function exportAllSessions(
         } catch (scanError) {
           const reason = scanError instanceof Error ? scanError.message : String(scanError)
           skippedWorkspaces.push({ path: cwd, reason })
-          console.log('[dsh-pack-and-go] workspace scan skipped', cwd, reason)
+          if (debugEnabled()) console.log('[dsh-pack-and-go] workspace scan skipped', cwd, reason)
         }
       }
     }
@@ -595,7 +600,7 @@ export async function exportAllSessions(
                 }
               }
             } catch {
-              console.log('[dsh-pack-and-go] attachment missing', ref.attachmentId)
+              if (debugEnabled()) console.log('[dsh-pack-and-go] attachment missing', ref.attachmentId)
             }
           }
         } catch {
@@ -670,7 +675,7 @@ export async function exportAllSessions(
       extraEntries,
       compress: options.compress !== false,
     })
-    console.log('[dsh-pack-and-go] export written', written.bytes, 'to', resolvedTarget)
+    if (debugEnabled()) console.log('[dsh-pack-and-go] export written', written.bytes, 'to', resolvedTarget)
     const fileNote = includeFiles
       ? `，含 ${workspaces.length} 个工作区（${plan.counts.files} 个文件）`
       : ''
@@ -1347,7 +1352,7 @@ export async function listCatalog(deps) {
       })),
     }
     const count = payload.workspaces.reduce((sum, workspace) => sum + workspace.sessions.length, 0) + payload.ungrouped.length
-    console.log('[dsh-pack-and-go] list', 'workspaces', payload.workspaces.length, 'sessions', count)
+    if (debugEnabled()) console.log('[dsh-pack-and-go] list', 'workspaces', payload.workspaces.length, 'sessions', count)
     return { kind: 'success', text: JSON.stringify(payload) }
   } catch (error) {
     return errorResult(
@@ -1364,14 +1369,16 @@ export async function listCatalog(deps) {
  */
 export async function handleMover(deps, invocation) {
   const args = parseMoverArgs(invocation?.rawInput)
-  console.log('[dsh-pack-and-go] command', JSON.stringify(args))
-  try {
-    appendFileSync(
-      join(process.env.DSH_HOME ?? '.', 'mover-debug.log'),
-      `${new Date().toISOString()} args=${JSON.stringify(args)} agent=${invocation?.agent?.id ?? '?'}\n`,
-    )
-  } catch {
-    // 诊断日志失败不影响命令
+  if (debugEnabled()) {
+    console.log('[dsh-pack-and-go] command', JSON.stringify(args))
+    try {
+      appendFileSync(
+        join(process.env.DSH_HOME ?? '.', 'mover-debug.log'),
+        `${new Date().toISOString()} args=${JSON.stringify(args)} agent=${invocation?.agent?.id ?? '?'}\n`,
+      )
+    } catch {
+      // 诊断日志失败不影响命令
+    }
   }
   const sub = args.shift()
   if (sub === 'export') {

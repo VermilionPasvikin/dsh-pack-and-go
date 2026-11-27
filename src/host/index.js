@@ -108,6 +108,8 @@ export function apply(ctx, config) {
 
   // 启动修复：迁移覆盖后的会话可能因旧归属残留而落入「未分组」。
   // DSH 启动索引已建好，此时按会话 cwd 匹配已登记工作区补 attach（只加不减）。
+  const debugEnabled = () => process.env.DSH_PACK_AND_GO_DEBUG === '1'
+
   const repairGrouping = async () => {
     const registry = typeof ctx.get === 'function' ? ctx.get('workspaceRegistry') : undefined
     const persistence = ctx.sessionPersistence
@@ -157,7 +159,7 @@ export function apply(ctx, config) {
         }
       }
     }
-    if (detached > 0) console.log('[dsh-pack-and-go] grouping detached', detached, 'stale ownerships')
+    if (detached > 0 && debugEnabled()) console.log('[dsh-pack-and-go] grouping detached', detached, 'stale ownerships')
 
     let repaired = 0
     for (const snapshot of snapshots) {
@@ -171,19 +173,20 @@ export function apply(ctx, config) {
         console.error('[dsh-pack-and-go] grouping repair failed', snapshot.header.id, attachError)
       }
     }
-    if (repaired > 0) console.log('[dsh-pack-and-go] grouping repaired', repaired, 'sessions')
+    if (repaired > 0 && debugEnabled()) console.log('[dsh-pack-and-go] grouping repaired', repaired, 'sessions')
     return true
   }
   {
+    // P2-11：启动修复改为低频退避（5s × 最多 6 次 ≈ 30s），避免 1s 轮询打满 60 次。
     let attempts = 0
     const timer = setInterval(() => {
       attempts += 1
       void repairGrouping()
         .then((done) => {
-          if (done || attempts >= 60) clearInterval(timer)
+          if (done || attempts >= 6) clearInterval(timer)
         })
         .catch(() => {})
-    }, 1000)
+    }, 5000)
     ctx.effect(() => () => clearInterval(timer))
   }
 
