@@ -1,11 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import zlib from 'node:zlib'
-import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+ import { mkdtemp, rm, readFile, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
-import { importSessionsToDisk } from '../../src/core/import-pack.js'
+import { applyImport, importSessionsToDisk } from '../../src/core/import-pack.js'
 import { createZip } from '../../src/core/zip-writer.js'
 import { sessionDir } from '../../src/core/paths.js'
 import { scanFrames } from '../../src/core/zstd-frames.js'
@@ -557,6 +558,93 @@ test('无 targetCwd 的会话不改写事件（保持旧行为）', async () => 
       events.find((event) => event.type === 'working-directory/change').data.cwd,
       'F:\\proj\\src',
     )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+// ---------------------------------------------------------------------------
+// applyImport：host / CLI 共用的导入流水线（ADR-0019）
+// ---------------------------------------------------------------------------
+
+function makeApplyImportPack({ workspaceTitles = [], sessionId = 's1' } = {}) {
+  const bytes = makeSessionBytes({ id: sessionId, cwd: 'F:/proj' })
+  const workspaces = workspaceTitles.map((title, index) => ({
+    key: `ws-${index + 1}`,
+    title,
+    sourcePath: `F:/src/${title}`,
+    sourcePlatform: 'win32',
+    fileCount: 0,
+    sizeBytes: 0,
+    root: `workspaces/ws-${index + 1}/files`,
+  }))
+  const manifest = {
+    schemaVersion: 2,
+    createdAt: '2026-11-10T15:30:00+08:00',
+    source: { platform: 'win32', dshVersion: 'test', sessionFormat: 4 },
+    mode: workspaces.length > 0 ? 'workspaces' : 'sessions',
+    sessions: [
+      {
+        id: sessionId,
+        title: '会话',
+        cwd: 'F:/proj',
+        messageCount: 1,
+        sizeBytes: bytes.length,
+        path: `sessions/${sessionId}/session.v4.jsonl.zstd`,
+        ...(workspaces.length > 0 ? { workspaceKey: workspaces[0].key } : {}),
+      },
+    ],
+    attachments: [],
+    workspaces,
+  }
+  return createZip([
+    { name: 'manifest.json', data: Buffer.from(JSON.stringify(manifest), 'utf8') },
+    { name: `sessions/${sessionId}/session.v4.jsonl.zstd`, data: bytes },
+  ])
+}
+
+test('applyImport：两个同名工作区规划为两个目录，不静默合并（P1-2）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-apply-'))
+  try {
+    const sessionRoot = join(dir, 'home', 'sessions')
+    const targetRoot = join(dir, 'target')
+    const buffer = makeApplyImportPack({ workspaceTitles: ['Report', 'Report'] })
+    const result = await applyImport({ buffer, sessionRoot, targetRoot, platform: 'win32' })
+    const names = result.targets.map((target) => basename(target.path))
+    assert.deepEqual(names, ['Report', 'Report (1)'])
+    assert.equal(existsSync(join(targetRoot, 'Report')), true)
+    assert.equal(existsSync(join(targetRoot, 'Report (1)')), true)
+    assert.equal(result.conflicts.length, 1)
+    assert.equal(result.conflicts[0].kind, 'renamed')
+    assert.equal(result.conflicts[0].reason, 'already-allocated-in-this-import')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('applyImport：覆盖策略下未知会话在写盘前失败，不留半成品（P1-1）', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-pack-and-go-apply-'))
+  try {
+    const sessionRoot = join(dir, 'home', 'sessions')
+    const targetRoot = join(dir, 'target')
+    const buffer = makeApplyImportPack()
+    await assert.rejects(
+      () =>
+        applyImport({
+          buffer,
+          sessionRoot,
+          targetRoot,
+          platform: 'win32',
+          policy: { session: 'overwrite' },
+          // 已登记但查不到现有位置（sessionQuery 缺 cwd）= 无法安全覆盖。
+          existingSessionIds: ['s1'],
+          existingCwdById: new Map(),
+        }),
+      (error) => error instanceof MoverError && error.code === ERROR_CODES.PACK_INVALID,
+    )
+    // 预检失败发生在写盘前：会话目录与暂存目录都不能出现。
+    assert.equal(existsSync(sessionRoot), false)
+    assert.equal(existsSync(targetRoot), false)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

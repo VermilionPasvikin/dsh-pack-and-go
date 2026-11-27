@@ -241,6 +241,15 @@ export async function writeZipStream(input) {
     return { bytes: offset, entries: central.length }
   } catch (error) {
     output.destroy()
+    // 等句柄真正关闭再删：Windows 上未关闭的句柄会让 rm 失败，留下半成品（P2-14②）。
+    await new Promise((resolve) => {
+      if (output.closed) {
+        resolve()
+        return
+      }
+      output.once('close', resolve)
+      output.once('error', resolve)
+    })
     // 失败时清理半成品文件，避免下一次导出出现“两个包”
     try {
       await rm(outputPath, { force: true })

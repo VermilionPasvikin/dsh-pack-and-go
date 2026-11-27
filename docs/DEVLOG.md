@@ -1066,3 +1066,51 @@ DEVLOG 659 记 CLI 对齐决策 2/5/7/9 时补了同名 `(1)` 但未移植 D3。
 
 **状态**：T11.4 完成；下一步 T11.5（原子提交：暂存目录 + 目录级 rename + 覆盖备份，
 host/CLI 共用 `apply-import`）。
+
+## 156 · 2026-11-27 T11.5：原子提交与 host/CLI 共用导入流水线（P1-1/P1-2/P2-12 部分）
+
+**日期**：2026-11-27
+**范围**：`src/core/apply-import.js`（新增）、`src/core/import-pack.js`、`src/core/workspaces.js`、
+`src/host/commands.js`、`src/cli/index.js`、`src/core/zip-stream.js`、`tests/unit/apply-import.test.mjs`（新增）、
+`tests/unit/import-pack.test.mjs`、`package.json`（`check` 脚本补新文件）
+
+1. 新增 `src/core/apply-import.js`（导入落盘原语，ADR-0019 §1/§4）：
+   - `stagingPath(parent, label)`：`<parent>/.<label>-tmp-<uuid>` 唯一暂存路径；
+   - `commitStagedDirectory({staging,target,backupDir,name,now})`：目标已存在时先把旧目录
+     整体 rename 到 `<backupDir>/<name>-previous-<stamp>`（无 backupDir 时删除），再把暂存目录
+     rename 到目标；rename 失败把旧目录 rename 回原位再抛（覆盖回滚）；
+   - `pathExists` / `removeQuietly` / `timestampOf` 辅助。
+2. `src/core/import-pack.js`：
+   - `importSessionsToDisk` 改为**单会话原子提交**：先写 `<projDir>/.session-import-tmp-<uuid>/`，
+     成功后目录级 rename 到最终位置，失败清理暂存（中途失败不留半成品）；`written` 增加可选
+     `previousDir`（被移走的旧目录备份路径），删除 `readZip` 全量解压，改 `listZip` + 按需
+     `readZipEntry`（NFR-6.5）；
+   - 新增导出 `applyImport(input)`：`listZip` → 校验并读 manifest → `planImportTargets` →
+     **写盘前**预检（覆盖策略下找不到现有位置的会话直接抛 `E_PACK_INVALID`，P1-1 修复）→
+     `importSessionsToDisk` → 空工作区建目录 → 只解压 `workspaces/` 条目后 `restoreWorkspaceFiles`。
+3. `src/core/workspaces.js`：`restoreWorkspaceFiles` 新增 `backupRoot`/`backupStamp`/`now`，
+   覆盖已存在文件前复制到 `<backupRoot>/<stamp>/workspaces/<key>/<relative>`（复制失败拒绝覆盖），
+   返回 `backups`（ADR-0020 §4）。
+4. `src/host/commands.js`：`importPack` 删除自建的目录分配（registeredPaths/stat/readdir/`(n)`/
+   mkdir/realpath）与写盘后的 unknown-overwrite 校验，统一调用 `applyImport`（附件仍按引用
+   过滤后 `readZipEntry` 按需解压）；`pathMap`/`mappings`/`written`/`skipped` 全部来自流水线结果。
+5. `src/cli/index.js`：`cmdImport` 同构改造，删除自建分配（CLI 此前缺少空目录复用，与 host
+   行为分叉=P1-2 的 CLI 侧证据，现已消除）；导入失败时预检错误直接 `错误：…` 输出。
+6. 顺带修复 P2-14 ②：`zip-stream` 失败清理等文件句柄 `close` 后再 `rm`（原先 `destroy()` 后
+   立即删，Windows 上句柄未关闭会让 rm 失败，留下半成品，导致 `失败时清理半成品输出文件`
+   在全量并发下稳定失败）。修复后全量测试连续三次全绿。
+
+**验证**：
+- `node --test tests/unit/apply-import.test.mjs`：7/7；
+- `node --test tests/unit/import-pack.test.mjs`：15/15（新增 `applyImport` 两组用例：同名工作区
+  规划为 `Report` 与 `Report (1)` 且不合并；覆盖策略下「已登记但查不到现有位置」的会话在写盘前
+  失败、`sessions/` 与目标目录都不产生任何文件）；
+- `node --test "tests/unit/**/*.test.mjs" "tests/e2e/**/*.test.mjs"` 连续三次：254 项 / 245 通过 /
+  0 失败 / 9 跳过；
+- 手测（一次性 `%TEMP%\dsh-pack-and-go-e2e-*`，CLI `import --overwrite`）11 项全部通过：预置空
+  目录 `Report` 被复用、第二个同名工作区落 `Report (1)`、两份文件未合并、覆盖前旧会话备份到
+  `<home>/dsh-pack-and-go-backup/<stamp>/s1-session.v4.jsonl.zstd`（解码内容为 OLD）、现行会话为
+  包内版本（NEW）、无 `.session-import-tmp-` 残留、`workspace.json` 注册 `Report` 与
+  `Report (1)` 两条。
+
+**状态**：T11.5 完成；下一步 T11.6（导出扫描失败可见：`skippedWorkspaces[]` + 文案 + `--strict`，P1-4）。

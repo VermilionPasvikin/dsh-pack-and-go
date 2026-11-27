@@ -25,16 +25,14 @@ import {
   fileObjectPath,
   fileReferencePath,
   imageObjectPath,
-  importSessionsToDisk,
+  applyImport,
   listZip,
   packAttachmentPath,
   parseManifest,
   planExport,
   preflightWorkspace,
-  readZip,
   readZipEntry,
   restoreAttachments,
-  restoreWorkspaceFiles,
   safeDirName,
   scanFrames,
   scanWorkspace,
@@ -825,61 +823,18 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
   const root = targetRoot.trim()
   try {
     const buffer = await readFile(packPath)
-    const { entries } = readZip(buffer)
-    const manifest = parseManifest(
-      entries.find((entry) => entry.name === 'manifest.json').data.toString('utf8'),
-    )
-    const byName = new Map(entries.map((entry) => [entry.name, entry.data]))
+    // 只读中央目录拿条目元数据，manifest 按需解压（NFR-6.5）。
+    const metas = listZip(buffer)
+    const manifest = parseManifest(readZipEntry(buffer, 'manifest.json').data.toString('utf8'))
 
     const platform = deps.platform ?? process.platform
-    const pathMap = { byKey: {} }
-    const mappings = []
-    // 已登记工作区路径：同路径复用；已存在但未登记的目录（用户目录）→ 新建「标题 (1)」。
+    // 已登记工作区路径：同路径复用（ADR-0019 四步判据 ①）。
     const registeredPaths = new Set(
       (typeof deps.workspaceRegistry.list === 'function'
         ? deps.workspaceRegistry.list()
         : []
       ).map((workspace) => normalizePathKey(workspace.path)),
     )
-    for (const workspace of manifest.workspaces) {
-      let target = join(root, safeDirName(workspace.title, platform))
-      if (!registeredPaths.has(normalizePathKey(target))) {
-        try {
-          await stat(target)
-          // D3 兜底：空目录视为本插件遗留目录，直接复用；非空未登记才加序号。
-          let isEmpty = false
-          try {
-            isEmpty = (await readdir(target)).length === 0
-          } catch {
-            // 读不了按非空处理
-          }
-          if (!isEmpty) {
-            let suffix = 1
-            for (;;) {
-              const candidate = `${target} (${suffix})`
-              try {
-                await stat(candidate)
-                suffix += 1
-              } catch {
-                target = candidate
-                break
-              }
-            }
-          }
-        } catch {
-          // 目录不存在，直接使用
-        }
-      }
-      await mkdir(target, { recursive: true })
-      let canonical = target
-      try {
-        canonical = await realpath(target)
-      } catch {
-        // 无法 realpath 时保留原路径
-      }
-      pathMap.byKey[workspace.key] = canonical
-      mappings.push(`${workspace.sourcePath} → ${canonical}`)
-    }
 
     const sessionRoot = join(resolveDshHome(deps), 'sessions')
     let existingSessionIds = []
@@ -898,47 +853,48 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       existingSessionIds = [...scanned.keys()]
       for (const [id, cwd] of scanned) existingCwdById.set(id, cwd)
     }
-    const sessions = await importSessionsToDisk({
+    // 规划 → 预检 → 写盘由 applyImport 统一完成（ADR-0019）；
+    // 覆盖目标不存在的会话会在写盘前失败（P1-1）。
+    const applied = await applyImport({
       buffer,
       sessionRoot,
-      pathMap,
+      targetRoot: root,
+      platform,
+      registeredPathKeys: [...registeredPaths],
       existingSessionIds,
       existingCwdById,
       policy: { session: sessionPolicy },
       // 覆盖/迁移覆盖前备份旧文件（迁移时旧目录移到该备份根下）。
       backupRoot: join(resolveDshHome(deps), 'dsh-pack-and-go-backup'),
+      now: options.now,
     })
-    if (sessionPolicy === 'overwrite') {
-      const unknown = sessions.written.filter(
-        (written) => written.action === 'overwrite' && !existingCwdById.has(written.id),
-      )
-      if (unknown.length > 0) {
-        return errorResult(
-          `无法覆盖：${unknown.length} 个对话找不到现有位置（请改用「跳过」，或重启 DSH 后重试）。`,
-        )
-      }
-    }
+    const sessions = { written: applied.written, skipped: applied.skipped }
+    const files = applied.workspaces
+    const pathMap = { byKey: {} }
+    for (const target of applied.targets) pathMap.byKey[target.workspaceKey] = target.path
+    const mappings = applied.targets.map((target) => {
+      const workspace = manifest.workspaces.find((item) => item.key === target.workspaceKey)
+      return `${workspace?.sourcePath ?? ''} → ${target.path}`
+    })
     // 附件只恢复「实际写入会话」引用的部分（跳过的会话不写附件）。
     const referencedAttachments = new Set()
     for (const written of sessions.written) {
       const source = manifest.sessions.find((item) => item.id === written.id)
-      const packed = source ? byName.get(source.path) : undefined
-      if (!packed) continue
+      if (!source) continue
+      const packed = readZipEntry(buffer, source.path).data
       for (const ref of extractAttachmentRefs(packed)) referencedAttachments.add(ref.attachmentId)
     }
-    const attachmentEntries = entries
-      .filter((entry) => entry.name.startsWith('attachments/'))
-      .filter((entry) => {
-        const match = /attachments\/v1\/(?:file-objects|objects)\/[0-9a-f]{2}\/([0-9a-f]{64})/.exec(
-          entry.name,
-        )
-        if (match) return referencedAttachments.has(`sha256:${match[1]}`)
-        const fileMatch = /attachments\/v1\/files\/[0-9a-f]{2}\/([0-9a-f]{64})\//.exec(entry.name)
-        return fileMatch
-          ? referencedAttachments.has(`sha256:${fileMatch[1]}`)
-          : true
-      })
-      .map((entry) => ({ packPath: entry.name, data: entry.data }))
+    const attachmentEntries = []
+    for (const meta of metas) {
+      if (!meta.name.startsWith('attachments/')) continue
+      const objectMatch =
+        /attachments\/v1\/(?:file-objects|objects)\/[0-9a-f]{2}\/([0-9a-f]{64})/.exec(meta.name)
+      if (objectMatch && !referencedAttachments.has(`sha256:${objectMatch[1]}`)) continue
+      const fileMatch = /attachments\/v1\/files\/[0-9a-f]{2}\/([0-9a-f]{64})\//.exec(meta.name)
+      if (fileMatch && !referencedAttachments.has(`sha256:${fileMatch[1]}`)) continue
+      const entry = readZipEntry(buffer, meta.name)
+      attachmentEntries.push({ packPath: entry.name, data: entry.data })
+    }
     const attachments =
       attachmentEntries.length > 0
         ? await restoreAttachments({
@@ -955,15 +911,6 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
         writtenByKey.set(key, (writtenByKey.get(key) ?? 0) + 1)
       }
     }
-    const workspaceEntries = entries
-      .filter((entry) => entry.name.startsWith('workspaces/'))
-      .map((entry) => ({ packPath: entry.name, data: entry.data, mode: entry.mode }))
-    const files = await restoreWorkspaceFiles({
-      entries: workspaceEntries,
-      pathMap,
-      targetPlatform: platform,
-      sourcePlatform: manifest.source?.platform,
-    })
 
     const activeWorkspaces = manifest.workspaces
     const registered = await registerWorkspaces({

@@ -14,20 +14,23 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { existsSync, readdirSync } from 'node:fs'
 import { access, copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
+import { commitStagedDirectory, removeQuietly, stagingPath } from './apply-import.js'
 import { parseManifest } from './manifest-io.js'
 import { sessionDir } from './paths.js'
-import { planImport } from './plan-import.js'
+import { planImport, planImportTargets } from './plan-import.js'
 import {
   normalizeSessionAgentState,
   rewriteSessionFileReferences,
   rewriteSessionHeader,
   rewriteSessionWorkingDirectories,
 } from './session-rewrite.js'
-import { readZip } from './zip-reader.js'
+import { restoreWorkspaceFiles } from './workspaces.js'
+import { listZip, readZipEntry } from './zip-reader.js'
 
 /**
  * @param {string} message
@@ -99,14 +102,11 @@ export async function importSessionsToDisk(input) {
     throw importError('缺少 sessionRoot')
   }
 
-  const { entries } = readZip(buffer)
-  const byName = new Map(entries.map((entry) => [entry.name, entry.data]))
-
-  const manifestEntry = byName.get('manifest.json')
-  if (!manifestEntry) {
+  // 只读中央目录定位 manifest，会话内容按需解压（NFR-6.5：大包不全量读入内存）。
+  if (!listZip(buffer).some((meta) => meta.name === 'manifest.json')) {
     throw importError('迁移包缺少 manifest.json', { reason: 'no-manifest' })
   }
-  const manifest = parseManifest(manifestEntry.toString('utf8'))
+  const manifest = parseManifest(readZipEntry(buffer, 'manifest.json').data.toString('utf8'))
   const targetPlatform = input.targetPlatform ?? process.platform
 
   const plan = planImport({
@@ -146,7 +146,7 @@ export async function importSessionsToDisk(input) {
     if (!source) {
       throw importError(`manifest 中找不到会话条目: ${session.id}`, { id: session.id })
     }
-    const packed = byName.get(source.path)
+    const packed = readZipEntry(buffer, source.path).data
     if (!packed) {
       throw importError(`包内缺少会话文件: ${source.path}`, { id: session.id, path: source.path })
     }
@@ -213,24 +213,41 @@ export async function importSessionsToDisk(input) {
       backupPath = await backupExisting(file, backupDir)
     }
 
-    // 迁移覆盖：先备份/移除旧位置同 id 目录，避免同一 id 出现两份（DSH 启动会失败）。
-    if (typeof session.migrateFrom === 'string' && session.migrateFrom.length > 0) {
-      const oldDir = sessionDir(sessionRoot, session.migrateFrom, targetId)
-      try {
-        await access(oldDir)
-        if (backupDir) {
-          await mkdir(backupDir, { recursive: true })
-          await rename(oldDir, join(backupDir, `${targetId}-migrated`))
-        } else {
-          await rm(oldDir, { recursive: true, force: true })
-        }
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error
-      }
-    }
+    // ADR-0019 §3：单会话原子提交——先写暂存目录，成功后再目录级 rename；
+    // 中途失败或进程被杀不会留下半个会话文件（NFR-6）。
+    const staging = stagingPath(dirname(sessionRoot), 'session-import')
+    let previousDir
+    try {
+      await mkdir(staging, { recursive: true })
+      await writeFile(join(staging, sessionLogName(version)), finalData)
 
-    await mkdir(dir, { recursive: true })
-    await writeFile(file, finalData)
+      // 迁移覆盖：先备份/移除旧位置同 id 目录，避免同一 id 出现两份（DSH 启动会失败）。
+      if (typeof session.migrateFrom === 'string' && session.migrateFrom.length > 0) {
+        const oldDir = sessionDir(sessionRoot, session.migrateFrom, targetId)
+        try {
+          await access(oldDir)
+          if (backupDir) {
+            await mkdir(backupDir, { recursive: true })
+            await rename(oldDir, join(backupDir, `${targetId}-migrated`))
+          } else {
+            await rm(oldDir, { recursive: true, force: true })
+          }
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error
+        }
+      }
+
+      previousDir = await commitStagedDirectory({
+        staging,
+        target: dir,
+        backupDir: input.backupRoot,
+        name: targetId,
+        now: input.now,
+      })
+    } catch (error) {
+      await removeQuietly(staging)
+      throw error
+    }
 
     written.push({
       id: session.id,
@@ -240,6 +257,7 @@ export async function importSessionsToDisk(input) {
       action: session.action,
       ...(session.migrateFrom !== undefined ? { migrateFrom: session.migrateFrom } : {}),
       ...(backupPath !== undefined ? { backupPath } : {}),
+      ...(previousDir !== undefined ? { previousDir } : {}),
       ...(cwdEventsRewritten > 0 ? { cwdEventsRewritten } : {}),
       ...(fileRefsRewritten > 0 ? { fileRefsRewritten } : {}),
       ...(agentStateRewritten > 0 ? { agentStateRewritten } : {}),
@@ -247,4 +265,160 @@ export async function importSessionsToDisk(input) {
   }
 
   return { manifest, plan, written, skipped }
+}
+
+/**
+ * 导入编排（host / CLI 共用；ADR-0019 §1/§4）。
+ *
+ * 顺序固定：读清单 → 四步判据规划（planImportTargets）→ 全部 fatal 预检 →
+ * 会话原子提交（importSessionsToDisk）→ 工作区文件恢复（restoreWorkspaceFiles）。
+ * 预检失败时不写任何文件（P1-1），预览与真实导入消费同一规划结果（FR-7）。
+ *
+ * @param {{
+ *   buffer: Buffer,
+ *   sessionRoot: string,
+ *   targetRoot: string,
+ *   platform?: 'win32' | 'darwin' | 'linux',
+ *   registeredPathKeys?: readonly string[],
+ *   exists?: (path: string) => boolean | Promise<boolean>,
+ *   existsNonEmpty?: (path: string) => boolean | Promise<boolean>,
+ *   reserved?: readonly string[],
+ *   policy?: { session?: string, workspace?: string },
+ *   existingSessionIds?: readonly string[],
+ *   existingCwdById?: Map<string, string>,
+ *   backupRoot?: string,
+ *   now?: Date
+ * }} input
+ * @returns {Promise<{
+ *   manifest: object,
+ *   targets: Array<object>,
+ *   conflicts: Array<object>,
+ *   written: Array<object>,
+ *   skipped: string[],
+ *   workspaces: object
+ * }>}
+ */
+export async function applyImport(input) {
+  const {
+    buffer,
+    sessionRoot,
+    targetRoot,
+    platform = process.platform,
+    registeredPathKeys = [],
+    existingSessionIds = [],
+    existingCwdById = new Map(),
+    reserved = [],
+    backupRoot,
+    now,
+  } = input
+  if (!Buffer.isBuffer(buffer)) throw importError('applyImport 需要 Buffer 输入')
+  if (typeof sessionRoot !== 'string' || sessionRoot.length === 0) {
+    throw importError('缺少会话目录 sessionRoot', { reason: 'missing-session-root' })
+  }
+  if (typeof targetRoot !== 'string' || targetRoot.trim().length === 0) {
+    throw importError('缺少目标目录 targetRoot', { reason: 'missing-target-root' })
+  }
+
+  const metas = listZip(buffer)
+  if (!metas.some((meta) => meta.name === 'manifest.json')) {
+    throw importError('迁移包缺少 manifest.json', { reason: 'no-manifest' })
+  }
+  const manifest = parseManifest(readZipEntry(buffer, 'manifest.json').data.toString('utf8'))
+
+  // ① 规划：四步判据（ADR-0019 §2）。planImportTargets 是同步纯函数，
+  // 默认探测用同步 fs（一次性探测已创建的路径）。
+  const exists = typeof input.exists === 'function' ? input.exists : (path) => existsSync(path)
+  const existsNonEmpty =
+    typeof input.existsNonEmpty === 'function'
+      ? input.existsNonEmpty
+      : (path) => {
+          try {
+            return readdirSync(path).length > 0
+          } catch {
+            // 读不了按非空处理（宁可不复用）。
+            return true
+          }
+        }
+  const planned = await planImportTargets({
+    manifest,
+    targetRoot,
+    platform,
+    registeredPathKeys,
+    exists,
+    existsNonEmpty,
+    reserved,
+  })
+
+  const pathMap = { byKey: {} }
+  for (const target of planned.targets) {
+    pathMap.byKey[target.workspaceKey] = target.path
+  }
+
+  // ② 预检：覆盖策略下「目标没有该会话登记」必须在写盘前失败（P1-1）。
+  if ((input.policy?.session ?? 'skip') === 'overwrite') {
+    const sessionPlan = planImport({
+      manifest,
+      pathMap,
+      existingSessionIds,
+      existingWorkspacePaths: registeredPathKeys,
+      existingCwdById,
+      policy: input.policy,
+    })
+    const unknown = sessionPlan.sessions.filter(
+      (session) => session.action === 'overwrite' && !existingCwdById.has(session.id),
+    )
+    if (unknown.length > 0) {
+      throw importError(
+        `无法覆盖：${unknown.length} 个对话找不到现有位置（请改用「跳过」，或重启 DSH 后重试）。`,
+        {
+          reason: 'unknown-overwrite',
+          ids: unknown.map((session) => session.id),
+        },
+      )
+    }
+  }
+
+  // ③ 会话：单会话暂存 + 目录级 rename（ADR-0019 §3）。
+  const sessions = await importSessionsToDisk({
+    buffer,
+    sessionRoot,
+    pathMap,
+    targetPlatform: platform,
+    existingSessionIds,
+    existingWorkspacePaths: registeredPathKeys,
+    existingCwdById,
+    policy: input.policy,
+    backupRoot,
+    now,
+  })
+
+  // ④ 工作区：只解压 workspaces/ 条目，覆盖前备份到 backupRoot（ADR-0020 §4）。
+  // 空工作区没有文件条目，也要建目录（DSH 登记与侧边栏依赖目录存在）。
+  for (const target of planned.targets) {
+    if (target.action === 'skip') continue
+    await mkdir(target.path, { recursive: true })
+  }
+  const workspaceEntries = []
+  for (const meta of metas) {
+    if (!meta.name.startsWith('workspaces/')) continue
+    const entry = readZipEntry(buffer, meta.name)
+    workspaceEntries.push({ packPath: entry.name, data: entry.data, mode: entry.mode })
+  }
+  const workspaces = await restoreWorkspaceFiles({
+    entries: workspaceEntries,
+    pathMap,
+    targetPlatform: platform,
+    sourcePlatform: manifest.source?.platform,
+    backupRoot,
+    now,
+  })
+
+  return {
+    manifest,
+    targets: planned.targets,
+    conflicts: planned.conflicts,
+    written: sessions.written,
+    skipped: sessions.skipped,
+    workspaces,
+  }
 }

@@ -187,14 +187,14 @@
 | T11.2 | `zip-reader`：`readCentralDirectory` 只读中央目录；`listZip` 改真元数据；`maxTotalBytes` 默认 4 GiB 抛 `E_PACK_TOO_LARGE`；`inspectPack` 改用 `listZip`（P1-5） | T11.1 | 单测：清单预览不触发 deflate 解压；超限抛错；stored/deflate 大小正确 | ✅ 2026-11-27（devlog 153） |
 | T11.3 | `src/core/plan-import.js` 四步判据纯函数 + 单测（P1-1/P1-2，ADR-0019 §2） | T11.2 | 四分支、同包同名、A/a、a?/a* 场景断言；纯函数无 I/O | ✅ 2026-11-27（devlog 154） |
 | T11.4 | `workspaces.js`：`sanitizeRelativePath` 全段净化 + 大小写冲突 + 长路径 + conversions（P1-3，ADR-0020） | T11.3 | 单测：目录段非法名/CON/A-a/240 长路径；conversions 正确 | ✅ 2026-11-27（devlog 155） |
-| T11.5 | 原子提交：`apply-import` 暂存目录 + 目录级 rename + 失败清理 + 覆盖备份；host/CLI 共用（P1-1/P2-12 部分） | T11.3/T11.4 | 模拟中途失败无半成品；覆盖回滚；CLI 与 host 同一实现 | ⬜ |
+| T11.5 | 原子提交：`apply-import` 暂存目录 + 目录级 rename + 失败清理 + 覆盖备份；host/CLI 共用（P1-1/P2-12 部分） | T11.3/T11.4 | 模拟中途失败无半成品；覆盖回滚；CLI 与 host 同一实现 | ✅ 2026-11-27（devlog 156） |
 | T11.6 | 导出扫描失败可见：`skippedWorkspaces[]` + 结果/预览文案 + `--strict`（P1-4） | T11.5 | 不可读目录被列出并计数；不静默 | ⬜ |
 | T11.7 | 预检默认执行（D1）+ 符号链接越界（D5）+ 五处边缘 bug（D6） | T11.5 | 各项有单测或实测证据；默认预检有 e2e | ⬜ |
 | T11.8 | 回归与 0.3.0 发布准备：全量测试、CLI E2E、DEVLOG、版本与 RELEASE 校验 | T11.6/T11.7 | 全绿；`npm pack --dry-run` 正确 | ⬜ |
 
 ## 3. 当前进度
 
-- 当前里程碑：**M11 进行中**（代码审查修复：可信导入，0.3.0；下一步 T11.5）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
+- 当前里程碑：**M11 进行中**（代码审查修复：可信导入，0.3.0；下一步 T11.6）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
 - 2026-11-27：**T11.1 完成**——代码审查（AgentCompare 版本 B）14 条问题逐条复核全部成立，方案经用户批准后落地 ADR-0019/ADR-0020、SPEC v1.8、DESIGN §3.1/§4 与本节任务表（详见 DEVLOG 152）。
 - 2026-11-27：**T11.2 完成**——`zip-reader` 拆出只读中央目录层，`listZip` 不再解压、`compressedSize` 为真实值，新增 `readZipEntry` 与 4 GiB 解压总量上限（`E_PACK_TOO_LARGE`），`inspectPack` 只解压 manifest；单测 14/14、unit 215/207、e2e 16/15（详见 DEVLOG 153）。
 - 2026-11-27：**T11.3 完成**——新增纯函数 `planImportTargets`（四步判据 + ` (n)` 顺延 + 标题净化 + 冲突报告），`plan-import` 单测 18/18、unit 224/216（详见 DEVLOG 154）。
@@ -206,3 +206,4 @@
 - 2026-11-23 完成 **T10.1–T10.7**：宿主跨版本维护闭环建立（脚本/基线/runbook/ADR-0018）→ 对 0.2.2-rc.5 正式检出（五类契约全部兼容，报告 `docs/compat/reports/detect-0.2.2-rc.5.md`）→ 回归 R1–R4 全过 → 基线升级 0.2.2-rc.5 → 发布 0.2.3 准备就绪。
 - 待办：M11 按 T11.2 → T11.8 顺序推进（任务来源见本节表格）。后续宿主更新维护动作按 `docs/UPSTREAM-COMPAT.md` 触发。
 - 阻塞/暂缓：T9.2 取消功能、T9.4 精确进度（用户决定不做）；代码审查 B 组（真实进度 + 取消）待用户明确解除上述决定后才立项。
+- 2026-11-27：**T11.5 完成**——新增 `apply-import` 原语（暂存目录 + 目录级 rename + 失败清理 + 覆盖回滚）与 `applyImport` 共用流水线，host/CLI 统一走「规划 → 预检 → 原子写盘」，覆盖未知会话改为写盘前失败，工作区文件覆盖纳入备份；顺带修复 zip-stream 清理竞态（P2-14 ②）；unit+e2e 254/245/0/9 连跑三次全绿，CLI 手测 11/11（详见 DEVLOG 156）。

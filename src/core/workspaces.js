@@ -10,10 +10,11 @@
  * - Windows 全路径超 240 字符的条目跳过并记录（不静默）。
  */
 
-import { chmod, mkdir, stat, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
+import { timestampOf } from './apply-import.js'
 import { sanitizeWindowsName } from './preflight.js'
 
 /** 单段文件名上限（ext4 / NTFS 均为 255 字节）。 */
@@ -135,10 +136,15 @@ function createNameRegistry(platform) {
  *   entries: Array<{ packPath: string, data: Buffer, mode?: number }>,
  *   pathMap: { byKey: Record<string, string> },
  *   targetPlatform: 'win32'|'darwin'|'linux',
- *   sourcePlatform?: 'win32'|'darwin'|'linux'
+ *   sourcePlatform?: 'win32'|'darwin'|'linux',
+ *   backupRoot?: string,
+ *   backupStamp?: string,
+ *   now?: Date
  * }} input
  * @returns {Promise<{
  *   written: Array<{ key: string, path: string }>,
+ *   overwritten: Array<{ key: string, path: string }>,
+ *   backups: Array<{ key: string, path: string, backupPath: string }>,
  *   dirs: Array<{ key: string, path: string }>,
  *   conversions: Array<{ key: string, from: string, to: string, kind: string }>,
  *   modes: { applied: number, failed: number },
@@ -151,6 +157,10 @@ export async function restoreWorkspaceFiles(input) {
   if (pathMap === null || typeof pathMap !== 'object' || typeof pathMap.byKey !== 'object') {
     throw workspaceError('缺少路径映射 pathMap')
   }
+  const backupRoot = typeof input.backupRoot === 'string' ? input.backupRoot : undefined
+  const backupStamp = backupRoot
+    ? (input.backupStamp ?? timestampOf(input.now instanceof Date ? input.now : new Date()))
+    : undefined
 
   const byWorkspace = new Map()
   for (const entry of entries) {
@@ -170,6 +180,7 @@ export async function restoreWorkspaceFiles(input) {
 
   const written = []
   const overwritten = []
+  const backups = []
   const dirs = []
   const dirModes = []
   const conversions = []
@@ -226,6 +237,13 @@ export async function restoreWorkspaceFiles(input) {
       } catch {
         // 目标不存在
       }
+      // ADR-0020 §4：覆盖用户已有文件前先复制到备份根；复制失败则拒绝覆盖（抛出，不静默）。
+      if (existed && backupRoot !== undefined) {
+        const backupPath = join(backupRoot, backupStamp, 'workspaces', key, relative)
+        await mkdir(dirname(backupPath), { recursive: true })
+        await copyFile(target, backupPath)
+        backups.push({ key, path: target, backupPath })
+      }
       await writeFile(target, file.data)
       // 权限恢复（SPEC FR-9 / ADR-0016 B1）：
       // POSIX 源 + POSIX 目标 → 按包内 mode 恢复，自动剥离 setuid/setgid/sticky（只取低 9 位）；
@@ -272,5 +290,5 @@ export async function restoreWorkspaceFiles(input) {
     }
   }
 
-  return { written, overwritten, dirs, conversions, modes, warnings }
+  return { written, overwritten, backups, dirs, conversions, modes, warnings }
 }
