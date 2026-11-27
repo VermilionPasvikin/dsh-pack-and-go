@@ -86,6 +86,10 @@ window.__ModuleLoader__.load({
         workspacesOnlyHint: '导出工作区的文件与目录结构（空文件夹保留骨架），不导出任何对话。',
         noWorkspaces: '没有可用的工作区。',
         packing: '打包中…',
+        taskRunning: '进行中',
+        taskCancel: '取消',
+        taskCancelled: '已取消（已完成的部分会保留，可直接重试）',
+        taskWaiting: '等待任务开始…',
         exportNeedsSelection: '请至少选择一个对话。',
         exportNeedsPath: '请填写保存位置。',
         noContext: '没有可用的对话上下文。',
@@ -169,6 +173,10 @@ window.__ModuleLoader__.load({
         workspacesOnlyHint: 'Export workspace files and folder structure (empty folders keep their skeleton); no conversations.',
         noWorkspaces: 'No workspaces available.',
         packing: 'Packing…',
+        taskRunning: 'Running',
+        taskCancel: 'Cancel',
+        taskCancelled: 'Cancelled (finished parts are kept; you can retry)',
+        taskWaiting: 'Waiting for the task to start…',
         exportNeedsSelection: 'Select at least one conversation.',
         exportNeedsPath: 'Choose where to save the package.',
         noContext: 'No conversation context available.',
@@ -437,6 +445,8 @@ window.__ModuleLoader__.load({
       const [includeFiles, setIncludeFiles] = useState(false)
       const [packOptions, setPackOptions] = useState([])
       const [busy, setBusy] = useState(false)
+      const [task, setTask] = useState(null)
+      const taskCancelRequested = useRef(false)
       const [message, setMessage] = useState(null)
       const [error, setError] = useState(null)
       const [reloadTick, setReloadTick] = useState(0)
@@ -745,23 +755,34 @@ window.__ModuleLoader__.load({
        * @param {object} args
        * @param {() => string} buildCommand
        */
+      /**
+       * 统一操作入口：慢操作（导出/导入）优先走任务通道（ADR-0021），
+       * 宿主不支持 task.* 时回退直连 exec，再回退命令通道。
+       * @param {string} action
+       * @param {object} args
+       * @param {() => string} buildCommand
+       */
       async function runMoverAction(action, args, buildCommand) {
+        if (action === 'export' || action === 'import') {
+          return runTaskMoverAction(action, args, buildCommand)
+        }
+        return runDirectAction(action, args, buildCommand)
+      }
+
+      /**
+       * 直连 exec（list/find/size/inspect 等快操作，以及老宿主回退路径）。
+       * @param {string} action
+       * @param {object} args
+       * @param {() => string} buildCommand
+       */
+      async function runDirectAction(action, args, buildCommand) {
         setBusy(true)
         setError(null)
         setMessage(null)
         try {
           const execResult = await runAction(action, args)
           if (!execResult.unsupported) {
-            const result = execResult.result
-            const text = typeof result?.text === 'string' ? result.text : ''
-            const ok = result?.kind === 'success'
-            if (ok) {
-              setMessage(text)
-              setReloadTick((tick) => tick + 1)
-            } else {
-              setError(text || t.commandFailed)
-            }
-            return { ok, text }
+            return applyActionResult(execResult.result)
           }
           return await runCommand(buildCommand(), t.exportDone)
         } catch (error) {
@@ -769,6 +790,97 @@ window.__ModuleLoader__.load({
           return { ok: false }
         } finally {
           setBusy(false)
+        }
+      }
+
+      /**
+       * 把 exec 结果反馈到界面（成功刷新目录，失败提示错误）。
+       * @param {any} result
+       */
+      function applyActionResult(result) {
+        const text = typeof result?.text === 'string' ? result.text : ''
+        const ok = result?.kind === 'success'
+        if (ok) {
+          setMessage(text)
+          setReloadTick((tick) => tick + 1)
+        } else {
+          setError(text || t.commandFailed)
+        }
+        return { ok, text }
+      }
+
+      /**
+       * 慢操作任务通道（ADR-0021）：task.start → 500ms 轮询 task.poll → 终态。
+       * 首帧前展示「等待任务开始」；取消走 task.cancel（已完成部分保留）。
+       * @param {string} action
+       * @param {object} args
+       * @param {() => string} buildCommand
+       */
+      async function runTaskMoverAction(action, args, buildCommand) {
+        setBusy(true)
+        setError(null)
+        setMessage(null)
+        setTask({ status: 'running', stage: 'scan', done: 0, total: 0, message: t.taskWaiting })
+        taskCancelRequested.current = false
+        try {
+          const started = await runAction('task.start', { kind: action, ...args })
+          if (started.unsupported) {
+            setTask(null)
+            return await runDirectAction(action, args, buildCommand)
+          }
+          const taskId = started.result?.taskId
+          if (typeof taskId !== 'string' || taskId.length === 0) {
+            throw new Error('task.start 未返回 taskId')
+          }
+          setTask((prev) => ({ ...(prev ?? {}), taskId }))
+          let cursor = 0
+          for (;;) {
+            const polled = await runAction('task.poll', { taskId, cursor })
+            if (polled.unsupported) {
+              setTask(null)
+              return await runDirectAction(action, args, buildCommand)
+            }
+            const snapshot = polled.result ?? {}
+            cursor = Number(snapshot.nextCursor ?? cursor)
+            const frames = Array.isArray(snapshot.frames) ? snapshot.frames : []
+            const last = frames.length > 0 ? frames[frames.length - 1] : null
+            if (last) setTask({ ...last, taskId, status: snapshot.status ?? last.status })
+            if (snapshot.status !== 'running') {
+              setTask(null)
+              if (snapshot.status === 'cancelled') {
+                setError(t.taskCancelled)
+                return { ok: false, text: t.taskCancelled }
+              }
+              if (snapshot.status === 'error') {
+                const detail =
+                  snapshot.error?.message ??
+                  (typeof snapshot.error === 'string' ? snapshot.error : '') ??
+                  t.commandFailed
+                setError(`${t.commandFailed}${detail}`)
+                return { ok: false, text: String(detail) }
+              }
+              return applyActionResult(snapshot.result)
+            }
+            await new Promise((resolve) => setTimeout(resolve, 500))
+          }
+        } catch (error) {
+          setTask(null)
+          setError(error instanceof Error ? error.message : String(error))
+          return { ok: false }
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      /** 取消当前任务（尽力而为，已提交的部分保留）。 */
+      async function cancelTask() {
+        const running = task
+        if (!running || typeof running.taskId !== 'string') return
+        taskCancelRequested.current = true
+        try {
+          await runAction('task.cancel', { taskId: running.taskId })
+        } catch {
+          // 取消失败不覆盖已有错误提示
         }
       }
 
@@ -1178,6 +1290,7 @@ window.__ModuleLoader__.load({
             : h('div', { style: { marginBottom: 8 } }),
           tabBar(),
           tab === 'export' ? exportView() : importView(),
+          task ? taskProgressView() : null,
           message
             ? h('div', { style: { marginTop: 10, fontSize: 13, color: THEME.success } }, message)
             : null,
@@ -1186,6 +1299,102 @@ window.__ModuleLoader__.load({
             : null,
         ),
       )
+
+      const STAGE_LABELS = {
+        scan: '扫描',
+        preflight: '预检',
+        'pack-sessions': '打包对话',
+        'pack-workspaces': '打包工作区',
+        verify: '校验',
+        'restore-sessions': '恢复对话',
+        'restore-attachments': '恢复附件',
+        'restore-workspaces': '恢复工作区',
+        register: '登记工作区',
+        done: '完成',
+      }
+
+      /** 进度条 + 取消按钮（ADR-0021 / SPEC FR-5）。 */
+      function taskProgressView() {
+        const total = Number(task.total ?? 0)
+        const done = Number(task.done ?? 0)
+        const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0
+        const label = STAGE_LABELS[task.stage] ?? task.stage
+        return h(
+          'div',
+          {
+            style: {
+              marginTop: 10,
+              padding: '10px 12px',
+              border: `1px solid ${THEME.border}`,
+              borderRadius: 8,
+              fontSize: 12,
+            },
+          },
+          h(
+            'div',
+            { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h(
+              'span',
+              { style: { fontWeight: 600, color: THEME.text } },
+              `${t.taskRunning}：${label}`,
+            ),
+            total > 0
+              ? h('span', { style: { color: THEME.textMuted } }, `${done}/${total}`)
+              : null,
+            h('span', { style: { flex: 1 } }),
+            h(
+              'button',
+              {
+                type: 'button',
+                onClick: cancelTask,
+                style: {
+                  padding: '2px 8px',
+                  borderRadius: 6,
+                  border: `1px solid ${THEME.border}`,
+                  background: 'transparent',
+                  color: THEME.error,
+                  cursor: 'pointer',
+                  fontSize: 11,
+                },
+              },
+              t.taskCancel,
+            ),
+          ),
+          h(
+            'div',
+            {
+              style: {
+                marginTop: 6,
+                height: 6,
+                borderRadius: 3,
+                background: THEME.border,
+                overflow: 'hidden',
+              },
+            },
+            h('div', {
+              style: {
+                width: `${percent}%`,
+                height: '100%',
+                background: THEME.accent ?? '#4f7cff',
+                transition: 'width 200ms ease',
+              },
+            }),
+          ),
+          task.message
+            ? h(
+                'div',
+                {
+                  style: {
+                    marginTop: 6,
+                    color: THEME.textMuted,
+                    wordBreak: 'break-all',
+                  },
+                },
+                String(task.message),
+              )
+            : null,
+        )
+      }
 
       function tabBar() {
         return h(

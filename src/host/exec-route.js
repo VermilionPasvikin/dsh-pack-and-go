@@ -3,9 +3,11 @@
  *
  * - 由 Connection 的共享 Fetch handler 服务（复用 Host/Origin 检查与浏览器认证）；
  * - 不经过命令通道，因此不需要会话上下文、不写会话日志；
- * - 仅接受白名单 action，参数在 Host 侧校验。
+ * - 仅接受白名单 action，参数在 Host 侧校验；
+ * - 长任务（ADR-0021）：`task.start` 立即返回 taskId，`task.poll` 增量读帧，`task.cancel` 中止。
  */
 
+import { ERROR_CODES } from '../core/errors.js'
 import {
   exportAllSessions,
   exportWorkspacesOnly,
@@ -15,8 +17,19 @@ import {
   listCatalog,
   measureWorkspaces,
 } from './commands.js'
+import { createTaskRegistry } from './task-registry.js'
 
-const ACTIONS = new Set(['list', 'find', 'size', 'inspect', 'export', 'import'])
+const ACTIONS = new Set([
+  'list',
+  'find',
+  'size',
+  'inspect',
+  'export',
+  'import',
+  'task.start',
+  'task.poll',
+  'task.cancel',
+])
 
 /** 请求体上限（P2-14⑤）：超过即 413，避免超大 JSON 打满内存。 */
 const MAX_BODY_BYTES = 32 * 1024 * 1024
@@ -24,9 +37,12 @@ const MAX_BODY_BYTES = 32 * 1024 * 1024
 /**
  * @param {object} deps 与命令 handler 相同的依赖
  * @param {{ warn?: (...args: unknown[]) => void }} [logger]
+ * @param {{ registry?: ReturnType<typeof createTaskRegistry> }} [options]
  * @returns {(request: Request) => Promise<Response>}
  */
-export function createExecHandler(deps, logger) {
+export function createExecHandler(deps, logger, options = {}) {
+  const registry = options.registry ?? createTaskRegistry()
+
   return async function handleExec(request) {
     try {
       // 先看声明长度（避免无谓读取），再对实际字节数复核（防 chunked 绕过）。
@@ -44,9 +60,13 @@ export function createExecHandler(deps, logger) {
       if (!ACTIONS.has(action)) {
         return json({ ok: false, error: `unknown action: ${String(action)}` }, 400)
       }
-      const result = await dispatch(action, args, deps)
+      const result = await dispatch(action, args, deps, registry)
       return json({ ok: true, result }, 200)
     } catch (error) {
+      const code = error && typeof error === 'object' ? error.code : undefined
+      if (code === ERROR_CODES.TASK_NOT_FOUND) {
+        return json({ ok: false, error: error.message, code }, 404)
+      }
       const message = error instanceof Error ? error.message : String(error)
       logger?.warn?.('[dsh-pack-and-go] exec failed', message)
       return json({ ok: false, error: message }, 500)
@@ -58,9 +78,10 @@ export function createExecHandler(deps, logger) {
  * @param {string} action
  * @param {Record<string, unknown>} args
  * @param {object} deps
- * @returns {Promise<{ kind: string, text: string }>}
+ * @param {ReturnType<typeof createTaskRegistry>} registry
+ * @returns {Promise<object>}
  */
-async function dispatch(action, args, deps) {
+async function dispatch(action, args, deps, registry) {
   switch (action) {
     case 'list':
       return listCatalog(deps)
@@ -83,9 +104,52 @@ async function dispatch(action, args, deps) {
       )
     case 'import':
       return importPack(deps, args.pack, args.target, args.options ?? {})
+    case 'task.start':
+      return startTask(args, deps, registry)
+    case 'task.poll':
+      return registry.poll(String(args.taskId ?? ''), Number(args.cursor ?? 0))
+    case 'task.cancel':
+      return registry.cancel(String(args.taskId ?? ''))
     default:
       return { kind: 'error', text: `unknown action: ${action}` }
   }
+}
+
+/**
+ * 把导出/导入提交为后台任务（ADR-0021）。
+ * @param {Record<string, unknown>} args
+ * @param {object} deps
+ * @param {ReturnType<typeof createTaskRegistry>} registry
+ */
+function startTask(args, deps, registry) {
+  const kind = args.kind === 'import' ? 'import' : 'export'
+  const title =
+    kind === 'import'
+      ? `导入 ${typeof args.pack === 'string' ? args.pack : ''}`.trim()
+      : `导出 ${typeof args.target === 'string' ? args.target : ''}`.trim()
+
+  const run = async ({ signal, onProgress }) => {
+    if (kind === 'import') {
+      return importPack(deps, args.pack, args.target, {
+        ...(args.options ?? {}),
+        signal,
+        onProgress,
+      })
+    }
+    if (Array.isArray(args.workspaces) && args.workspaces.length > 0) {
+      return exportWorkspacesOnly(deps, args.target, args.workspaces, { signal, onProgress })
+    }
+    return exportAllSessions(
+      deps,
+      args.target,
+      Array.isArray(args.sessionIds) ? args.sessionIds : [],
+      args.includeFiles === true,
+      { ...(args.options ?? {}), signal, onProgress },
+    )
+  }
+
+  const { taskId } = registry.start({ kind, title, run })
+  return { ok: true, taskId, kind, title }
 }
 
 /**

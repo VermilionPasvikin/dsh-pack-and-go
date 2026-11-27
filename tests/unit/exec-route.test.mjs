@@ -61,3 +61,41 @@ test('声明 Content-Length 过大时直接 413，不读取正文', async () => 
   const response = await handler(request)
   assert.equal(response.status, 413)
 })
+
+test('task.start 立即返回 taskId，task.poll 拿到终态结果（ADR-0021）', async () => {
+  const handler = createExecHandler(makeDeps(), {})
+  const started = await handler(
+    post({ action: 'task.start', args: { kind: 'export', target: 'C:/tmp/out.dshpack' } }),
+  )
+  assert.equal(started.status, 200)
+  const first = await started.json()
+  assert.equal(first.ok, true)
+  const taskId = first.result.taskId
+  assert.match(taskId, /^export-/)
+
+  // 轮询直到终态（导出空目录会返回成功或错误结果，两种都算「跑完了」）。
+  let payload
+  for (let i = 0; i < 50; i += 1) {
+    const polled = await handler(post({ action: 'task.poll', args: { taskId } }))
+    assert.equal(polled.status, 200)
+    payload = await polled.json()
+    if (payload.result.status !== 'running') break
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  assert.notEqual(payload.result.status, 'running')
+  assert.equal(payload.result.taskId, taskId)
+})
+
+test('task.poll 未知 id 返回 404', async () => {
+  const handler = createExecHandler(makeDeps(), {})
+  const response = await handler(post({ action: 'task.poll', args: { taskId: 'nope' } }))
+  assert.equal(response.status, 404)
+  const payload = await response.json()
+  assert.equal(payload.ok, false)
+})
+
+test('task.cancel 对已完成任务返回 cancelled:false，对未知 id 返回 404', async () => {
+  const handler = createExecHandler(makeDeps(), {})
+  const missing = await handler(post({ action: 'task.cancel', args: { taskId: 'nope' } }))
+  assert.equal(missing.status, 404)
+})

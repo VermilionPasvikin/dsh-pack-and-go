@@ -201,10 +201,10 @@
 
 | ID | 任务（做什么） | 前置 | 验收（怎么算完成） | 状态 |
 |---|---|---|---|---|
-| T12.1 | 新增 `src/host/task-registry.js`（start/poll/cancel/list/dispose、游标、TTL、AbortController）+ 单测 | M11 | 单测：生命周期/增量帧/取消/TTL 清理；无 I/O | ⬜ |
-| T12.2 | exec 路由加 `task.start`/`task.poll`/`task.cancel`；长任务走注册表；单测覆盖三 action 与错误码 | T12.1 | 路由单测：start 返回 taskId、poll 增量、cancel 中止、未知 taskId 报错 | ⬜ |
-| T12.3 | 命令层 `onProgress`/`signal`：exportAllSessions/exportWorkspacesOnly/importPack/applyImport 按阶段与文件数发帧，取消时抛 `E_TASK_CANCELLED` | T12.2 | 单测：阶段顺序、done/total 递进、取消中止且不留暂存 | ⬜ |
-| T12.4 | 客户端进度条 + 已用时间 + 取消；>2s 操作走 task 通道；取消后提示可重试 | T12.3 | 手测：大包导出/导入全程可见进度并可取消；取消后重试成功 | ⬜ |
+| T12.1 | 新增 `src/host/task-registry.js`（start/poll/cancel/list/dispose、游标、TTL、AbortController）+ 单测 | M11 | 单测：生命周期/增量帧/取消/TTL 清理；无 I/O | ✅ 2026-11-27（devlog 161） |
+| T12.2 | exec 路由加 `task.start`/`task.poll`/`task.cancel`；长任务走注册表；单测覆盖三 action 与错误码 | T12.1 | 路由单测：start 返回 taskId、poll 增量、cancel 中止、未知 taskId 报错 | ✅ 2026-11-27（devlog 161） |
+| T12.3 | 命令层 `onProgress`/`signal`：exportAllSessions/exportWorkspacesOnly/importPack/applyImport 按阶段与文件数发帧，取消时抛 `E_TASK_CANCELLED` | T12.2 | 单测：阶段顺序、done/total 递进、取消中止且不留暂存 | ✅ 2026-11-27（devlog 161） |
+| T12.4 | 客户端进度条 + 取消；>2s 操作走 task 通道；取消后提示可重试 | T12.3 | 手测：大包导出/导入全程可见进度并可取消；取消后重试成功 | ✅ 2026-11-27（devlog 161；UI 视觉待 T12.5 真机确认） |
 | T12.5 | 回归与 0.3.1 发布准备：全量测试、DEVLOG、版本与 README/RELEASE | T12.4 | 全绿；`npm pack --dry-run` 正确 | ⬜ |
 
 ### M13 代码审查修复：预览与界面清理（0.3.2，ADR-0022，2026-11-27）
@@ -223,7 +223,7 @@
 
 ## 3. 当前进度
 
-- 当前里程碑：**M11 全部 ✅**；**M12 进行中**（按 CODE REVIEW 全项修复目标恢复 P2-6 进度与取消，ADR-0021）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
+- 当前里程碑：**M11 全部 ✅**；**M12 进行中**（T12.1–T12.4 ✅，下一步 T12.5 回归与 0.3.1 发布准备；ADR-0021）。M0–M10 任务全部 ✅（2026-11-24：T10.8 发布与验证完成——npm 0.2.3 发布、origin/main=66ef20e、v0.2.3 tag 在 origin，安装/启动/CLI 往返验证全通过，详见 DEVLOG 151）。
 - 2026-11-27：**T11.1 完成**——代码审查（AgentCompare 版本 B）14 条问题逐条复核全部成立，方案经用户批准后落地 ADR-0019/ADR-0020、SPEC v1.8、DESIGN §3.1/§4 与本节任务表（详见 DEVLOG 152）。
 - 2026-11-27：**T11.2 完成**——`zip-reader` 拆出只读中央目录层，`listZip` 不再解压、`compressedSize` 为真实值，新增 `readZipEntry` 与 4 GiB 解压总量上限（`E_PACK_TOO_LARGE`），`inspectPack` 只解压 manifest；单测 14/14、unit 215/207、e2e 16/15（详见 DEVLOG 153）。
 - 2026-11-27：**T11.3 完成**——新增纯函数 `planImportTargets`（四步判据 + ` (n)` 顺延 + 标题净化 + 冲突报告），`plan-import` 单测 18/18、unit 224/216（详见 DEVLOG 154）。
@@ -232,6 +232,7 @@
 - 2026-11-27：**T11.7 完成**——导出预检默认执行（`--no-preflight` 关闭）、符号链接越界改记 `symlink-outside`、zip 中央目录写真实时间、非法条目名改中文 `E_PACK_INVALID`、标题取最后一次 rename、exec 请求体 32 MiB 上限；新增/更新 5 个测试文件，全量 267/258 三连、手测 5/5（详见 DEVLOG 158）。
 - 2026-11-27：**T11.8 完成**——0.3.0 版本与发布材料就绪（README 能力表/兼容性说明、RELEASE 0.3.0、INDEX/TASKS 状态位），全量 267/258 两连、`npm pack` 41 文件 176.9 kB；发布命令待用户执行（详见 DEVLOG 159）。
 - 2026-11-27：**T11.4 完成**——`sanitizeRelativePath` 全段净化、win32/darwin 大小写冲突登记 ` (n)`、Windows 240 长路径跳过并记录，workspaces 单测 18/11、unit 229/221、e2e 16/15（详见 DEVLOG 155）。
+- 2026-11-27：**T12.1–T12.4 完成**——任务注册表（start/poll/cancel/TTL）、exec `task.*` 路由（含 404）、命令层进度帧与取消（`E_TASK_CANCELLED`）、客户端任务通道与进度条/取消按钮；unit 261/253、e2e 16/15、协议手测 10/10（详见 DEVLOG 161）。
 - 2026-11-12 追加并完成 **T9.6**（ADR-0017，跨平台状态事件 cwd 改写）。
 - 2026-11-12 完成 **T9.7**：macOS 全量执行 TEST-CASES（220/220），问题记录见 DEVLOG 140。
 - 2026-11-18 完成 **T9.8**：重定位导入改写 deliverables 文件引用路径 + `repair` 命令；全量 223 项通过。

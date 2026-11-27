@@ -21,6 +21,7 @@ import { basename, dirname, join } from 'node:path'
 import { ERROR_CODES, MoverError } from './errors.js'
 import { commitStagedDirectory, removeQuietly, stagingPath } from './apply-import.js'
 import { parseManifest } from './manifest-io.js'
+import { createProgressEvent } from './progress.js'
 import { sessionDir } from './paths.js'
 import { planImport, planImportTargets } from './plan-import.js'
 import {
@@ -39,6 +40,28 @@ import { listZip, readZipEntry } from './zip-reader.js'
  */
 function importError(message, details = {}) {
   return new MoverError(ERROR_CODES.PACK_INVALID, message, details)
+}
+
+/**
+ * 导入侧进度与取消（ADR-0021）：core 层只依赖调用方传入的 onProgress/signal。
+ * @param {{ onProgress?: (event: object) => void, taskId?: string }} input
+ */
+function importProgress(input = {}) {
+  const taskId = typeof input.taskId === 'string' && input.taskId.length > 0 ? input.taskId : 'adhoc'
+  const emit = (frame) => {
+    if (typeof input.onProgress !== 'function') return
+    try {
+      input.onProgress(createProgressEvent({ taskId, ...frame }))
+    } catch {
+      // 进度帧失败不影响导入本身
+    }
+  }
+  const ensureActive = () => {
+    if (input.signal && input.signal.aborted) {
+      throw new MoverError(ERROR_CODES.TASK_CANCELLED, '操作已取消', { reason: 'cancelled' })
+    }
+  }
+  return { emit, ensureActive }
 }
 
 /** 会话日志文件名前缀（vN + 压缩后缀）。 */
@@ -108,6 +131,7 @@ export async function importSessionsToDisk(input) {
   }
   const manifest = parseManifest(readZipEntry(buffer, 'manifest.json').data.toString('utf8'))
   const targetPlatform = input.targetPlatform ?? process.platform
+  const progress = importProgress(input)
 
   const plan = planImport({
     manifest,
@@ -136,11 +160,21 @@ export async function importSessionsToDisk(input) {
     )
   }
 
+  const totalSessions = plan.sessions.filter((session) => session.action !== 'skip').length
+  let doneSessions = 0
   for (const session of plan.sessions) {
     if (session.action === 'skip') {
       skipped.push(session.id)
       continue
     }
+    progress.ensureActive()
+    progress.emit({
+      stage: 'restore-sessions',
+      status: 'running',
+      done: doneSessions,
+      total: totalSessions,
+      message: `恢复对话 ${doneSessions + 1}/${totalSessions}`,
+    })
 
     const source = manifest.sessions.find((item) => item.id === session.id)
     if (!source) {
@@ -262,6 +296,13 @@ export async function importSessionsToDisk(input) {
       ...(fileRefsRewritten > 0 ? { fileRefsRewritten } : {}),
       ...(agentStateRewritten > 0 ? { agentStateRewritten } : {}),
     })
+    doneSessions += 1
+    progress.emit({
+      stage: 'restore-sessions',
+      status: 'running',
+      done: doneSessions,
+      total: totalSessions,
+    })
   }
 
   return { manifest, plan, written, skipped }
@@ -310,6 +351,9 @@ export async function applyImport(input) {
     reserved = [],
     backupRoot,
     now,
+    onProgress,
+    signal,
+    taskId,
   } = input
   if (!Buffer.isBuffer(buffer)) throw importError('applyImport 需要 Buffer 输入')
   if (typeof sessionRoot !== 'string' || sessionRoot.length === 0) {
@@ -379,6 +423,8 @@ export async function applyImport(input) {
   }
 
   // ③ 会话：单会话暂存 + 目录级 rename（ADR-0019 §3）。
+  const progress = importProgress({ onProgress, signal, taskId })
+  progress.ensureActive()
   const sessions = await importSessionsToDisk({
     buffer,
     sessionRoot,
@@ -390,6 +436,9 @@ export async function applyImport(input) {
     policy: input.policy,
     backupRoot,
     now,
+    onProgress,
+    signal,
+    taskId,
   })
 
   // ④ 工作区：只解压 workspaces/ 条目，覆盖前备份到 backupRoot（ADR-0020 §4）。
@@ -404,6 +453,14 @@ export async function applyImport(input) {
     const entry = readZipEntry(buffer, meta.name)
     workspaceEntries.push({ packPath: entry.name, data: entry.data, mode: entry.mode })
   }
+  progress.ensureActive()
+  progress.emit({
+    stage: 'restore-workspaces',
+    status: 'running',
+    done: 0,
+    total: workspaceEntries.filter((entry) => !entry.packPath.endsWith('/')).length,
+    message: `恢复 ${planned.targets.filter((target) => target.action !== 'skip').length} 个工作区`,
+  })
   const workspaces = await restoreWorkspaceFiles({
     entries: workspaceEntries,
     pathMap,
@@ -411,6 +468,9 @@ export async function applyImport(input) {
     sourcePlatform: manifest.source?.platform,
     backupRoot,
     now,
+    onProgress,
+    signal,
+    taskId,
   })
 
   return {

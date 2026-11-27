@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { loadCatalog } from './catalog.js'
 import { createMoverCommand } from './commands.js'
 import { createExecHandler } from './exec-route.js'
+import { createTaskRegistry } from './task-registry.js'
 import { rebuildSessionViaService } from './rebuild.js'
 
 /** @type {string} */
@@ -64,13 +65,17 @@ export function apply(ctx, config) {
     dshVersion: process.env.DSH_VERSION ?? 'unknown',
     logger,
   }
+  // 长任务注册表（ADR-0021）：exec 路由的 task.start/poll/cancel 共用一份，
+  // 插件卸载时统一 dispose（清理 TTL 定时器与帧缓冲）。
+  const taskRegistry = createTaskRegistry()
+  ctx.effect(() => () => taskRegistry.dispose())
   const registerExecRoute = () => {
     const connection = typeof ctx.get === 'function' ? ctx.get('connection') : undefined
     if (!connection || !connection.fetch || typeof connection.fetch.register !== 'function') {
       return false
     }
     try {
-      const handleExec = createExecHandler(execDeps, logger)
+      const handleExec = createExecHandler(execDeps, logger, { registry: taskRegistry })
       ctx.effect(() =>
         connection.fetch.register({
           path: '/api/mover/exec',

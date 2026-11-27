@@ -34,6 +34,8 @@ export const ERROR_CODES = Object.freeze({
   SCAN_INVALID: 'E_SCAN_INVALID',
   PACK_INVALID: 'E_PACK_INVALID',
   PACK_TOO_LARGE: 'E_PACK_TOO_LARGE',
+  TASK_CANCELLED: 'E_TASK_CANCELLED',
+  TASK_NOT_FOUND: 'E_TASK_NOT_FOUND',
   PLAN_INVALID: 'E_PLAN_INVALID',
   PROGRESS_INVALID: 'E_PROGRESS_INVALID',
   CATALOG_INVALID: 'E_CATALOG_INVALID',
@@ -88,6 +90,14 @@ export const ERROR_MESSAGES = Object.freeze({
   E_PACK_TOO_LARGE: {
     title: '迁移包解压后过大',
     next: '请让来源方缩小导出范围（少选工作区或排除大目录）后重新导出',
+  },
+  E_TASK_CANCELLED: {
+    title: '操作已取消',
+    next: '已完成的部分会保留；可直接重新发起同一个操作',
+  },
+  E_TASK_NOT_FOUND: {
+    title: '任务不存在或已过期',
+    next: 'DSH 重启后任务会丢失，请重新发起导出或导入',
   },
   E_PLAN_INVALID: {
     title: '打包/导入计划无效',

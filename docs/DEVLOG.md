@@ -1262,3 +1262,55 @@ T9.2/T9.4「用户决定不做」冲突，等用户明确解除后再立里程�
 - `docs/INDEX.md`：SPEC v1.9、M12 进行中、下一步 M12→M13、未决项更新。
 
 **状态**：方案落地完成；下一步 T12.1（任务注册表实现）。
+
+## 161 · 2026-11-27 · M12 实现：任务注册表、exec task.*、命令层进度与客户端进度条（T12.1–T12.4）
+
+**背景**：ADR-0021 落地后，按 M12 实现「进度与取消」（P2-6）。范围 T12.1 任务注册表、
+T12.2 exec `task.*`、T12.3 命令层 `onProgress`/`signal`、T12.4 客户端任务通道与进度条。
+
+**实现**
+- `src/host/task-registry.js`（新增，约 240 行）：`createTaskRegistry({ttlMs, pruneIntervalMs, now})`
+  提供 `start/poll/cancel/list/dispose/prune`。`start({kind,title,run})` 生成 `${kind}-${uuid}`，
+  后台执行 `run({taskId, signal, onProgress})`，帧写入环形缓冲；`poll(taskId, cursor)` 返回
+  `{taskId,kind,title,status,frames,nextCursor,startedAt,finishedAt?,result?,error?}`；
+  未知 id 抛 `E_TASK_NOT_FOUND`；`cancel` 置 `cancelled` 并 `controller.abort()`（已完成返回
+  `cancelled:false`）；TTL 30 min、`pruneTimer.unref()`、`dispose()` 清理。
+- `src/core/errors.js`：新增 `TASK_CANCELLED` / `TASK_NOT_FOUND`（含中文 title 与 next）。
+- `src/host/exec-route.js`：`ACTIONS` 增加 `task.start`/`task.poll`/`task.cancel`；
+  `createExecHandler(deps, logger, { registry })` 可注入注册表；`startTask` 按 `kind` 提交
+  `importPack` / `exportWorkspacesOnly` / `exportAllSessions` 并注入 `signal`/`onProgress`；
+  `E_TASK_NOT_FOUND` → **404**，其余 500。
+- `src/host/commands.js`：新增 `progressContext(options)`（`emit` 吞掉进度帧异常、
+  `ensureActive` 在 `signal.aborted` 时抛 `E_TASK_CANCELLED`）。`exportWorkspacesOnly` 与
+  `exportAllSessions` 接入 `scan`/`pack-*`/`done` 帧与取消检查；`importPack` 把 `progress`
+  传给 `applyImport`，成功后发 `register`/`done` 帧；三处 catch 对 `E_TASK_CANCELLED` 重抛
+  （让任务被标记 `cancelled` 而非 `error`）。
+- `src/core/import-pack.js` / `src/core/workspaces.js`：新增 `importProgress` 辅助；
+  `importSessionsToDisk` 逐会话发 `restore-sessions` 帧；`applyImport` 在会话/工作区之间
+  发 `restore-workspaces` 帧并透传 `onProgress`/`signal`/`taskId`；`restoreWorkspaceFiles`
+  逐文件发帧、每文件前检查取消。
+- `src/client/client.js`：新增 `task` 状态与 `runTaskMoverAction`（`task.start` → 500 ms 轮询
+  `task.poll`，累积帧更新进度；宿主不支持时回退 `runDirectAction`）；导出/导入改走任务通道，
+  `list/find/size/inspect` 仍直连；新增 `taskProgressView()`（阶段文案 + done/total + 进度条 +
+  「取消」按钮）与 `cancelTask()`；补齐 zh/en 文案 `taskRunning/taskCancel/taskCancelled/taskWaiting`。
+- `src/host/index.js`：创建 `createTaskRegistry()`，注入 `createExecHandler`，插件清理时
+  `taskRegistry.dispose()`。
+
+**测试**
+- `tests/unit/task-registry.test.mjs`（新增）7/7：后台执行与结果、游标增量、取消（含重复取消）、
+  失败记 error、未知 id `E_TASK_NOT_FOUND`、TTL 清理、list/dispose。
+- `tests/unit/exec-route.test.mjs` 追加 3 例（共 7/7）：`task.start` 返回 taskId 且 `task.poll`
+  拿到终态、轮询未知 id 404、取消未知 id 404。
+- 全量：`node --test --experimental-test-isolation=none "tests/unit/**/*.test.mjs"` →
+  **261 项 / 253 通过 / 0 失败 / 8 跳过**；`tests/e2e/**` → **16 项 / 15 通过 / 0 失败 / 1 跳过**。
+- 协议手测（模拟客户端轮询，真实文件系统一次性 TEMP 目录）10/10：`task.start` 返回 taskId、
+  导出任务 `success` 且收到 4 帧、结果文案含「已导出 1 个工作区（200 个文件）」、包文件生成、
+  中途 `task.cancel` → `cancelled` 且无成功结果、导入任务 `success` 且登记 1 个工作区、
+  `registry.list` 有 3 条。脚本与证据目录：`%TEMP%\dsh-t124-evidence\`、
+  `C:\Users\15349\AppData\Local\Temp\dsh-t124-drvnN7`。
+
+**已知限制**：进度条与取消按钮的视觉交互未自动化覆盖（需真实 DSH 窗口；R5 的 CDP 驱动为可选项），
+T12.5 发布前会在真实宿主 boot 时人工确认一次；`task.start` 的 export 分支在 deps 缺
+`workspaceRegistry.create` 时仍会返回「导入失败」文案（属依赖缺省，不是协议缺陷）。
+
+**状态**：T12.1–T12.4 完成；下一步 T12.5（0.3.1 回归与发布材料）。

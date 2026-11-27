@@ -37,6 +37,8 @@ import {
   scanFrames,
   scanWorkspace,
 } from '../core/index.js'
+import { ERROR_CODES, MoverError } from '../core/errors.js'
+import { createProgressEvent } from '../core/progress.js'
 import { loadCatalog } from './catalog.js'
 import { registerWorkspaces } from './register.js'
 
@@ -138,6 +140,7 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
   if (paths.length === 0) {
     return errorResult('请至少选择一个工作区。')
   }
+  const progress = progressContext(options)
   try {
     const platform = deps.platform ?? process.platform
     const workspaces = []
@@ -149,6 +152,14 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
     let dereferencedLinks = 0
     let skippedLinks = 0
     for (const [index, rawPath] of paths.entries()) {
+      progress.ensureActive()
+      progress.emit({
+        stage: 'scan',
+        status: 'running',
+        done: index,
+        total: paths.length,
+        message: `扫描工作区 ${rawPath.trim()}`,
+      })
       const sourcePath = rawPath.trim()
       let info
       try {
@@ -206,6 +217,13 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
         root: `workspaces/${key}/files`,
       })
     }
+    progress.emit({
+      stage: 'scan',
+      status: 'running',
+      done: paths.length,
+      total: paths.length,
+      message: '扫描完成',
+    })
     if (skippedWorkspaces.length > 0 && options.strict === true) {
       return errorResult(
         `导出中止（--strict）：${skippedWorkspaces.length} 个工作区无法读取：${describeSkips(skippedWorkspaces)}`,
@@ -224,6 +242,8 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
       workspaces,
       attachments: [],
     })
+    progress.ensureActive()
+    progress.emit({ stage: 'pack-workspaces', status: 'running', done: 0, total: 1 })
     const resolvedTarget = await resolveExportTarget(targetPath, undefined)
     const written = await buildPackToFile({
       plan: { items: planItems },
@@ -237,6 +257,7 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
       skippedWorkspaces.length > 0
         ? `；${skippedWorkspaces.length} 个工作区无法读取已跳过：${describeSkips(skippedWorkspaces)}`
         : ''
+    progress.emit({ stage: 'done', status: 'success', done: 1, total: 1, message: '导出完成' })
     return {
       kind: 'success',
       text: `已导出 ${workspaces.length} 个工作区（${planItems.length} 个文件）到 ${resolvedTarget}（${written.bytes} 字节）${
@@ -244,6 +265,7 @@ export async function exportWorkspacesOnly(deps, targetPath, workspacePaths, opt
       }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${skippedNote}。`,
     }
   } catch (error) {
+    if (error instanceof MoverError && error.code === ERROR_CODES.TASK_CANCELLED) throw error
     return errorResult(
       `导出失败：${error instanceof Error ? error.message : String(error)}`,
     )
@@ -280,6 +302,30 @@ function describeSkips(skipped) {
       return reason === item.path ? item.path : `${item.path}（${reason}）`
     })
     .join('；')
+}
+
+/**
+ * 进度与取消上下文（ADR-0021）：命令层只依赖 `options.onProgress` 与 `options.signal`。
+ * 进度失败不影响主流程；取消通过抛出 `E_TASK_CANCELLED` 中止。
+ * @param {Record<string, any>} options
+ */
+function progressContext(options = {}) {
+  const taskId =
+    typeof options.taskId === 'string' && options.taskId.length > 0 ? options.taskId : 'adhoc'
+  const emit = (input) => {
+    if (typeof options.onProgress !== 'function') return
+    try {
+      options.onProgress(createProgressEvent({ taskId, ...input }))
+    } catch {
+      // 进度帧异常不应影响导出/导入本身
+    }
+  }
+  const ensureActive = () => {
+    if (options.signal && options.signal.aborted) {
+      throw new MoverError(ERROR_CODES.TASK_CANCELLED, '操作已取消', { reason: 'cancelled' })
+    }
+  }
+  return { taskId, emit, ensureActive }
 }
 
 /**
@@ -338,6 +384,7 @@ export async function exportAllSessions(
   options = {},
 ) {
   if (!targetPath) return errorResult(`缺少目标文件。${USAGE}`)
+  const progress = progressContext(options)
   try {
     const catalog = await loadCatalog({
       workspaceRegistry: deps.workspaceRegistry,
@@ -360,6 +407,15 @@ export async function exportAllSessions(
     if (sessions.length === 0) {
       return errorResult('没有可导出的对话。')
     }
+
+    progress.ensureActive()
+    progress.emit({
+      stage: 'scan',
+      status: 'running',
+      done: 0,
+      total: sessions.length,
+      message: `已选中 ${sessions.length} 个对话`,
+    })
 
     // FORK 连带（SPEC FR-14）：默认带上 fork 祖先与子代理后代，可用 --no-fork 关闭。
     if (options.includeFork !== false) {
@@ -424,6 +480,7 @@ export async function exportAllSessions(
         scanOptions.excludedDirs = [...DEFAULT_EXCLUDED_DIRS, ...options.excludedDirs]
       }
       for (const session of sessions) {
+        progress.ensureActive()
         const cwd = session.cwd
         if (typeof cwd !== 'string' || cwd.length === 0 || seenCwds.has(cwd)) continue
         seenCwds.add(cwd)
@@ -471,6 +528,13 @@ export async function exportAllSessions(
       }
     }
 
+    progress.emit({
+      stage: 'scan',
+      status: 'running',
+      done: sessions.length,
+      total: sessions.length,
+      message: `扫描完成（${scannedCwds.length} 个工作区）`,
+    })
     if (options.strict === true && skippedWorkspaces.length > 0) {
       return errorResult(
         `导出中止（--strict）：${skippedWorkspaces.length} 个工作区无法读取：${describeSkips(skippedWorkspaces)}`,
@@ -562,6 +626,14 @@ export async function exportAllSessions(
       })),
     })
 
+    progress.ensureActive()
+    progress.emit({
+      stage: 'pack-sessions',
+      status: 'running',
+      done: 0,
+      total: Math.max(1, sessions.length),
+      message: `打包 ${sessions.length} 个对话`,
+    })
     const resolvedTarget = await resolveExportTarget(targetPath, options.name)
     console.log(
       '[dsh-pack-and-go] export target',
@@ -603,6 +675,13 @@ export async function exportAllSessions(
       }
       preflightNote = `；预检 ${riskCount} 项`
     }
+    progress.emit({
+      stage: 'done',
+      status: 'success',
+      done: Math.max(1, sessions.length),
+      total: Math.max(1, sessions.length),
+      message: '导出完成',
+    })
     return {
       kind: 'success',
       text: `已导出 ${sessions.length} 个对话${fileNote}到 ${resolvedTarget}（${written.bytes} 字节）${
@@ -610,6 +689,7 @@ export async function exportAllSessions(
       }${skippedLinks > 0 ? `；跳过 ${skippedLinks} 个符号链接` : ''}${skippedNote}${preflightNote}`,
     }
   } catch (error) {
+    if (error instanceof MoverError && error.code === ERROR_CODES.TASK_CANCELLED) throw error
     return errorResult(
       `导出失败：${error instanceof Error ? error.message : String(error)}`,
     )
@@ -872,7 +952,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
   }
   const sessionPolicy = options.sessionPolicy === 'overwrite' ? 'overwrite' : 'skip'
   const root = targetRoot.trim()
+  const progress = progressContext(options)
   try {
+    progress.ensureActive()
     const buffer = await readFile(packPath)
     // 只读中央目录拿条目元数据，manifest 按需解压（NFR-6.5）。
     const metas = listZip(buffer)
@@ -918,6 +1000,9 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       // 覆盖/迁移覆盖前备份旧文件（迁移时旧目录移到该备份根下）。
       backupRoot: join(resolveDshHome(deps), 'dsh-pack-and-go-backup'),
       now: options.now,
+      onProgress: progress.emit,
+      signal: options.signal,
+      taskId: progress.taskId,
     })
     const sessions = { written: applied.written, skipped: applied.skipped }
     const files = applied.workspaces
@@ -1128,6 +1213,20 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
     ]
       .filter(Boolean)
       .join('，')
+    progress.emit({
+      stage: 'register',
+      status: 'running',
+      done: sessions.written.length,
+      total: Math.max(1, sessions.written.length),
+      message: `登记 ${registered.registered.length} 个工作区`,
+    })
+    progress.emit({
+      stage: 'done',
+      status: 'success',
+      done: Math.max(1, sessions.written.length),
+      total: Math.max(1, sessions.written.length),
+      message: '导入完成',
+    })
     return {
       kind: 'success',
       text: `已导入 ${
@@ -1151,6 +1250,7 @@ export async function importPack(deps, packPath, targetRoot, options = {}) {
       }${restartNote}若左侧列表未出现，请刷新页面或重启 DSH。`,
     }
   } catch (error) {
+    if (error instanceof MoverError && error.code === ERROR_CODES.TASK_CANCELLED) throw error
     console.error('[dsh-pack-and-go] import failed', error)
     return errorResult(
       `导入失败：${error instanceof Error ? error.message : String(error)}`,

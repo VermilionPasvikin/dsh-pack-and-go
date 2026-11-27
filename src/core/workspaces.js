@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path'
 
 import { ERROR_CODES, MoverError } from './errors.js'
 import { timestampOf } from './apply-import.js'
+import { createProgressEvent } from './progress.js'
 import { sanitizeWindowsName } from './preflight.js'
 
 /** 单段文件名上限（ext4 / NTFS 均为 255 字节）。 */
@@ -153,6 +154,25 @@ function createNameRegistry(platform) {
  */
 export async function restoreWorkspaceFiles(input) {
   const { entries, pathMap, targetPlatform, sourcePlatform } = input
+  const onProgress = typeof input.onProgress === 'function' ? input.onProgress : undefined
+  const signal = input.signal
+  const taskId =
+    typeof input.taskId === 'string' && input.taskId.length > 0 ? input.taskId : 'adhoc'
+  const totalFiles = entries.filter((entry) => !String(entry.packPath ?? '').endsWith('/')).length
+  let doneFiles = 0
+  const ensureActive = () => {
+    if (signal && signal.aborted) {
+      throw new MoverError(ERROR_CODES.TASK_CANCELLED, '操作已取消', { reason: 'cancelled' })
+    }
+  }
+  const emitProgress = (frame) => {
+    if (!onProgress) return
+    try {
+      onProgress(createProgressEvent({ taskId, stage: 'restore-workspaces', ...frame }))
+    } catch {
+      // 进度帧失败不影响恢复
+    }
+  }
   if (!Array.isArray(entries)) throw workspaceError('entries 必须是数组')
   if (pathMap === null || typeof pathMap !== 'object' || typeof pathMap.byKey !== 'object') {
     throw workspaceError('缺少路径映射 pathMap')
@@ -198,6 +218,7 @@ export async function restoreWorkspaceFiles(input) {
     const nameRegistry = createNameRegistry(targetPlatform)
 
     for (const file of files) {
+      ensureActive()
       // ADR-0020 §1：目录与文件的每一段都净化（目录名也可能是非法名或保留名）。
       const sanitized = sanitizeRelativePath(file.relative, targetPlatform)
       let relative = sanitized.path
@@ -268,6 +289,8 @@ export async function restoreWorkspaceFiles(input) {
       }
       written.push({ key, path: target })
       if (existed) overwritten.push({ key, path: target })
+      doneFiles += 1
+      emitProgress({ status: 'running', done: doneFiles, total: totalFiles })
     }
   }
 
@@ -290,5 +313,11 @@ export async function restoreWorkspaceFiles(input) {
     }
   }
 
+  emitProgress({
+    status: 'running',
+    done: totalFiles,
+    total: totalFiles,
+    message: '工作区恢复完成',
+  })
   return { written, overwritten, backups, dirs, conversions, modes, warnings }
 }
