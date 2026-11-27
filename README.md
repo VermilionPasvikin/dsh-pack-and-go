@@ -3,8 +3,8 @@
 > **打包就走。** 把 DSH 的「对话 + 工作区」装进一个 `.dshpack` 文件，换台电脑（或换个平台）继续用。
 
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./package.json)
-[![tests](https://img.shields.io/badge/tests-220%20passing-brightgreen.svg)](./tests)
-[![spec](https://img.shields.io/badge/spec-v1.5-informational.svg)](./docs/SPEC.md)
+[![tests](https://img.shields.io/badge/tests-258%20passing-brightgreen.svg)](./tests)
+[![spec](https://img.shields.io/badge/spec-v1.8-informational.svg)](./docs/SPEC.md)
 
 ---
 
@@ -18,11 +18,13 @@
 | 🔁 **覆盖即回滚** | 重新导入旧包 = 把对话恢复到导出时的状态 |
 | 🧩 **fork 链** | 分支/子代理对话默认连带导出 |
 | 📎 **附件** | 图片、文档等按内容寻址打包与恢复 |
-| 🔗 **符号链接** | 文件链接自动解引用；目录/损坏链接跳过并报告 |
+| 🔗 **符号链接** | 文件链接自动解引用（目标必须仍在工作区内）；目录/损坏/越界链接跳过并报告 |
 | 🔐 **权限保真** | POSIX 目标按包内文件/目录 mode 恢复（剥离 setuid/setgid；目录两阶段）；Windows 目标忽略（ADR-0016 B1+B2） |
+| 🧱 **原子导入** | 先规划再写盘：会话与工作区都先写暂存目录、成功后整体改名，中途失败不留半成品 |
+| 🛡 **路径安全** | 目录段逐个净化（非法字符、保留名、尾随空格点、大小写冲突、Windows 长路径），冲突改名并逐条报告 |
 | 🚀 **零额外依赖** | 只用 Node 内置能力（zstd、zip、流式 IO） |
 
-导入时如果对话已存在，你可以选择 **跳过** 或 **覆盖**；覆盖会先备份，目标目录不同时会自动执行「**迁移覆盖**」并明确提示原/新位置。
+导入时如果对话已存在，你可以选择 **跳过** 或 **覆盖**；覆盖会先把旧文件备份到 `<DSH_HOME>/dsh-pack-and-go-backup/<时间戳>/`，目标目录不同时会自动执行「**迁移覆盖**」并明确提示原/新位置。同名工作区不再静默合并：本次导入内已分配的目录会顺延为 `标题 (1)`、`标题 (2)`（ADR-0019 四步判据）。
 
 | 导出 | 导入 |
 |---|---|
@@ -79,6 +81,8 @@ dsh plugin --profile <profile> add ./dsh-pack-and-go-0.2.1.tgz
 也可以在 DSH 插件管理页添加本地路径，或直接输入 npm / GitHub 坐标。安装后侧边栏出现「**迁移对话或工作区**」入口。
 
 > 兼容性：DSH `>=0.2.0 <0.3.0`（当前 0.2.2-rc.5 已验证，2026-11-23 检出报告见 `docs/compat/reports/detect-0.2.2-rc.5.md`）；Node.js ≥ 22.15。
+>
+> 0.3.0 行为变更（ADR-0019 / ADR-0020）：同名工作区不再静默合并；导入前完成全部预检（未知覆盖提前报错）；工作区文件覆盖前备份；目录段路径净化与大小写冲突改名；Windows 超过 240 字符的路径跳过并报告。
 
 ### 使用（Web UI）
 
@@ -95,6 +99,10 @@ dsh-pack-and-go export --home /path/to/.dsh --out /tmp/pack.dshpack --files
 # 仅导出工作区（可多次 --workspace）
 dsh-pack-and-go export --home /path/to/.dsh --out /tmp/ws.dshpack \
   --workspace /path/to/workspace-a --workspace /path/to/workspace-b
+
+# --strict：任一工作区无法读取就中止（默认是「跳过并在结果里列出」）
+dsh-pack-and-go export --home /path/to/.dsh --out /tmp/ws.dshpack \
+  --workspace /path/to/workspace-a --strict
 
 # 导入（--target 必填；--overwrite 覆盖已存在对话）
 dsh-pack-and-go import --home /path/to/.dsh --pack /tmp/pack.dshpack \
